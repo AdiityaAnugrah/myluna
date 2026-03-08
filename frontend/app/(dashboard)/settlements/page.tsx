@@ -1,0 +1,613 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useSettlements, useRequestCancelSettlement } from '@/lib/hooks/useSettlements';
+import { useRequestCancelSale } from '@/lib/hooks/useSales';
+import { useAuthStore } from '@/lib/stores/auth';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Breadcrumbs } from '@/components/ui/breadcrumbs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Loader2, Search, AlertCircle, CheckCircle2, Clock, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { SettlementFormDialog } from '@/components/settlements/SettlementFormDialog';
+import { OtherIncomeDialog } from '@/components/settlements/OtherIncomeDialog';
+import { OtherIncomeListDialog } from '@/components/settlements/OtherIncomeListDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { differenceInDays, format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+
+export default function SettlementsPage() {
+  const router = useRouter();
+  const { user } = useAuthStore();
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState<'all' | 'pending' | 'settled'>('pending');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSale, setSelectedSale] = useState<any>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  
+  // Cancel related
+  const [cancelId, setCancelId] = useState<string | null>(null);
+  const [cancelType, setCancelType] = useState<'SALE' | 'SETTLEMENT'>('SETTLEMENT');
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [otherIncomeOpen, setOtherIncomeOpen] = useState(false);
+  const [otherIncomeListOpen, setOtherIncomeListOpen] = useState(false);
+  const requestCancelMutation = useRequestCancelSettlement();
+  const requestCancelSaleMutation = useRequestCancelSale();
+
+  const { data, isLoading } = useSettlements(
+    {
+      page,
+      limit: 20,
+      status: status === 'all' ? undefined : status,
+      userId: user?.id, // Add userId for cache isolation
+    },
+    { 
+      enabled: user?.role !== 'TCP',
+      refetchOnWindowFocus: true, // Refetch when window gets focus
+      refetchOnMount: true, // Refetch when component mounts
+    }
+  );
+
+  if (user?.role === 'TCP') {
+    return (
+      <div className="flex h-[80vh] w-full items-center justify-center">
+        <div className="text-center space-y-4 p-8 rounded-2xl bg-card border shadow-lg max-w-md mx-auto">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+            <AlertCircle className="h-8 w-8 text-red-600" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-foreground">Akses Ditolak</h3>
+            <p className="text-muted-foreground mt-2">
+              Kamu tidak mempunyai akses ke fitur ini.
+            </p>
+          </div>
+          <Button onClick={() => router.push('/')} variant="default" className="w-full">
+            Kembali ke Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const settlements = (data as any)?.data?.settlements || [];
+  const pagination = (data as any)?.data?.pagination;
+
+  const getDaysSinceProcessed = (processedAt: string) => {
+    return differenceInDays(new Date(), new Date(processedAt));
+  };
+
+  const needsWarning = (sale: any) => {
+    if (!sale.processedAt) return false;
+    const days = getDaysSinceProcessed(sale.processedAt);
+    return days >= 10 && days < 15; // Warning at 10-14 days
+  };
+
+  const isOverdue = (sale: any) => {
+    if (!sale.processedAt) return false;
+    const days = getDaysSinceProcessed(sale.processedAt);
+    return days >= 15; // Overdue at 15 days or more
+  };
+
+  const formatCurrency = (value: string | number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+    }).format(typeof value === 'string' ? parseFloat(value) : value);
+  };
+
+  const handleCreateSettlement = (sale: any) => {
+    setSelectedSale(sale);
+    setFormOpen(true);
+  };
+
+  const handleCancelClick = (id: string, type: 'SALE' | 'SETTLEMENT') => {
+      setCancelId(id);
+      setCancelType(type);
+      setCancelReason("");
+      setCancelOpen(true);
+  };
+
+  const submitCancellation = () => {
+    if (cancelId && cancelReason.trim()) {
+      const mutation = cancelType === 'SETTLEMENT' ? requestCancelMutation : requestCancelSaleMutation;
+      
+      mutation.mutate(
+        { id: cancelId, reason: cancelReason },
+        {
+          onSuccess: () => {
+            setCancelOpen(false);
+            setCancelId(null);
+            setCancelReason("");
+          },
+        }
+      );
+    }
+  };
+
+  const filteredSettlements = settlements
+    .filter((item: any) => {
+      if (!searchQuery) return true;
+      
+      const sale = item.sale || item;
+      const searchLower = searchQuery.toLowerCase();
+      return (
+        sale?.saleNumber?.toLowerCase().includes(searchLower) ||
+        sale?.customerName?.toLowerCase().includes(searchLower) ||
+        sale?.customerPhone?.toLowerCase().includes(searchLower)
+      );
+    })
+    .sort((a: any, b: any) => {
+      const saleA = a.sale || a;
+      const saleB = b.sale || b;
+      
+      // Sort by urgency first (overdue 15+ days)
+      const aOverdue = isOverdue(saleA);
+      const bOverdue = isOverdue(saleB);
+      if (aOverdue && !bOverdue) return -1;
+      if (!aOverdue && bOverdue) return 1;
+      
+      // Then by days since processed (oldest first)
+      if (saleA.processedAt && saleB.processedAt) {
+        return new Date(saleA.processedAt).getTime() - new Date(saleB.processedAt).getTime();
+      }
+      
+      return 0;
+    });
+
+  return (
+    <div className="space-y-6">
+      <Breadcrumbs items={[{ label: 'Keuangan' }, { label: 'Pelunasan' }]} />
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Pelunasan Penjualan</h1>
+          <p className="text-gray-600 mt-1">
+            Kelola pelunasan dan dana bersih dari penjualan
+          </p>
+        </div>
+        {user?.role !== 'TCP' && (
+          <div className="flex items-center gap-2">
+            {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (
+              <Button
+                variant="outline"
+                onClick={() => setOtherIncomeListOpen(true)}
+              >
+                Lihat Lain-lain
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => setOtherIncomeOpen(true)}
+            >
+              Pendapatan Lain-lain
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filter</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2 tour-settlements-status">
+              <Label>Status</Label>
+              <Select value={status} onValueChange={(v: any) => setStatus(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua</SelectItem>
+                  <SelectItem value="pending">Belum Lunas</SelectItem>
+                  <SelectItem value="settled">Sudah Lunas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Cari Penjualan</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="No. Penjualan, Nama, HP..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Table */}
+      <Card className="tour-settlements-list">
+        <CardHeader>
+          <CardTitle>Daftar Penjualan</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            </div>
+          ) : (
+            <>
+                {/* Mobile View */}
+                <div className="md:hidden space-y-3 animate-in fade-in-50">
+                    {filteredSettlements.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500 text-xs">
+                            Tidak ada data
+                        </div>
+                    ) : (
+                        filteredSettlements.map((item: any) => {
+                            const sale = item.sale || item;
+                            const settlement = item.settlement || (item.netAmount ? item : null);
+                            const isSettled = !!settlement;
+                            const daysSince = sale.processedAt ? getDaysSinceProcessed(sale.processedAt) : 0;
+                            const warning = needsWarning(sale);
+                            const overdue = isOverdue(sale);
+
+                            return (
+                                <div key={sale.id} className={cn(
+                                    "rounded-lg border bg-card p-3 shadow-sm relative overflow-hidden",
+                                    overdue && !isSettled && "border-l-4 border-l-red-500 bg-red-50/50"
+                                )}>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="text-[10px] text-muted-foreground">
+                                            {format(new Date(sale.saleDate), 'dd MMM yyyy')}
+                                        </div>
+                                        <div className="scale-75 origin-top-right">
+                                            {isSettled ? (
+                                                <Badge variant="default" className="bg-green-600 h-5 px-1.5 text-[10px]">Lunas</Badge>
+                                            ) : overdue ? (
+                                                <Badge variant="destructive" className="animate-pulse h-5 px-1.5 text-[10px]">URGENT</Badge>
+                                            ) : warning ? (
+                                                <Badge variant="outline" className="border-orange-500 text-orange-600 h-5 px-1.5 text-[10px]">Warning</Badge>
+                                            ) : (
+                                                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Pending</Badge>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="mb-2">
+                                        <div className="font-bold text-[12px] truncate">{sale.customerName || '-'}</div>
+                                        <div className="text-[10px] text-muted-foreground">{sale.customerPhone || '-'}</div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 mb-2 bg-muted/30 p-2 rounded">
+                                        <div>
+                                            <span className="text-[10px] text-muted-foreground block">Total</span>
+                                            <span className="font-semibold text-[11px]">{formatCurrency(sale.totalAmount)}</span>
+                                        </div>
+                                        {isSettled && settlement && (
+                                            <div className="text-right">
+                                                <span className="text-[10px] text-muted-foreground block">Bersih</span>
+                                                <span className="font-bold text-[12px] text-green-600">{formatCurrency(settlement.netAmount)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {!isSettled && overdue && (
+                                        <div className="flex items-center gap-1.5 text-[10px] text-red-600 bg-red-100/50 p-1.5 rounded mb-2">
+                                            <AlertCircle className="h-3 w-3" />
+                                            <span>Telat {daysSince} hari (Deadline 15 hari)</span>
+                                        </div>
+                                    )}
+
+                                    <div className="flex justify-end gap-2 mt-2">
+                                        {!isSettled && (
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handleCreateSettlement(sale)}
+                                                variant={warning || overdue ? 'destructive' : 'default'}
+                                                className="w-full h-8 text-[11px]"
+                                            >
+                                                Input Pelunasan
+                                            </Button>
+                                        )}
+                                        {isSettled && (
+                                            <>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => router.push(`/settlements/${item.id}`)}
+                                                    className="flex-1 h-8 text-[11px]"
+                                                >
+                                                    Detail
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="destructive"
+                                                    onClick={() => handleCancelClick(item.id, 'SETTLEMENT')}
+                                                    className="w-8 h-8 p-0"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
+                {/* Desktop View */}
+                <div className="hidden md:block overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                    <TableRow>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Tanggal</TableHead>
+                        <TableHead>Pelanggan</TableHead>
+                        <TableHead className="text-right">Total (Kotor)</TableHead>
+                        <TableHead className="text-right">Dana Bersih</TableHead>
+                        <TableHead>Tgl Pelunasan</TableHead>
+                        <TableHead>Aksi</TableHead>
+                    </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                    {filteredSettlements.length === 0 ? (
+                        <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                            Tidak ada data
+                        </TableCell>
+                        </TableRow>
+                    ) : (
+                        filteredSettlements.map((item: any) => {
+                        // Backend returns 2 structures:
+                        // Pending: { sale: {...}, settlement: null } OR just Sale object
+                        // Settled: Settlement object { id, netAmount, settlementDate, sale: {...} }
+                        const sale = item.sale || item;
+                        
+                        // Check if this is a settled item:
+                        // Either has settlement relation OR has netAmount directly (is Settlement object)
+                        const settlement = item.settlement || (item.netAmount ? item : null);
+                        const isSettled = !!settlement;
+                        
+                        const daysSince = sale.processedAt ? getDaysSinceProcessed(sale.processedAt) : 0;
+                        const warning = needsWarning(sale);
+                        const overdue = isOverdue(sale);
+
+                        return (
+                            <TableRow key={sale.id} className={overdue && !isSettled ? 'bg-red-50 border-l-4 border-l-red-500' : ''}>
+                            <TableCell>
+                                {isSettled ? (
+                                <Badge variant="default" className="bg-green-600">
+                                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                                    Lunas
+                                </Badge>
+                                ) : overdue ? (
+                                <Badge variant="destructive" className="animate-pulse">
+                                    <AlertCircle className="mr-1 h-3 w-3" />
+                                    URGENT - {daysSince} hari (Deadline 15 hari!)
+                                </Badge>
+                                ) : warning ? (
+                                <Badge variant="outline" className="border-orange-500 text-orange-600">
+                                    <Clock className="mr-1 h-3 w-3" />
+                                    {daysSince} hari (Deadline 15 hari)
+                                </Badge>
+                                ) : (
+                                <Badge variant="secondary">
+                                    <Clock className="mr-1 h-3 w-3" />
+                                    Pending ({daysSince} hari)
+                                </Badge>
+                                )}
+                            </TableCell>
+                            <TableCell>
+                                {new Date(sale.saleDate).toLocaleDateString('id-ID')}
+                            </TableCell>
+                            <TableCell>
+                                <div>
+                                <div className="font-medium">
+                                    {sale.customerName || '-'}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                    {sale.customerPhone || '-'}
+                                </div>
+                                </div>
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                                {formatCurrency(sale.totalAmount)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                                {isSettled && settlement ? (
+                                <span className="font-semibold text-green-600">
+                                    {formatCurrency(settlement.netAmount)}
+                                </span>
+                                ) : (
+                                <span className="text-gray-400">-</span>
+                                )}
+                            </TableCell>
+                            <TableCell>
+                                {isSettled && settlement
+                                ? new Date(settlement.settlementDate).toLocaleDateString('id-ID')
+                                : '-'}
+                            </TableCell>
+                            <TableCell>
+                                {!isSettled && (
+                                <div className="flex items-center gap-2">
+                                <Button
+                                    size="sm"
+                                    onClick={() => handleCreateSettlement(sale)}
+                                    variant={warning ? 'destructive' : 'default'}
+                                >
+                                    Input Pelunasan
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                    onClick={() => handleCancelClick(sale.id, 'SALE')}
+                                    title="Ajukan Pembatalan Penjualan"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                                </div>
+                                )}
+                                {isSettled && (
+                                    <div className="flex items-center gap-2">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => router.push(`/settlements/${settlement.id}`)}
+                                    >
+                                        Detail
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        onClick={() => handleCancelClick(settlement.id, 'SETTLEMENT')}
+                                        title="Ajukan Pembatalan Pelunasan"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                    </div>
+                                )}
+                            </TableCell>
+                            </TableRow>
+                        );
+                        })
+                    )}
+                    </TableBody>
+                </Table>
+                </div>
+            </>
+          )}
+
+          {/* Pagination */}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-gray-600">
+                Halaman {pagination.page} dari {pagination.totalPages} (Total:{' '}
+                {pagination.total})
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pagination.page === 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Sebelumnya
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pagination.page === pagination.totalPages}
+                  onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                >
+                  Selanjutnya
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Form Dialog */}
+      <SettlementFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        sale={selectedSale}
+        onSuccess={() => {
+          setFormOpen(false);
+          setSelectedSale(null);
+        }}
+      />
+
+      {/* Other Income Dialog */}
+      <OtherIncomeDialog
+        open={otherIncomeOpen}
+        onOpenChange={setOtherIncomeOpen}
+      />
+
+      {/* Other Income List Dialog — Admin/Super Admin only */}
+      <OtherIncomeListDialog
+        open={otherIncomeListOpen}
+        onOpenChange={setOtherIncomeListOpen}
+      />
+
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              {cancelType === 'SETTLEMENT' ? 'Ajukan Pembatalan Pelunasan' : 'Ajukan Pembatalan Penjualan'}
+            </DialogTitle>
+            <DialogDescription>
+              {cancelType === 'SETTLEMENT'
+                ? 'Jelaskan alasan pembatalan pelunasan ini. Permintaan akan dikirimkan ke Admin untuk ditinjau.'
+                : 'Jelaskan alasan pembatalan penjualan ini. Permintaan akan dikirimkan ke Admin untuk ditinjau.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="reason">Alasan Pembatalan</Label>
+              <Textarea
+                id="reason"
+                placeholder="Contoh: Salah nominasi pembayaran, atau barang dikembalikan."
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="col-span-3 min-h-[100px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelOpen(false)}>
+              Batal
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={submitCancellation}
+              disabled={
+                !cancelReason.trim() ||
+                (cancelType === 'SETTLEMENT' ? requestCancelMutation.isPending : requestCancelSaleMutation.isPending)
+              }
+            >
+              {(cancelType === 'SETTLEMENT' ? requestCancelMutation.isPending : requestCancelSaleMutation.isPending) ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Mengirim...
+                </>
+              ) : (
+                'Kirim Pengajuan'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
