@@ -121,7 +121,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
           productId: item.productId,
           variantName: item.variantName || null,
           quantity: item.quantity,
-          price: parseFloat(item.price),
+          price: typeof item.price === 'string' ? parseFloat(item.price) : Number(item.price),
         })) || []
       );
       setInitialDataLoaded(true);

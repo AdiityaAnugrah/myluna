@@ -118,7 +118,7 @@ export default function EditPurchasePage({ params }: { params: Promise<{ id: str
         purchase.items?.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
-          price: parseFloat(item.price),
+          price: typeof item.price === 'string' ? parseFloat(item.price) : Number(item.price),
         })) || []
       );
       setInitialDataLoaded(true);
