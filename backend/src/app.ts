@@ -10,7 +10,6 @@ const app = express();
 
 // Global Request Logger
 app.use((req, _res, next) => {
-  const userAgent = req.get('user-agent');
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
