@@ -83,8 +83,8 @@ export const stockController = {
       const product = await Product.findByPk(productId, { transaction });
       
       // Check for approval workflow
-      const userRole = (req as any).user?.roleName;
-      const userId = (req as any).user?.id;
+      // const userRole = (req as any).user?.roleName;
+      // const userId = (req as any).user?.id;
 
 
       

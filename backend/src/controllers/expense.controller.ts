@@ -3,6 +3,8 @@ import { Expense, User } from '../models';
 import { successResponse, errorResponse } from '../utils/response';
 import { Op } from 'sequelize';
 
+import { sequelize } from '../config/database';
+
 export const expenseController = {
   // Get all expenses with filters
   async getAll(req: Request, res: Response, next: NextFunction) {
@@ -58,7 +60,7 @@ export const expenseController = {
   },
 
   // Get expense by ID
-  async getById(req: Request, res: Response, next: NextFunction) {
+  async getById(req: Request, res: Response, next: NextFunction): Promise<any> {
     try {
       const { id } = req.params;
 
@@ -73,7 +75,7 @@ export const expenseController = {
       });
 
       if (!expense) {
-        return errorResponse(res, 'Expense not found', 404);
+        return errorResponse(res, 'Expense not found', '404');
       }
 
       return successResponse(res, expense, 'Expense retrieved successfully', 200);
@@ -83,7 +85,8 @@ export const expenseController = {
   },
 
   // Create new expense
-  async create(req: Request, res: Response, next: NextFunction) {
+  async create(req: Request, res: Response, next: NextFunction): Promise<any> {
+    const t = await sequelize.transaction();
     try {
       const { category, description, amount, expenseDate, notes } = req.body;
 
@@ -95,29 +98,34 @@ export const expenseController = {
         notes: notes || null,
         receiptDocument: null, // TODO: Handle file upload
         createdBy: req.user!.id,
-      });
+      }, { transaction: t }); // Added transaction
 
+      await t.commit(); // Commit transaction
       return successResponse(res, expense, 'Expense created successfully', 201);
     } catch (error) {
+      await t.rollback(); // Rollback transaction on error
       next(error);
     }
   },
 
   // Update expense
-  async update(req: Request, res: Response, next: NextFunction) {
+  async update(req: Request, res: Response, next: NextFunction): Promise<any> {
+    const t = await sequelize.transaction();
     try {
       const { id } = req.params;
       const { category, description, amount, expenseDate, notes } = req.body;
 
-      const expense = await Expense.findByPk(id);
+      const expense = await Expense.findByPk(id, { transaction: t }); // Added transaction
 
       if (!expense) {
-        return errorResponse(res, 'Expense not found', 404);
+        await t.rollback(); // Rollback transaction if not found
+        return errorResponse(res, 'Expense not found', '404');
       }
 
       // Only SUPER_ADMIN or creator can update
       if (req.user!.roleName !== 'SUPER_ADMIN' && expense.createdBy !== req.user!.id) {
-        return errorResponse(res, 'Not authorized to update this expense', 403);
+        await t.rollback(); // Rollback transaction if not authorized
+        return errorResponse(res, 'Not authorized to update this expense', '403');
       }
 
       await expense.update({
@@ -126,28 +134,32 @@ export const expenseController = {
         amount: parseFloat(amount).toString(),
         expenseDate: new Date(expenseDate),
         notes: notes || null,
-      });
+      }, { transaction: t }); // Added transaction
 
+      await t.commit(); // Commit transaction
       return successResponse(res, expense, 'Expense updated successfully', 200);
     } catch (error) {
+      await t.rollback(); // Rollback transaction on error
       next(error);
     }
   },
 
   // Delete expense
-  async delete(req: Request, res: Response, next: NextFunction) {
+  async delete(req: Request, res: Response, next: NextFunction): Promise<any> {
+    const t = await sequelize.transaction();
     try {
       const { id } = req.params;
 
-      const expense = await Expense.findByPk(id);
+      const expense = await Expense.findByPk(id, { transaction: t }); // Added transaction
 
       if (!expense) {
-        return errorResponse(res, 'Expense not found', 404);
+        await t.rollback(); // Rollback transaction if not found
+        return errorResponse(res, 'Expense not found', '404');
       }
 
       // Only SUPER_ADMIN can delete
       if (req.user!.roleName !== 'SUPER_ADMIN') {
-        return errorResponse(res, 'Only SUPER_ADMIN can delete expenses', 403);
+        return errorResponse(res, 'Only SUPER_ADMIN can delete expenses', '403');
       }
 
       await expense.destroy();

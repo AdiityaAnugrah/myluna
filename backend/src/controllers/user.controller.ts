@@ -122,6 +122,7 @@ export const userController = {
         fullName,
         roleId,
         isActive: isActive !== undefined ? isActive : true,
+        totalDuration: 0,
       });
 
       // Remove password from response

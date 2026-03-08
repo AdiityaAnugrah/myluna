@@ -7,7 +7,7 @@ import { Op } from 'sequelize';
 import { auditService } from '../services/audit.service';
 
 export const settlementController = {
-  async getAll(req: Request, res: Response, next: NextFunction) {
+  async getAll(req: Request, res: Response, next: NextFunction): Promise<any> {
     try {
       const {
         page = 1,
