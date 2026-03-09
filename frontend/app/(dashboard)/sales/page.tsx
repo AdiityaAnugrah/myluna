@@ -26,8 +26,6 @@ import {
 import { Plus, Pencil, Trash2, Eye, Loader2, AlertTriangle, Download } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { SaleApprovals } from '@/components/sales/SaleApprovals';
 import { formatStatus } from '@/lib/utils/format';
 import { exportToExcel, formatCurrencyForExport, formatDateForExport } from '@/lib/utils/exportUtils';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -67,9 +65,6 @@ export default function SalesPage() {
   
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [saleToCancel, setSaleToCancel] = useState<string | null>(null);
-
-
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
   const sales = data?.data?.sales || [];
 
@@ -178,13 +173,7 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="list" className="w-full">
-        <TabsList>
-            <TabsTrigger value="list">Semua Penjualan</TabsTrigger>
-            {isAdmin && <TabsTrigger value="approvals">Persetujuan</TabsTrigger>}
-        </TabsList>
-
-        <TabsContent value="list" className="space-y-4">
+      <div className="space-y-4">
             <div className="flex items-center gap-4">
                 <div className="w-64">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -385,14 +374,7 @@ export default function SalesPage() {
                 </TableBody>
                 </Table>
             </div>
-        </TabsContent>
-
-        {isAdmin && (
-            <TabsContent value="approvals">
-                <SaleApprovals />
-            </TabsContent>
-        )}
-      </Tabs>
+      </div>
 
       <ConfirmDialog
         open={deleteConfirmOpen}
