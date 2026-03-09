@@ -8,6 +8,9 @@ import { auditContext } from './middlewares/auditContext';
 
 const app = express();
 
+// Trust the first proxy (nginx) so express-rate-limit can read X-Forwarded-For correctly
+app.set('trust proxy', 1);
+
 // Global Request Logger
 app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
