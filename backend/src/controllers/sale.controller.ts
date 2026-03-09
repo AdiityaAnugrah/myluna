@@ -203,13 +203,9 @@ export const saleController = {
   },
 
   async create(req: Request, res: Response, next: NextFunction) {
-    console.log(`[SaleController] Create request received from user: ${req.user?.id} role: ${req.user?.roleName}`);
     const transaction = await sequelize.transaction();
 
     try {
-      console.log('Sale Request Body:', JSON.stringify(req.body, null, 2));
-      console.log('Sale Request File:', req.file);
-
       if (!req.user || !req.user.id) {
         throw new AppError('User not authenticated', 401);
       }
