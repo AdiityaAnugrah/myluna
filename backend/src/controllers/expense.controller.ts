@@ -2,8 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import { Expense, User } from '../models';
 import { successResponse, errorResponse } from '../utils/response';
 import { Op } from 'sequelize';
-
 import { sequelize } from '../config/database';
+import { auditService } from '../services/audit.service';
+import { AuditAction } from '../models/AuditLog';
 
 export const expenseController = {
   // Get all expenses with filters
@@ -14,14 +15,12 @@ export const expenseController = {
 
       const where: any = {};
 
-      // Date range filter
       if (startDate && endDate) {
         where.expenseDate = {
           [Op.between]: [new Date(startDate as string), new Date(endDate as string)],
         };
       }
 
-      // Category filter
       if (category) {
         where.category = category;
       }
@@ -96,14 +95,31 @@ export const expenseController = {
         amount: parseFloat(amount).toString(),
         expenseDate: new Date(expenseDate),
         notes: notes || null,
-        receiptDocument: null, // TODO: Handle file upload
+        receiptDocument: null,
         createdBy: req.user!.id,
-      }, { transaction: t }); // Added transaction
+      }, { transaction: t });
 
-      await t.commit(); // Commit transaction
+      await auditService.log({
+        userId: req.user!.id,
+        action: AuditAction.CREATE,
+        entity: 'Expense',
+        entityId: expense.id,
+        before: null,
+        after: {
+          category,
+          description,
+          amount: parseFloat(amount),
+          expenseDate,
+          notes: notes || null,
+        },
+        ip: req.ip || req.socket.remoteAddress || '',
+        userAgent: req.headers['user-agent'] || '',
+      }, t);
+
+      await t.commit();
       return successResponse(res, expense, 'Expense created successfully', 201);
     } catch (error) {
-      await t.rollback(); // Rollback transaction on error
+      await t.rollback();
       next(error);
     }
   },
@@ -115,18 +131,25 @@ export const expenseController = {
       const { id } = req.params;
       const { category, description, amount, expenseDate, notes } = req.body;
 
-      const expense = await Expense.findByPk(id, { transaction: t }); // Added transaction
+      const expense = await Expense.findByPk(id, { transaction: t });
 
       if (!expense) {
-        await t.rollback(); // Rollback transaction if not found
+        await t.rollback();
         return errorResponse(res, 'Expense not found', '404');
       }
 
-      // Only SUPER_ADMIN or creator can update
       if (req.user!.roleName !== 'SUPER_ADMIN' && expense.createdBy !== req.user!.id) {
-        await t.rollback(); // Rollback transaction if not authorized
+        await t.rollback();
         return errorResponse(res, 'Not authorized to update this expense', '403');
       }
+
+      const before = {
+        category: expense.category,
+        description: expense.description,
+        amount: expense.amount,
+        expenseDate: expense.expenseDate,
+        notes: expense.notes,
+      };
 
       await expense.update({
         category,
@@ -134,12 +157,29 @@ export const expenseController = {
         amount: parseFloat(amount).toString(),
         expenseDate: new Date(expenseDate),
         notes: notes || null,
-      }, { transaction: t }); // Added transaction
+      }, { transaction: t });
 
-      await t.commit(); // Commit transaction
+      await auditService.log({
+        userId: req.user!.id,
+        action: AuditAction.UPDATE,
+        entity: 'Expense',
+        entityId: id,
+        before,
+        after: {
+          category,
+          description,
+          amount: parseFloat(amount),
+          expenseDate,
+          notes: notes || null,
+        },
+        ip: req.ip || req.socket.remoteAddress || '',
+        userAgent: req.headers['user-agent'] || '',
+      }, t);
+
+      await t.commit();
       return successResponse(res, expense, 'Expense updated successfully', 200);
     } catch (error) {
-      await t.rollback(); // Rollback transaction on error
+      await t.rollback();
       next(error);
     }
   },
@@ -150,22 +190,43 @@ export const expenseController = {
     try {
       const { id } = req.params;
 
-      const expense = await Expense.findByPk(id, { transaction: t }); // Added transaction
+      const expense = await Expense.findByPk(id, { transaction: t });
 
       if (!expense) {
-        await t.rollback(); // Rollback transaction if not found
+        await t.rollback();
         return errorResponse(res, 'Expense not found', '404');
       }
 
-      // Only SUPER_ADMIN can delete
       if (req.user!.roleName !== 'SUPER_ADMIN') {
+        await t.rollback();
         return errorResponse(res, 'Only SUPER_ADMIN can delete expenses', '403');
       }
 
-      await expense.destroy();
+      const before = {
+        category: expense.category,
+        description: expense.description,
+        amount: expense.amount,
+        expenseDate: expense.expenseDate,
+        notes: expense.notes,
+      };
 
+      await expense.destroy({ transaction: t });
+
+      await auditService.log({
+        userId: req.user!.id,
+        action: AuditAction.DELETE,
+        entity: 'Expense',
+        entityId: id,
+        before,
+        after: null,
+        ip: req.ip || req.socket.remoteAddress || '',
+        userAgent: req.headers['user-agent'] || '',
+      }, t);
+
+      await t.commit();
       return successResponse(res, null, 'Expense deleted successfully', 200);
     } catch (error) {
+      await t.rollback();
       next(error);
     }
   },
