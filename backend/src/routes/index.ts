@@ -18,6 +18,7 @@ import financialRoutes from './financial.routes';
 import expenseRoutes from './expense.routes';
 import { shippingRoutes } from './shipping.routes';
 import otherIncomeRoutes from './otherIncome.routes';
+import searchRoutes from './search.routes';
 
 const router = Router();
 
@@ -40,5 +41,6 @@ router.use('/financial-summary', financialRoutes);
 router.use('/expenses', expenseRoutes);
 router.use('/shipping-services', shippingRoutes);
 router.use('/other-incomes', otherIncomeRoutes);
+router.use('/search', searchRoutes);
 
 export default router;
