@@ -358,7 +358,7 @@ export default function SalesProcessPage() {
   const { user } = useAuth();
   const userRole = user?.role;
   
-  const { data, isLoading, error, refetch } = useSales({ limit: 100 });
+  const { data, isLoading, isFetching, error, refetch } = useSales({ limit: 100 });
   const approveMutation = useApproveSale();
   const rejectMutation = useRejectSale();
   const processMutation = useProcessSale();
@@ -507,11 +507,11 @@ export default function SalesProcessPage() {
           variant="outline" 
           size="sm" 
           onClick={() => refetch()} 
-          disabled={isLoading}
+          disabled={isFetching}
           aria-label="Segarkan data penjualan"
         >
-          <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Segarkan
+          <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+          {isFetching ? 'Memuat...' : 'Segarkan'}
         </Button>
       </div>
 
