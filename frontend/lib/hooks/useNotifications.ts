@@ -1,6 +1,7 @@
-import { useSales } from './useSales';
+import { useQuery } from '@tanstack/react-query';
 import { useChangeRequests, useProductRequests } from './useRequests';
 import { useAuth } from './useAuth';
+import apiClient from '@/lib/api/client';
 
 /**
  * Hook to get notification counts for various entities
@@ -10,10 +11,12 @@ export function useNotifications() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
-  // Fetch sales with WAITING_APPROVAL status
-  const { data: salesData, isLoading: salesLoading } = useSales({ 
-    limit: 1000,
-    status: 'WAITING_APPROVAL'
+  // Fetch ONLY the stats endpoint instead of fetching all 1000 sales
+  const { data: statsData, isLoading: statsLoading } = useQuery({
+    queryKey: ['sale-stats'],
+    queryFn: () => apiClient.get('/sales/stats').then(r => r.data),
+    refetchInterval: 30_000, // refetch every 30s
+    enabled: !!user,
   });
 
   // Fetch pending change requests (data master) - only for admin roles
@@ -22,7 +25,7 @@ export function useNotifications() {
   // Fetch pending product status requests - only for admin roles
   const { pendingRequests: productRequests } = useProductRequests({ enabled: isAdmin });
 
-  const pendingSalesCount = salesData?.data?.sales?.length || 0;
+  const pendingSalesCount = statsData?.data?.WAITING_APPROVAL || 0;
 
   // Only compute for admin roles to avoid unnecessary API calls influencing count
   const pendingChangeCount = isAdmin ? (changeRequests.data?.data?.length || 0) : 0;
@@ -32,6 +35,6 @@ export function useNotifications() {
   return {
     pendingSalesCount,
     pendingApprovalsCount,
-    isLoading: salesLoading,
+    isLoading: statsLoading,
   };
 }

@@ -66,7 +66,7 @@ export default function SettingsPage() {
       <Separator />
       
       <Tabs defaultValue="ui" className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className={`grid w-full max-w-md ${isUser ? 'grid-cols-1' : 'grid-cols-2'}`}>
           <TabsTrigger value="ui">
             <Palette className="h-4 w-4 mr-2" />
             Tampilan
@@ -221,7 +221,7 @@ export default function SettingsPage() {
                 <div className="p-1.5 bg-primary/10 rounded-md">
                   <Type className="h-4 w-4 text-primary" />
                 </div>
-                <p className="text-sm font-semibold text-foreground">Contoh Tesk</p>
+                  <p className="text-sm font-semibold text-foreground">Contoh Teks</p>
               </div>
               <p className="text-muted-foreground leading-relaxed">
                 Ini adalah contoh teks dengan ukuran font yang Anda pilih. 

@@ -9,9 +9,6 @@ export const apiClient = axios.create({
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
   (config) => {
-    // Debug log for API requests
-    console.log(`API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
-    
     const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
