@@ -117,7 +117,7 @@ export default function GlobalReportPage() {
     aoa.push(['Dana Bersih Diterima', '', '', '', formatIDR(summary.danaBersih || 0)]);
     aoa.push(['Piutang Periode Ini', '', '', '', formatIDR(summary.piutang || 0)]);
     if (summary.carryForwardPiutang > 0) {
-      aoa.push(['Sisa Piutang Terbawa (Bulan Lalu)', '', '', '', formatIDR(summary.carryForwardPiutang || 0)]);
+      aoa.push(['Piutang Bulan Lalu', '', '', '', formatIDR(summary.carryForwardPiutang || 0)]);
     }
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -199,9 +199,9 @@ export default function GlobalReportPage() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Saldo Awal (Piutang Terbawa)</p>
+                <p className="text-xs text-muted-foreground">Piutang Bulan Lalu</p>
                 <p className="text-lg font-bold text-blue-500">{formatCurrency(summary.carryForwardPiutang || 0)}</p>
-                <p className="text-[10px] text-muted-foreground">dari periode sebelumnya</p>
+                <p className="text-[10px] text-muted-foreground">dari Bulan Lalu</p>
               </div>
               <TrendingUp className="h-5 w-5 text-blue-500" />
             </div>
@@ -211,7 +211,7 @@ export default function GlobalReportPage() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Pendapatan Periode Ini</p>
+                <p className="text-xs text-muted-foreground">Pendapatan Bulan Ini</p>
                 <p className="text-lg font-bold text-green-500">{formatCurrency(summary.totalIncome || 0)}</p>
                 <p className="text-[10px] text-muted-foreground">settled bulan ini</p>
               </div>
@@ -223,9 +223,9 @@ export default function GlobalReportPage() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Piutang Baru Periode Ini</p>
+                <p className="text-xs text-muted-foreground">Piutang Bulan Ini</p>
                 <p className="text-lg font-bold text-amber-500">{formatCurrency(summary.piutang || 0)}</p>
-                <p className="text-[10px] text-muted-foreground">belum dilunaskan</p>
+                <p className="text-[10px] text-muted-foreground">dari Bulan Ini</p>
               </div>
               <Calendar className="h-5 w-5 text-amber-500" />
             </div>
@@ -235,9 +235,9 @@ export default function GlobalReportPage() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Sisa Piutang Akhir Periode</p>
+                <p className="text-xs text-muted-foreground">Sisa Piutang</p>
                 <p className="text-lg font-bold text-purple-500">{formatCurrency(summary.sisaPiutangAkhir || 0)}</p>
-                <p className="text-[10px] text-muted-foreground">→ terbawa ke bulan depan</p>
+                <p className="text-[10px] text-muted-foreground">terbawa ke Bulan depan</p>
               </div>
               <TrendingDown className="h-5 w-5 text-purple-500" />
             </div>
