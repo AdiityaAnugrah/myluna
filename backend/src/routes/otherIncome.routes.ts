@@ -57,4 +57,10 @@ router.get('/:id', rbac(['SUPER_ADMIN', 'ADMIN', 'USER']), otherIncomeController
 // Create new other income
 router.post('/', rbac(['SUPER_ADMIN', 'ADMIN', 'USER']), uploadProof, otherIncomeController.create);
 
+// Update other income
+router.put('/:id', rbac(['SUPER_ADMIN', 'ADMIN', 'USER']), uploadProof, otherIncomeController.update);
+
+// Delete other income (SUPER_ADMIN only)
+router.delete('/:id', rbac(['SUPER_ADMIN']), otherIncomeController.delete);
+
 export default router;

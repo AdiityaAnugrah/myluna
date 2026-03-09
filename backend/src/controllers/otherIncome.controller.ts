@@ -5,6 +5,7 @@ import { successResponse } from '../utils/response';
 import { AppError } from '../utils/errors';
 import { Op } from 'sequelize';
 import { auditService } from '../services/audit.service';
+import { AuditAction } from '../models/AuditLog';
 
 export const otherIncomeController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
@@ -118,16 +119,113 @@ export const otherIncomeController = {
 
       await auditService.log({
         userId: req.user!.id,
-        action: 'CREATE' as any,
+        action: AuditAction.CREATE,
         entity: 'OtherIncome',
         entityId: otherIncome.id,
         before: null,
         after: otherIncome.toJSON(),
-        ip: req.ip || '',
-        userAgent: req.get('User-Agent') || '',
+        ip: req.ip || req.socket.remoteAddress || '',
+        userAgent: req.headers['user-agent'] || '',
       });
 
       successResponse(res, otherIncome, 'Pendapatan lain-lain berhasil disimpan', 201);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async update(req: Request, res: Response, next: NextFunction): Promise<any> {
+    try {
+      const { id } = req.params;
+      const { transactionDate, bankName, buyerName, amount, notes } = req.body;
+
+      const otherIncome = await OtherIncome.findByPk(id);
+      if (!otherIncome) {
+        return next(new AppError('Other income not found', 404));
+      }
+
+      // Only SUPER_ADMIN, ADMIN, or creator can update
+      if (
+        req.user!.roleName !== 'SUPER_ADMIN' &&
+        req.user!.roleName !== 'ADMIN' &&
+        otherIncome.createdBy !== req.user!.id
+      ) {
+        return next(new AppError('Tidak berhak mengubah data ini', 403));
+      }
+
+      const before = {
+        transactionDate: otherIncome.transactionDate,
+        bankName: otherIncome.bankName,
+        buyerName: otherIncome.buyerName,
+        amount: otherIncome.amount,
+        notes: otherIncome.notes,
+      };
+
+      // Only replace proofDocument if new file uploaded
+      const proofDocument = req.file ? req.file.filename : otherIncome.proofDocument;
+
+      await otherIncome.update({
+        transactionDate: transactionDate ? new Date(transactionDate) : otherIncome.transactionDate,
+        bankName: bankName?.trim() || otherIncome.bankName,
+        buyerName: buyerName?.trim() || otherIncome.buyerName,
+        amount: amount ? parseFloat(amount).toFixed(2) : otherIncome.amount,
+        notes: notes !== undefined ? (notes?.trim() || null) : otherIncome.notes,
+        proofDocument,
+      });
+
+      await auditService.log({
+        userId: req.user!.id,
+        action: AuditAction.UPDATE,
+        entity: 'OtherIncome',
+        entityId: id,
+        before,
+        after: {
+          transactionDate: otherIncome.transactionDate,
+          bankName: otherIncome.bankName,
+          buyerName: otherIncome.buyerName,
+          amount: otherIncome.amount,
+          notes: otherIncome.notes,
+        },
+        ip: req.ip || req.socket.remoteAddress || '',
+        userAgent: req.headers['user-agent'] || '',
+      });
+
+      return successResponse(res, otherIncome, 'Pendapatan lain-lain berhasil diperbarui', 200);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async delete(req: Request, res: Response, next: NextFunction): Promise<any> {
+    try {
+      const { id } = req.params;
+
+      const otherIncome = await OtherIncome.findByPk(id);
+      if (!otherIncome) {
+        return next(new AppError('Other income not found', 404));
+      }
+
+      // Only SUPER_ADMIN can delete
+      if (req.user!.roleName !== 'SUPER_ADMIN') {
+        return next(new AppError('Hanya Super Admin yang dapat menghapus data ini', 403));
+      }
+
+      const before = otherIncome.toJSON();
+
+      await otherIncome.destroy();
+
+      await auditService.log({
+        userId: req.user!.id,
+        action: AuditAction.DELETE,
+        entity: 'OtherIncome',
+        entityId: id,
+        before,
+        after: null,
+        ip: req.ip || req.socket.remoteAddress || '',
+        userAgent: req.headers['user-agent'] || '',
+      });
+
+      return successResponse(res, null, 'Pendapatan lain-lain berhasil dihapus', 200);
     } catch (error) {
       next(error);
     }
