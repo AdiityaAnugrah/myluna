@@ -73,6 +73,15 @@ const FIELD_LABEL: Record<string, string> = {
   shippingService: 'Jasa Kirim',
   shippingCost: 'Ongkir',
   isActive_raw: 'Status',
+  // Expense fields
+  category: 'Kategori',
+  description: 'Deskripsi',
+  amount: 'Jumlah (Rp)',
+  expenseDate: 'Tanggal',
+  // Auth fields
+  action: 'Tindakan',
+  // ShippingService fields
+  isActive_shipping: 'Status Aktif',
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
