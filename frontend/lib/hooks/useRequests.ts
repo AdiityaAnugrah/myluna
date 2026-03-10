@@ -7,7 +7,7 @@ export function useChangeRequests(options?: { enabled?: boolean }) {
   const pendingRequestsQuery = useQuery({
     queryKey: ['changeRequests', 'pending'],
     queryFn: () => changeRequestsApi.listPending(),
-    enabled: options?.enabled !== false,
+    enabled: !!options?.enabled,
   });
 
   const approveRequestMutation = useMutation({
@@ -42,7 +42,7 @@ export function useProductRequests(options?: { enabled?: boolean }) {
   const pendingRequestsQuery = useQuery({
     queryKey: ['productRequests', 'pending'],
     queryFn: () => requestsApi.infoProductPending(),
-    enabled: options?.enabled !== false,
+    enabled: !!options?.enabled,
   });
 
   const createRequestMutation = useMutation({
@@ -81,7 +81,7 @@ export function useSaleRequests(options?: { enabled?: boolean }) {
   const pendingRequestsQuery = useQuery({
     queryKey: ['saleRequests', 'pending'],
     queryFn: () => requestsApi.infoSalePending(),
-    enabled: options?.enabled !== false,
+    enabled: !!options?.enabled,
   });
 
   const createRequestMutation = useMutation({

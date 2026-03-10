@@ -1,4 +1,5 @@
 import { useProductRequests, useChangeRequests } from '@/lib/hooks/useRequests';
+import { useAuth } from '@/lib/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -27,10 +28,12 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 
 export function ProductApprovals() {
-  const { pendingRequests, approveRequest, rejectRequest } = useProductRequests();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const { pendingRequests, approveRequest, rejectRequest } = useProductRequests({ enabled: isAdmin });
   const requests = pendingRequests.data?.data || [];
   
-  const { pendingRequests: changeQuery, approveRequest: approveChange, rejectRequest: rejectChange } = useChangeRequests();
+  const { pendingRequests: changeQuery, approveRequest: approveChange, rejectRequest: rejectChange } = useChangeRequests({ enabled: isAdmin });
   const changeRequestsRaw = changeQuery.data?.data || [];
   const productChangeRequests = changeRequestsRaw.filter(r => r.entityType === 'PRODUCT');
 

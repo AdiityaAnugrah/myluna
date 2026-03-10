@@ -1,4 +1,5 @@
 import { useSaleRequests } from '@/lib/hooks/useRequests';
+import { useAuth } from '@/lib/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -28,7 +29,9 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 
 export function SaleApprovals() {
-  const { pendingRequests, approveRequest, rejectRequest } = useSaleRequests();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const { pendingRequests, approveRequest, rejectRequest } = useSaleRequests({ enabled: isAdmin });
   const requests = pendingRequests.data?.data || [];
   const isLoading = pendingRequests.isLoading;
 
