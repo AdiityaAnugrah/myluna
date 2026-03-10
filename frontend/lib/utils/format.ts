@@ -1,5 +1,6 @@
 export const formatStatus = (status: string) => {
   const map: Record<string, string> = {
+    WAITING_APPROVAL: 'MENUNGGU PROSES/PACKING',
     PENDING: 'MENUNGGU',
     APPROVED: 'DISETUJUI',
     PROCESSED: 'DIPROSES',

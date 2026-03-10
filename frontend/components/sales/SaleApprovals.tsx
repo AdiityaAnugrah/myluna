@@ -115,11 +115,11 @@ export function SaleApprovals() {
                   </TableCell>
                   <TableCell className="font-medium">
                     {/* @ts-ignore */}
-                    {request.requester?.fullName || 'Unknown'}
+                    {request.requester?.fullName || 'Tidak Diketahui'}
                   </TableCell>
                   <TableCell>
                     <Badge variant={request.type === 'RETURN' ? 'destructive' : 'default'}>
-                      {request.type === 'RETURN' ? 'RETUR' : request.type === 'EXCHANGE' ? 'TUKAR' : request.type}
+                      {request.type === 'RETURN' ? 'RETUR' : request.type === 'EXCHANGE' ? 'TUKAR' : 'LAINNYA'}
                     </Badge>
                   </TableCell>
                   <TableCell className="max-w-xs truncate" title={request.reason}>

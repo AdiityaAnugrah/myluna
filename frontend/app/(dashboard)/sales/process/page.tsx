@@ -88,9 +88,9 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
                  )}
                  {isUrgent && (
                      <div className="flex justify-end pt-0.5">
-                        <Badge variant="destructive" className="h-4 text-[9px] px-1 animate-pulse">
+                         <Badge variant="destructive" className="h-4 text-[9px] px-1 animate-pulse">
                            <AlertCircle className="mr-1 h-2 w-2" />
-                           Urgent ({daysSince} hari)
+                           Mendesak ({daysSince} hari)
                         </Badge>
                      </div>
                  )}
@@ -117,7 +117,7 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
                          onClick={() => onPrint(sale)}
                      >
                          <Printer className="h-3 w-3 mr-1.5" />
-                         Print Resi
+                         Cetak Resi
                      </Button>
                  )}
 
@@ -130,7 +130,7 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
                          onClick={() => onPrint(sale)}
                      >
                          <Printer className="h-3 w-3 mr-1.5" />
-                         {['PROCESSED', 'SETTLED', 'COMPLETED'].includes(sale.status) ? 'Cetak Ulang' : 'Print Resi'}
+                         {['PROCESSED', 'SETTLED', 'COMPLETED'].includes(sale.status) ? 'Cetak Ulang' : 'Cetak Resi'}
                      </Button>
                  )}
                  
@@ -276,7 +276,7 @@ const SalesTable = ({
                       {urgent && (
                         <Badge variant="destructive" className="mr-2 animate-pulse">
                           <AlertCircle className="mr-1 h-3 w-3" />
-                          Urgent - {daysSince} hari
+                          Mendesak - {daysSince} hari
                         </Badge>
                       )}
                       {getStatusBadge(sale.status)}
@@ -301,7 +301,7 @@ const SalesTable = ({
                                 aria-label={`Cetak resi untuk ${sale.saleNumber}`}
                             >
                                 <Printer className="h-4 w-4 mr-1" />
-                                Print
+                                Cetak
                             </Button>
                         )}
                         {/* Non-TCP roles: Show ACC/Tolak for WAITING_APPROVAL */}
@@ -339,7 +339,7 @@ const SalesTable = ({
                                 aria-label={`${isHistory ? 'Cetak ulang' : 'Cetak'} resi untuk ${sale.saleNumber}`}
                             >
                                 <Printer className="h-4 w-4 mr-1" />
-                                {isHistory ? 'Cetak Ulang' : 'Print'}
+                                {isHistory ? 'Cetak Ulang' : 'Cetak'}
                             </Button>
                         )}
                     </div>
