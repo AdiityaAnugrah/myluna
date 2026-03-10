@@ -434,11 +434,12 @@ export default function TotalStockPage() {
             <Button
               onClick={handleSubmit}
               disabled={
+                !selectedProduct ||
                 isPending ||
                 adjQuantity <= 0 ||
                 (!isAdmin && !adjNotes.trim()) ||
                 (adjType === 'OUT' && adjQuantity > currentStockShown) ||
-                (selectedProduct.variantItems && selectedProduct.variantItems.length > 0 && !adjVariant)
+                (selectedProduct?.variantItems && selectedProduct.variantItems.length > 0 && !adjVariant)
               }
               className={isAdmin ? '' : 'bg-blue-600 hover:bg-blue-700'}
             >

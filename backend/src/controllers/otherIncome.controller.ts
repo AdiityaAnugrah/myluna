@@ -6,6 +6,7 @@ import { AppError } from '../utils/errors';
 import { Op } from 'sequelize';
 import { auditService } from '../services/audit.service';
 import { AuditAction } from '../models/AuditLog';
+import { socketService } from '../services/socket.service';
 
 export const otherIncomeController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
@@ -128,6 +129,7 @@ export const otherIncomeController = {
         userAgent: req.headers['user-agent'] || '',
       });
 
+      socketService.broadcastDataRefresh('otherIncomes');
       successResponse(res, otherIncome, 'Pendapatan lain-lain berhasil disimpan', 201);
     } catch (error) {
       next(error);
@@ -190,6 +192,7 @@ export const otherIncomeController = {
         userAgent: req.headers['user-agent'] || '',
       });
 
+      socketService.broadcastDataRefresh('otherIncomes');
       return successResponse(res, otherIncome, 'Pendapatan lain-lain berhasil diperbarui', 200);
     } catch (error) {
       next(error);
@@ -225,6 +228,7 @@ export const otherIncomeController = {
         userAgent: req.headers['user-agent'] || '',
       });
 
+      socketService.broadcastDataRefresh('otherIncomes');
       return successResponse(res, null, 'Pendapatan lain-lain berhasil dihapus', 200);
     } catch (error) {
       next(error);

@@ -20,7 +20,9 @@ export const saleController = {
       } = req.query;
 
       const offset = (Number(page) - 1) * Number(limit);
-      const where: any = {};
+      const where: any = {
+        isInitialBalance: false
+      };
 
       // Data Isolation: If role is USER, only show their own sales
       if ((req as any).user?.roleName === 'USER') {
@@ -165,6 +167,7 @@ export const saleController = {
       const [statusCounts, todayCount] = await Promise.all([
         Sale.findAll({
           attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+          where: { isInitialBalance: false },
           group: ['status'],
           raw: true,
         }),
@@ -173,6 +176,7 @@ export const saleController = {
             saleDate: {
               [Op.gte]: today,
             },
+            isInitialBalance: false,
           },
         }),
       ]);
@@ -412,6 +416,7 @@ export const saleController = {
         totalAmount: `Rp ${totalAmount.toLocaleString('id-ID')}`,
       });
 
+      socketService.broadcastDataRefresh('sales');
       successResponse(res, completeSale, 'Sale created successfully', 201);
     } catch (error) {
       await transaction.rollback();

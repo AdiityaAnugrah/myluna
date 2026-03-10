@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import { Settlement, Sale, SaleItem, Product } from '../models';
+import { Settlement, Sale, SaleItem, Product, User } from '../models';
+import { PaymentMethod, SalePlatform } from '../models/Sale';
 import OtherIncome from '../models/OtherIncome';
 import { successResponse } from '../utils/response';
 import { Op } from 'sequelize';
+import bcrypt from 'bcrypt';
 
 export const financialController = {
   async getSummary(req: Request, res: Response, next: NextFunction) {
@@ -25,6 +27,37 @@ export const financialController = {
         };
       }
 
+      // ─── DYNAMIC SALDO AWAL (Piutang Lama) ───────────────
+      // Calculate remaining initial balance by subtracting ALL system settlements until the report date
+      const initialBalanceSale = await Sale.findOne({
+        where: { isInitialBalance: true }
+      });
+      let initialBalanceAtStart = 0;
+      let initialBalanceAtEnd = 0;
+
+      if (initialBalanceSale) {
+        const initialBalanceOriginal = Number(initialBalanceSale.totalAmount);
+        let settledBeforeStart = 0;
+        let settledUntilEnd = 0;
+
+        if (start) {
+          settledBeforeStart = await Settlement.sum('netAmount', {
+            where: { settlementDate: { [Op.lt]: start } }
+          }) || 0;
+        }
+
+        if (end) {
+          settledUntilEnd = await Settlement.sum('netAmount', {
+            where: { settlementDate: { [Op.lte]: end } }
+          }) || 0;
+        } else {
+          settledUntilEnd = await Settlement.sum('netAmount') || 0;
+        }
+
+        initialBalanceAtStart = Math.max(0, initialBalanceOriginal - settledBeforeStart);
+        initialBalanceAtEnd = Math.max(0, initialBalanceOriginal - settledUntilEnd);
+      }
+
       // ─── CARRY-FORWARD: Sisa Piutang dari sebelum periode ini ───────────────
       // Fetch unsettled sales BEFORE startDate — these are piutang terbawa dari bulan sebelumnya
       let carryForwardPiutang = 0;
@@ -33,12 +66,14 @@ export const financialController = {
           where: {
             status: { [Op.notIn]: ['SETTLED', 'CANCELLED'] },
             saleDate: { [Op.lt]: start },
+            isInitialBalance: false // Excluded from raw query, added mathematically below
           },
         });
         carryForwardPiutang = prevUnsettled.reduce(
           (sum: number, s: any) => sum + parseFloat(s.totalAmount),
           0
         );
+        carryForwardPiutang += initialBalanceAtStart;
       }
 
       // Fetch INCOME: Settlements (money in from sales)
@@ -245,8 +280,21 @@ export const financialController = {
       const piutang = unsettledSales.reduce((sum: number, sale: any) =>
         sum + parseFloat(sale.totalAmount), 0);
 
-      // Sisa piutang akhir = carry forward + piutang baru - yang sudah dilunaskan (dari settlements bulan ini yg tadinya piutang)
-      const sisaPiutangAkhir = carryForwardPiutang + piutang;
+      // Sisa piutang akhir = Exact sum of all unsettled sales up to End Date + remaining initial balance
+      const allUnsettledUpToEndWhere: any = {
+        status: { [Op.notIn]: ['SETTLED', 'CANCELLED'] },
+        isInitialBalance: false
+      };
+      if (end) {
+        allUnsettledUpToEndWhere.saleDate = { [Op.lte]: end };
+      }
+      const allUnsettledUpToEnd = await Sale.findAll({ where: allUnsettledUpToEndWhere });
+      const exactPiutangAtEnd = allUnsettledUpToEnd.reduce(
+        (sum: number, s: any) => sum + parseFloat(s.totalAmount), 
+        0
+      );
+      
+      const sisaPiutangAkhir = exactPiutangAtEnd + initialBalanceAtEnd;
 
       const danaBersih = settlements.reduce((sum: number, s: any) =>
         sum + parseFloat(s.netAmount), 0
@@ -257,12 +305,15 @@ export const financialController = {
         .filter(t => t.type === 'expense')
         .reduce((sum, t) => sum + t.credit, 0);
 
+      // We explicitly calculate displayCarryForward to show the mathematically reduced initial balance on the UI card
+      const displayCarryForward = (carryForwardPiutang - initialBalanceAtStart) + initialBalanceAtEnd;
+
       const summary = {
         totalIncome,
         totalSelisih,
         danaBersih,
         piutang,
-        carryForwardPiutang,  // sisa piutang terbawa dari bulan lalu
+        carryForwardPiutang: displayCarryForward,  // sisa piutang terbawa dari bulan lalu yang sudah dikurangi lunas bulan ini
         sisaPiutangAkhir,     // total piutang yg masih beredar di akhir periode
         totalExpense,
         finalBalance: runningBalance,
@@ -274,6 +325,71 @@ export const financialController = {
       successResponse(res, { transactions, summary }, 'Financial summary retrieved successfully', 200);
     } catch (error) {
       next(error);
+    }
+  },
+
+  async setInitialBalance(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { amount, adminPassword } = req.body;
+      const initialAmount = parseFloat(amount);
+
+      if (isNaN(initialAmount) || initialAmount <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Amount must be a valid positive number',
+        });
+      }
+
+      if (!adminPassword) {
+        return res.status(400).json({
+          success: false,
+          message: 'Password Super Admin wajib diisi untuk keamanan transaksi',
+        });
+      }
+
+      // Verify admin password
+      const user = await User.findByPk(req.user?.id);
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'User tidak ditemukan' });
+      }
+
+      const isPasswordValid = await bcrypt.compare(adminPassword, user.password);
+      if (!isPasswordValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Password Salah! Proses dibatalkan',
+        });
+      }
+
+      // Check if an initial balance already exists
+      const existingInitialBalance = await Sale.findOne({
+        where: { isInitialBalance: true }
+      });
+
+      if (existingInitialBalance) {
+        return res.status(400).json({
+          success: false,
+          message: 'Saldo awal piutang sudah pernah diatur. Perubahan hanya dapat dilakukan satu kali.',
+        });
+      }
+
+      // Create a dummy sale to represent the initial balance
+      const initialBalanceSale = await Sale.create({
+        saleNumber: `SA-PIUTANG-${Date.now()}`,
+        saleDate: new Date('2000-01-01'),
+        customerName: 'SISTEM (Saldo Awal)',
+        totalAmount: initialAmount,
+        paymentMethod: PaymentMethod.CASH,
+        platform: SalePlatform.OFFLINE_STORE,
+        status: 'SETTLED' as any,
+        notes: 'Sistem: Set Saldo Awal Piutang Global',
+        isInitialBalance: true,
+        createdBy: req.user?.id!, // user id from auth middleware
+      });
+
+      return successResponse(res, initialBalanceSale, 'Saldo awal piutang berhasil diatur', 201);
+    } catch (error) {
+      return next(error);
     }
   },
 };

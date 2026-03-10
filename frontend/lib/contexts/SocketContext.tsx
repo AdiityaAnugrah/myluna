@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -31,6 +32,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { accessToken } = useAuthStore();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!accessToken) {
@@ -115,6 +117,12 @@ export function SocketProvider({ children }: SocketProviderProps) {
       });
     });
 
+    // --- GLOBAL REACTIVITY MAGIC ---
+    // When backend signals any data change, invalidate all queries so the UI redraws automatically.
+    newSocket.on('data:refresh', (payload: { entity: string }) => {
+      console.log(`Realtime Sync: Refreshing UI for entity: ${payload.entity}`);
+      queryClient.invalidateQueries(); // invalidates EVERYTHING displayed to silently fetch fresh data
+    });
 
     setSocket(newSocket);
 
@@ -122,7 +130,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
       if (connectionTimeout) clearTimeout(connectionTimeout);
       newSocket.disconnect();
     };
-  }, [accessToken]);
+  }, [accessToken, queryClient]);
 
   return (
     <SocketContext.Provider value={{ socket, isConnected }}>

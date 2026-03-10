@@ -24,6 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import * as XLSX from 'xlsx';
+import { SetInitialBalanceModal } from '@/components/SetInitialBalanceModal';
 
 export default function GlobalReportPage() {
   const today = new Date();
@@ -39,6 +40,7 @@ export default function GlobalReportPage() {
 
   const [startDate, setStartDate] = useState<string>(firstDay);
   const [endDate, setEndDate] = useState<string>(lastDay);
+  const [isInitialBalanceModalOpen, setIsInitialBalanceModalOpen] = useState(false);
 
   const { user } = useAuth();
 
@@ -184,6 +186,11 @@ export default function GlobalReportPage() {
               </div>
             </div>
             <div className="flex gap-2">
+              {user?.role === 'SUPER_ADMIN' && (
+                <Button variant="outline" size="sm" onClick={() => setIsInitialBalanceModalOpen(true)} className="border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30">
+                  <Calendar className="h-4 w-4 mr-1" /> Set Saldo Awal
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={handleReset}>Reset</Button>
               <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={transactions.length === 0}>
                 <Download className="h-4 w-4 mr-1" /> Export Excel
@@ -192,6 +199,11 @@ export default function GlobalReportPage() {
           </div>
         </div>
       </div>
+      
+      <SetInitialBalanceModal 
+        isOpen={isInitialBalanceModalOpen} 
+        onClose={() => setIsInitialBalanceModalOpen(false)} 
+      />
 
       {/* Summary mini cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

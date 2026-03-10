@@ -84,6 +84,13 @@ export class SocketService {
   getIO() {
     return this.io;
   }
+
+  // Broadcaster for real-time reactivity (tells frontend to invalidate React Query caches)
+  broadcastDataRefresh(entity: string) {
+    if (!this.io) return;
+    this.io.emit('data:refresh', { entity });
+    logger.info(`Broadcasted data:refresh for entity: ${entity}`);
+  }
 }
 
 export const socketService = new SocketService();

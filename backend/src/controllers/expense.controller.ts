@@ -5,6 +5,7 @@ import { Op } from 'sequelize';
 import { sequelize } from '../config/database';
 import { auditService } from '../services/audit.service';
 import { AuditAction } from '../models/AuditLog';
+import { socketService } from '../services/socket.service';
 
 export const expenseController = {
   // Get all expenses with filters
@@ -117,6 +118,7 @@ export const expenseController = {
       }, t);
 
       await t.commit();
+      socketService.broadcastDataRefresh('expense');
       return successResponse(res, expense, 'Expense created successfully', 201);
     } catch (error) {
       await t.rollback();
@@ -177,6 +179,7 @@ export const expenseController = {
       }, t);
 
       await t.commit();
+      socketService.broadcastDataRefresh('expense');
       return successResponse(res, expense, 'Expense updated successfully', 200);
     } catch (error) {
       await t.rollback();
@@ -224,6 +227,7 @@ export const expenseController = {
       }, t);
 
       await t.commit();
+      socketService.broadcastDataRefresh('expense');
       return successResponse(res, null, 'Expense deleted successfully', 200);
     } catch (error) {
       await t.rollback();

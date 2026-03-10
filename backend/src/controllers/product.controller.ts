@@ -263,6 +263,7 @@ export const productController = {
         metadata: { hasVariants: !!(variants && variants.length > 0), categoryId },
       });
 
+      socketService.broadcastDataRefresh('products');
       return successResponse(res, result, 'Product created successfully', 201);
     } catch (error) {
       return next(error);
@@ -407,6 +408,7 @@ export const productController = {
         userAgent: req.get('User-Agent') || '',
       });
 
+      socketService.broadcastDataRefresh('products');
       return successResponse(res, result, 'Product updated successfully', 200);
     } catch (error) {
       return next(error);
@@ -444,6 +446,7 @@ export const productController = {
         userAgent: req.get('User-Agent') || '',
       });
 
+      socketService.broadcastDataRefresh('products');
       return successResponse(res, null, 'Product deleted successfully', 200);
     } catch (error) {
       return next(error);
@@ -518,6 +521,7 @@ export const productController = {
         userAgent: req.get('User-Agent') || '',
       });
 
+      socketService.broadcastDataRefresh('products');
       return successResponse(
         res,
         { deletedCount: ids.length },
@@ -583,6 +587,7 @@ export const productController = {
         userAgent: req.get('User-Agent') || '',
       });
 
+      socketService.broadcastDataRefresh('products');
       return successResponse(
         res,
         { updatedCount: ids.length },

@@ -255,6 +255,10 @@ export const settlementController = {
         userAgent: req.get('User-Agent') || '',
       });
 
+      const { socketService } = require('../services/socket.service');
+      socketService.broadcastDataRefresh('settlements');
+      socketService.broadcastDataRefresh('sales'); // since sale status changed
+      
       return successResponse(res, completeSettlement, 'Settlement created successfully', 201);
     } catch (error) {
       await transaction.rollback();
@@ -329,6 +333,9 @@ export const settlementController = {
         ],
       });
 
+      const { socketService } = require('../services/socket.service');
+      socketService.broadcastDataRefresh('settlements');
+      
       return successResponse(res, updatedSettlement, 'Settlement updated successfully', 200);
     } catch (error) {
       return next(error);

@@ -292,8 +292,8 @@ export default function FinancialSummaryPage() {
           <CardContent>
             {isLoading ? <Skeleton className="h-8 w-32" /> : (
               <>
-                <div className="text-2xl font-bold text-purple-500">{formatCurrency(summary.piutang || 0)}</div>
-                <p className="text-xs text-muted-foreground mt-1">Penjualan yang belum dilunasi</p>
+                <div className="text-2xl font-bold text-purple-500">{formatCurrency(summary.sisaPiutangAkhir || 0)}</div>
+                <p className="text-xs text-muted-foreground mt-1">Total penjualan yang belum dilunasi</p>
               </>
             )}
           </CardContent>

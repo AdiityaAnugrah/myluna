@@ -11,4 +11,7 @@ router.use(auth);
 // SUPER_ADMIN and ADMIN can view financial summary
 router.get('/', rbac(['SUPER_ADMIN', 'ADMIN']), financialController.getSummary);
 
+// Only SUPER_ADMIN can set initial balance
+router.post('/initial-receivable', rbac(['SUPER_ADMIN']), financialController.setInitialBalance);
+
 export default router;

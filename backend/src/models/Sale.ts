@@ -45,12 +45,13 @@ interface SaleAttributes {
   shippingAddress: string | null;
   shippingDocument: string | null;
   processedAt: Date | null;
+  isInitialBalance: boolean;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-interface SaleCreationAttributes extends Optional<SaleAttributes, 'id' | 'customerName' | 'customerPhone' | 'notes' | 'shippingService' | 'shippingAddress' | 'shippingDocument' | 'processedAt' | 'createdAt' | 'updatedAt'> {}
+interface SaleCreationAttributes extends Optional<SaleAttributes, 'id' | 'customerName' | 'customerPhone' | 'notes' | 'shippingService' | 'shippingAddress' | 'shippingDocument' | 'processedAt' | 'isInitialBalance' | 'createdAt' | 'updatedAt'> {}
 
 class Sale extends Model<SaleAttributes, SaleCreationAttributes> implements SaleAttributes {
   declare id: string;
@@ -67,6 +68,7 @@ class Sale extends Model<SaleAttributes, SaleCreationAttributes> implements Sale
   declare shippingAddress: string | null;
   declare shippingDocument: string | null;
   declare processedAt: Date | null;
+  declare isInitialBalance: boolean;
   declare createdBy: string;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
@@ -140,6 +142,12 @@ Sale.init(
       type: DataTypes.DATE,
       allowNull: true,
       field: 'processed_at',
+    },
+    isInitialBalance: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: 'isInitialBalance',
     },
     createdBy: {
       type: DataTypes.UUID,

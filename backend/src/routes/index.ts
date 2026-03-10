@@ -42,5 +42,6 @@ router.use('/expenses', expenseRoutes);
 router.use('/shipping-services', shippingRoutes);
 router.use('/other-incomes', otherIncomeRoutes);
 router.use('/search', searchRoutes);
+router.use('/finance', financialRoutes);
 
 export default router;
