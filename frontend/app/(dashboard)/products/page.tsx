@@ -112,7 +112,8 @@ export default function ProductsPage() {
       SKU: product.sku || '-',
       Nama: product.name,
       Kategori: product.category?.name || '-',
-      'Harga Jual': formatCurrencyForExport(product.sellingPrice),
+      'Harga Jual (Tanpa Garansi)': formatCurrencyForExport(product.sellingPrice),
+      'Harga Pakai Garansi': product.warrantyPrice ? formatCurrencyForExport(product.warrantyPrice) : '-',
       Stok: product.stock,
       'Min Stok': product.minStock,
       Unit: product.unit,
@@ -126,7 +127,8 @@ export default function ProductsPage() {
         { header: 'SKU', key: 'SKU', width: 15 },
         { header: 'Nama', key: 'Nama', width: 30 },
         { header: 'Kategori', key: 'Kategori', width: 20 },
-        { header: 'Harga Jual', key: 'Harga Jual', width: 15 },
+        { header: 'Harga Jual (Tanpa Garansi)', key: 'Harga Jual (Tanpa Garansi)', width: 15 },
+        { header: 'Harga Pakai Garansi', key: 'Harga Pakai Garansi', width: 15 },
         { header: 'Stok', key: 'Stok', width: 10 },
         { header: 'Min Stok', key: 'Min Stok', width: 10 },
         { header: 'Unit', key: 'Unit', width: 10 },
@@ -482,8 +484,17 @@ export default function ProductsPage() {
                           </div>
                         </TableCell>
                         <TableCell>{product.minStock}</TableCell>
-                        <TableCell className="text-right font-bold text-primary">
-                          {formatCurrency(product.sellingPrice)}
+                        <TableCell className="text-right">
+                          <div className="flex flex-col items-end">
+                            <span className="font-bold text-primary">
+                              {formatCurrency(product.sellingPrice)}
+                            </span>
+                            {product.warrantyPrice && Number(product.warrantyPrice) > 0 && (
+                              <span className="text-[10px] text-muted-foreground mt-0.5">
+                                Garansi: {formatCurrency(product.warrantyPrice)}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant={product.isActive ? 'default' : 'secondary'}>
