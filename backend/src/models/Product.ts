@@ -15,6 +15,7 @@ interface ProductAttributes {
   unit: string;
   purchasePrice: number;
   sellingPrice: number;
+  warrantyPrice: number | null;
   stock: number;
   minStock: number;
   isActive: boolean;
@@ -25,7 +26,7 @@ interface ProductAttributes {
   updatedAt: Date;
 }
 
-interface ProductCreationAttributes extends Optional<ProductAttributes, 'id' | 'description' | 'imageUrl' | 'length' | 'width' | 'height' | 'weight' | 'stock' | 'minStock' | 'isActive' | 'variants' | 'marketplaceLinks' | 'slug' | 'createdAt' | 'updatedAt'> {}
+interface ProductCreationAttributes extends Optional<ProductAttributes, 'id' | 'description' | 'imageUrl' | 'length' | 'width' | 'height' | 'weight' | 'stock' | 'minStock' | 'isActive' | 'variants' | 'marketplaceLinks' | 'slug' | 'warrantyPrice' | 'createdAt' | 'updatedAt'> {}
 
 class Product extends Model<ProductAttributes, ProductCreationAttributes> implements ProductAttributes {
   declare id: string;
@@ -41,6 +42,7 @@ class Product extends Model<ProductAttributes, ProductCreationAttributes> implem
   declare unit: string;
   declare purchasePrice: number;
   declare sellingPrice: number;
+  declare warrantyPrice: number | null;
   declare stock: number;
   declare minStock: number;
   declare isActive: boolean;
@@ -112,6 +114,12 @@ Product.init(
       type: DataTypes.DECIMAL(15, 2),
       allowNull: false,
       defaultValue: 0,
+    },
+    warrantyPrice: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: true,
+      defaultValue: null,
+      field: 'warranty_price',
     },
     stock: {
       type: DataTypes.INTEGER,

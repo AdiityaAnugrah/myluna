@@ -74,6 +74,7 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
         unit: product.unit || '',
         purchasePrice: product.purchasePrice ? Number(product.purchasePrice) : 0,
         sellingPrice: product.sellingPrice ? Number(product.sellingPrice) : 0,
+        warrantyPrice: product.warrantyPrice ? Number(product.warrantyPrice) : null,
         stock: product.stock ? Number(product.stock) : 0,
         minStock: product.minStock ? Number(product.minStock) : 0,
         // Handle variants array safely
@@ -101,6 +102,7 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
         unit: '',
         purchasePrice: 0,
         sellingPrice: 0,
+        warrantyPrice: null,
         stock: 0,
         minStock: 0,
         variants: [],
@@ -179,6 +181,9 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
         weight: Number(data.weight || 0),
         purchasePrice: Number(data.purchasePrice || 0),
         sellingPrice: Number(data.sellingPrice || 0),
+        warrantyPrice: data.warrantyPrice !== undefined && data.warrantyPrice !== null && !isNaN(Number(data.warrantyPrice)) && Number(data.warrantyPrice) > 0
+          ? Number(data.warrantyPrice)
+          : null,
       stock: isEdit ? Number(data.stock || 0) : 0,
         minStock: Number(data.minStock || 0),
         duration: Math.round((Date.now() - formStartTime.current) / 1000),
@@ -356,9 +361,21 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                     {errors.unit && <p className="text-sm text-red-500">{errors.unit.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label>Harga Jual *</Label>
+                    <Label>Harga Jual (Tanpa Garansi) *</Label>
                     <Input type="number" {...register('sellingPrice', { valueAsNumber: true })} disabled={isPending} />
                     {errors.sellingPrice && <p className="text-sm text-red-500">{errors.sellingPrice.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Harga Pakai Garansi <span className="text-xs text-muted-foreground font-normal">(opsional)</span></Label>
+                    <Input
+                      type="number"
+                      placeholder="Kosongkan jika tidak ada garansi"
+                      {...register('warrantyPrice', {
+                        setValueAs: (v) => (v === '' || v === null || v === undefined) ? null : Number(v),
+                      })}
+                      disabled={isPending}
+                    />
+                    {errors.warrantyPrice && <p className="text-sm text-red-500">{errors.warrantyPrice.message}</p>}
                   </div>
                 </div>
                 <div className="space-y-2">

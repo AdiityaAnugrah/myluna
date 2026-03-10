@@ -47,6 +47,7 @@ interface SaleItem {
   variantName?: string | null;
   quantity: number;
   price: number;
+  priceType: 'regular' | 'warranty';
 }
 
 export default function NewSalePage() {
@@ -216,6 +217,7 @@ export default function NewSalePage() {
                 variantName: null,
                 quantity: selection.quantity,
                 price: price,
+                priceType: 'regular',
             });
         }
     });
@@ -237,6 +239,7 @@ export default function NewSalePage() {
       const product = products.find((p) => p.id === updates.productId);
       if (product) {
         newItems[index].price = parseFloat(product.sellingPrice);
+        newItems[index].priceType = 'regular';
       }
     }
     
@@ -695,13 +698,70 @@ export default function NewSalePage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Input
-                            type="number"
-                            value={item.price}
-                            readOnly
-                            disabled={isPending}
-                            className="bg-muted cursor-not-allowed"
-                          />
+                          {(() => {
+                            const product = products.find(p => p.id === item.productId);
+                            const hasWarrantyPrice = product?.warrantyPrice && parseFloat(product.warrantyPrice) > 0;
+                            if (!hasWarrantyPrice) {
+                              // No warranty price — just show price as read-only
+                              return (
+                                <Input
+                                  type="number"
+                                  value={item.price}
+                                  readOnly
+                                  disabled={isPending}
+                                  className="bg-muted cursor-not-allowed"
+                                />
+                              );
+                            }
+                            // Has warranty price — show toggle buttons
+                            return (
+                              <div className="space-y-1">
+                                <div className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newItems = [...items];
+                                      newItems[index].priceType = 'regular';
+                                      newItems[index].price = parseFloat(product!.sellingPrice);
+                                      setItems(newItems);
+                                    }}
+                                    disabled={isPending}
+                                    className={`flex-1 text-xs px-2 py-1 rounded border transition-colors ${
+                                      item.priceType !== 'warranty'
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'bg-background text-muted-foreground border-border hover:bg-muted'
+                                    }`}
+                                  >
+                                    Tanpa Garansi
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newItems = [...items];
+                                      newItems[index].priceType = 'warranty';
+                                      newItems[index].price = parseFloat(product!.warrantyPrice!);
+                                      setItems(newItems);
+                                    }}
+                                    disabled={isPending}
+                                    className={`flex-1 text-xs px-2 py-1 rounded border transition-colors ${
+                                      item.priceType === 'warranty'
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'bg-background text-muted-foreground border-border hover:bg-muted'
+                                    }`}
+                                  >
+                                    Pakai Garansi
+                                  </button>
+                                </div>
+                                <Input
+                                  type="number"
+                                  value={item.price}
+                                  readOnly
+                                  disabled={isPending}
+                                  className="bg-muted cursor-not-allowed"
+                                />
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="text-right font-semibold">
                           {formatCurrency(subtotal)}

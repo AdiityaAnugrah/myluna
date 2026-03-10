@@ -12,6 +12,7 @@ export interface Product {
   unit: string;
   purchasePrice: string;
   sellingPrice: string;
+  warrantyPrice?: string | null;
   stock: number;
   minStock: number;
   isActive: boolean;
@@ -134,6 +135,7 @@ export interface SaleItem {
   subtotal: string;
   variantName?: string | null;
   variants?: string;
+  priceType?: 'regular' | 'warranty';
   product?: Product;
 }
 

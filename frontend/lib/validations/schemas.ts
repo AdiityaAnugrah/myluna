@@ -20,6 +20,7 @@ export const productSchema = z.object({
   unit: z.string().min(1, 'Satuan wajib diisi'),
   purchasePrice: z.number().min(0).optional().default(0),
   sellingPrice: z.number().min(0, 'Harga jual harus positif'),
+  warrantyPrice: z.number().min(0, 'Harga garansi harus positif').nullable().optional(),
   stock: z.number().int().min(0, 'Stok tidak boleh negatif').optional(),
   minStock: z.number().int().min(0, 'Min stok tidak boleh negatif'),
   variants: z.array(z.object({
