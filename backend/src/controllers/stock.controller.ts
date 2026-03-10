@@ -77,7 +77,7 @@ export const stockController = {
     const transaction = await sequelize.transaction();
 
     try {
-      const { productId, quantity, type, notes } = req.body;
+      const { productId, variantName, quantity, type, notes } = req.body;
 
       // Validate product
       const product = await Product.findByPk(productId, { transaction });
@@ -96,12 +96,35 @@ export const stockController = {
       // If OUT, make quantity negative
       const finalQuantity = type === 'OUT' ? -Math.abs(quantity) : Math.abs(quantity);
 
-      // Check if stock would go negative for OUT transactions
-      if (type === 'OUT' && product.stock < Math.abs(quantity)) {
-        throw new AppError(
-          `Stok tidak cukup. Tersedia: ${product.stock}, Diminta: ${Math.abs(quantity)}`,
-          400
+      if (variantName) {
+        const variant = await sequelize.models.ProductVariant.findOne({
+          where: { productId, value: variantName },
+          transaction,
+        }) as any;
+        
+        if (!variant) {
+            throw new AppError(`Varian ${variantName} tidak ditemukan`, 404);
+        }
+        
+        if (type === 'OUT' && variant.stock < Math.abs(quantity)) {
+            throw new AppError(
+              `Stok varian tidak cukup. Tersedia: ${variant.stock}, Diminta: ${Math.abs(quantity)}`,
+              400
+            );
+        }
+        
+        await variant.update(
+            { stock: variant.stock + finalQuantity },
+            { transaction }
         );
+      } else {
+          // Check if stock would go negative for OUT transactions (main product)
+          if (type === 'OUT' && product.stock < Math.abs(quantity)) {
+            throw new AppError(
+              `Stok tidak cukup. Tersedia: ${product.stock}, Diminta: ${Math.abs(quantity)}`,
+              400
+            );
+          }
       }
 
       // Create stock movement
@@ -111,7 +134,7 @@ export const stockController = {
           type: MovementType.ADJUSTMENT,
           quantity: finalQuantity,
           reference: 'MANUAL_ADJUSTMENT',
-          notes,
+          notes: (notes || '') + (variantName ? ` (Varian: ${variantName})` : ''),
           createdBy: req.user!.id,
         },
         { transaction }

@@ -99,49 +99,6 @@ export const changeRequestController = {
             await handleSaleCancellation(entityId, payload, transaction, userId);
             break;
         default:
-// ... (rest of switch)
-
-// ... (existing helper functions)
-
-async function handleSaleCancellation(id: string | null, payload: any, transaction: any, _userId: string) {
-  const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
-  const { saleId } = data; // Usually passed in payload
-
-  if (!saleId && !id) throw new Error('Sale ID is required');
-  const targetId = saleId || id;
-
-  const sale = await Sale.findByPk(targetId, {
-    include: [{ model: SaleItem, as: 'items' }],
-    transaction,
-  });
-
-  if (!sale) throw new Error('Sale not found');
-
-  if (sale.status === 'CANCELLED') {
-      throw new Error('Sale is already cancelled');
-  }
-
-  // 1. Restore stock & record movements
-  if (sale.items) {
-    for (const item of sale.items) {
-      const product = await Product.findByPk(item.productId, { transaction });
-      if (product) {
-        await product.update({ stock: product.stock + item.quantity }, { transaction });
-        await StockMovement.create({
-          productId: item.productId,
-          type: MovementType.IN,
-          quantity: item.quantity,
-          reference: `CANCEL:${sale.saleNumber}`,
-          notes: `Pembatalan penjualan disetujui. Alasan: ${data.reason || '-'}`,
-          createdBy: _userId,
-        }, { transaction });
-      }
-    }
-  }
-
-  // 2. Update sale status to CANCELLED
-  await sale.update({ status: 'CANCELLED' as any }, { transaction });
-}
           throw new AppError(`Unsupported entity type: ${entityType}`, 400);
       }
 
@@ -336,15 +293,28 @@ async function handleStockChange(type: RequestType, _id: string | null, payload:
     if (type === RequestType.CREATE) {
         // payload: { productId, quantity, type, notes }
         // Re-use stock controller logic essentially
-        const { productId, quantity, type: moveType, notes } = data;
+        const { productId, variantName, quantity, type: moveType, notes } = data;
         
         const product = await Product.findByPk(productId, { transaction });
         if(!product) throw new Error("Product not found");
 
         const finalQuantity = moveType === 'OUT' ? -Math.abs(quantity) : Math.abs(quantity);
 
-        if (moveType === 'OUT' && product.stock < Math.abs(quantity)) {
-             throw new Error(`Insufficient stock. Available: ${product.stock}`);
+        if (variantName) {
+            const variant = await ProductVariant.findOne({
+                where: { productId, value: variantName },
+                transaction,
+            });
+            if (!variant) throw new Error(`Varian ${variantName} tidak ditemukan`);
+            
+            if (moveType === 'OUT' && variant.stock < Math.abs(quantity)) {
+                 throw new Error(`Stok varian tidak cukup. Tersedia: ${variant.stock}`);
+            }
+            await variant.update({ stock: variant.stock + finalQuantity }, { transaction });
+        } else {
+            if (moveType === 'OUT' && product.stock < Math.abs(quantity)) {
+                 throw new Error(`Insufficient stock. Available: ${product.stock}`);
+            }
         }
 
         await StockMovement.create({
@@ -352,10 +322,8 @@ async function handleStockChange(type: RequestType, _id: string | null, payload:
             type: MovementType.ADJUSTMENT,
             quantity: finalQuantity,
             reference: 'SYSTEM_APPROVAL',
-            notes,
-            createdBy: userId // The ADMIN who approves it is technically the one 'executing' it, or should we keep original requester? 
-            // Better to use the original requester ID if possible, but payload doesn't have it easily accessible here without passing. 
-            // For now, let's attribute the MOVEMENT to the Admin.
+            notes: (notes || '') + (variantName ? ` (Varian: ${variantName})` : ''),
+            createdBy: userId 
         }, { transaction });
 
         await product.update({ stock: product.stock + finalQuantity }, { transaction });
@@ -387,12 +355,23 @@ async function handleSettlementCancellation(_entityId: string | null, payload: a
       const product = await Product.findByPk(item.productId, { transaction });
       if (product) {
         await product.update({ stock: product.stock + item.quantity }, { transaction });
+        
+        if (item.variantName) {
+            const variant = await ProductVariant.findOne({
+                where: { productId: item.productId, value: item.variantName },
+                transaction,
+            });
+            if (variant) {
+                await variant.update({ stock: variant.stock + item.quantity }, { transaction });
+            }
+        }
+
         await StockMovement.create({
           productId: item.productId,
           type: MovementType.IN,
           quantity: item.quantity,
           reference: `CANCEL:${sale.saleNumber || settlementId}`,
-          notes: `Pembatalan pelunasan disetujui. Alasan: ${data.reason || '-'}`,
+          notes: `Pembatalan pelunasan disetujui. Alasan: ${data.reason || '-'}${item.variantName ? ` (Varian: ${item.variantName})` : ''}`,
           createdBy: _userId,
         }, { transaction });
       }
@@ -404,4 +383,55 @@ async function handleSettlementCancellation(_entityId: string | null, payload: a
 
   // 3. Delete settlement
   await settlement.destroy({ transaction });
+}
+
+async function handleSaleCancellation(id: string | null, payload: any, transaction: any, _userId: string) {
+  const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+  const { saleId } = data;
+
+  if (!saleId && !id) throw new Error('Sale ID is required');
+  const targetId = saleId || id;
+
+  const sale = await Sale.findByPk(targetId, {
+    include: [{ model: SaleItem, as: 'items' }],
+    transaction,
+  });
+
+  if (!sale) throw new Error('Sale not found');
+
+  if (sale.status === 'CANCELLED') {
+      throw new Error('Sale is already cancelled');
+  }
+
+  // 1. Restore stock & record movements
+  if (sale.items) {
+    for (const item of sale.items) {
+      const product = await Product.findByPk(item.productId, { transaction });
+      if (product) {
+        await product.update({ stock: product.stock + item.quantity }, { transaction });
+        
+        if (item.variantName) {
+            const variant = await ProductVariant.findOne({
+                where: { productId: item.productId, value: item.variantName },
+                transaction,
+            });
+            if (variant) {
+                await variant.update({ stock: variant.stock + item.quantity }, { transaction });
+            }
+        }
+
+        await StockMovement.create({
+          productId: item.productId,
+          type: MovementType.IN,
+          quantity: item.quantity,
+          reference: `CANCEL:${sale.saleNumber}`,
+          notes: `Pembatalan penjualan disetujui. Alasan: ${data.reason || '-'}${item.variantName ? ` (Varian: ${item.variantName})` : ''}`,
+          createdBy: _userId,
+        }, { transaction });
+      }
+    }
+  }
+
+  // 2. Update sale status to CANCELLED
+  await sale.update({ status: 'CANCELLED' as any }, { transaction });
 }
