@@ -442,7 +442,7 @@ export default function NewSalePage() {
                   type="date"
                   value={saleDate}
                   onChange={(e) => setSaleDate(e.target.value)}
-                  disabled={isPending || user?.role === 'USER'}
+                  disabled={isPending}
                 />
               </div>
 
