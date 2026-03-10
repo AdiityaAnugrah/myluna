@@ -75,6 +75,7 @@ export default function TotalStockPage() {
 
   // Adjustment form state
   const [adjType, setAdjType] = useState<'IN' | 'OUT'>('IN');
+  const [adjVariant, setAdjVariant] = useState<string | null>(null);
   const [adjQuantity, setAdjQuantity] = useState<number>(1);
   const [adjNotes, setAdjNotes] = useState('');
 
@@ -91,6 +92,15 @@ export default function TotalStockPage() {
   const openAdjustment = (product: any) => {
     setSelectedProduct(product);
     setAdjType('IN');
+    
+    // Auto-select first variant if exists
+    let vars = product.variantItems || [];
+    if (vars.length > 0) {
+        setAdjVariant(vars[0].value);
+    } else {
+        setAdjVariant(null);
+    }
+
     setAdjQuantity(1);
     setAdjNotes('');
     setDialogOpen(true);
@@ -101,6 +111,7 @@ export default function TotalStockPage() {
 
     const payload = {
       productId: selectedProduct.id,
+      variantName: adjVariant || undefined,
       quantity: adjQuantity,
       type: adjType,
       notes: adjNotes || undefined,
@@ -126,7 +137,17 @@ export default function TotalStockPage() {
   };
 
   const isPending = adjustMutation.isPending || requestMutation.isPending;
-  const effectiveStockSelected = selectedProduct ? getEffectiveStock(selectedProduct) : 0;
+  
+  // Calculate shown stock for adjustment modal
+  const getSelectedStock = () => {
+    if (!selectedProduct) return 0;
+    if (adjVariant) {
+        const variant = (selectedProduct.variantItems || []).find((v: any) => v.value === adjVariant);
+        return variant ? Number(variant.stock) : 0;
+    }
+    return getEffectiveStock(selectedProduct);
+  };
+  const currentStockShown = getSelectedStock();
 
   return (
     <div className="space-y-6">
@@ -286,17 +307,36 @@ export default function TotalStockPage() {
                     <div className="font-semibold text-sm">{selectedProduct.name}</div>
                     <div className="text-xs text-muted-foreground">SKU: {selectedProduct.sku || '-'}</div>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-muted-foreground">Stok saat ini:</span>
+                      <span className="text-xs text-muted-foreground">Stok {adjVariant ? 'Varian' : 'Total'}:</span>
                       <span className={cn(
                         'text-sm font-bold',
-                        effectiveStockSelected <= 0 ? 'text-destructive' : 'text-primary'
+                        currentStockShown <= 0 ? 'text-destructive' : 'text-primary'
                       )}>
-                        {effectiveStockSelected} {selectedProduct.unit}
+                        {currentStockShown} {selectedProduct.unit}
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
+
+              {/* Variant Selector */}
+              {selectedProduct.variantItems && selectedProduct.variantItems.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Pilih Varian *</Label>
+                  <Select value={adjVariant || ''} onValueChange={setAdjVariant}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih varian produk" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedProduct.variantItems.map((v: any) => (
+                        <SelectItem key={v.id} value={v.value}>
+                          {v.value} (Stok: {v.stock})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Type */}
               <div className="space-y-2">
@@ -337,34 +377,34 @@ export default function TotalStockPage() {
                 </div>
               </div>
 
-              {/* Quantity */}
-              <div className="space-y-2">
-                <Label>Jumlah *</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={adjQuantity}
-                  onChange={(e) => setAdjQuantity(Math.max(1, Number(e.target.value)))}
-                  placeholder="0"
-                />
-                {adjType === 'OUT' && adjQuantity > effectiveStockSelected && (
-                  <p className="text-xs text-destructive flex items-center gap-1">
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    Jumlah melebihi stok saat ini ({effectiveStockSelected})
-                  </p>
-                )}
-                {adjQuantity > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Stok setelah penyesuaian:{' '}
-                    <strong className={cn(
-                      adjType === 'OUT' && effectiveStockSelected - adjQuantity <= 0 ? 'text-destructive' : 'text-primary'
-                    )}>
-                      {adjType === 'IN' ? effectiveStockSelected + adjQuantity : effectiveStockSelected - adjQuantity}
-                    </strong>
-                    {' '}{selectedProduct.unit}
-                  </p>
-                )}
-              </div>
+               {/* Quantity */}
+               <div className="space-y-2">
+                 <Label>Jumlah *</Label>
+                 <Input
+                   type="number"
+                   min={1}
+                   value={adjQuantity}
+                   onChange={(e) => setAdjQuantity(Math.max(1, Number(e.target.value)))}
+                   placeholder="0"
+                 />
+                 {adjType === 'OUT' && adjQuantity > currentStockShown && (
+                   <p className="text-xs text-destructive flex items-center gap-1">
+                     <AlertTriangle className="h-3.5 w-3.5" />
+                     Jumlah melebihi stok {adjVariant ? 'varian' : ''} saat ini ({currentStockShown})
+                   </p>
+                 )}
+                 {adjQuantity > 0 && (
+                   <p className="text-xs text-muted-foreground">
+                     Stok setelah penyesuaian:{' '}
+                     <strong className={cn(
+                       adjType === 'OUT' && currentStockShown - adjQuantity <= 0 ? 'text-destructive' : 'text-primary'
+                     )}>
+                       {adjType === 'IN' ? currentStockShown + adjQuantity : currentStockShown - adjQuantity}
+                     </strong>
+                     {' '}{selectedProduct.unit}
+                   </p>
+                 )}
+               </div>
 
               {/* Notes */}
               <div className="space-y-2">
@@ -397,7 +437,8 @@ export default function TotalStockPage() {
                 isPending ||
                 adjQuantity <= 0 ||
                 (!isAdmin && !adjNotes.trim()) ||
-                (adjType === 'OUT' && adjQuantity > effectiveStockSelected)
+                (adjType === 'OUT' && adjQuantity > currentStockShown) ||
+                (selectedProduct.variantItems && selectedProduct.variantItems.length > 0 && !adjVariant)
               }
               className={isAdmin ? '' : 'bg-blue-600 hover:bg-blue-700'}
             >

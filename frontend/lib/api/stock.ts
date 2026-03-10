@@ -13,7 +13,7 @@ export const stockApi = {
     return response.data;
   },
 
-  createAdjustment: async (data: { productId: string; quantity: number; type: 'IN' | 'OUT'; notes?: string }) => {
+  createAdjustment: async (data: { productId: string; variantName?: string | null; quantity: number; type: 'IN' | 'OUT'; notes?: string }) => {
     const response = await apiClient.post<ApiResponse<StockMovement>>('/stock/adjustment', data);
     return response.data;
   },

@@ -51,7 +51,7 @@ export const changeRequestsApi = {
     return response.data;
   },
 
-  createStockRequest: async (data: { productId: string; quantity: number; type: 'IN' | 'OUT'; notes?: string }) => {
+  createStockRequest: async (data: { productId: string; variantName?: string | null; quantity: number; type: 'IN' | 'OUT'; notes?: string }) => {
     const payload = JSON.stringify(data);
     const response = await apiClient.post('/change-requests', {
       entityType: 'STOCK',

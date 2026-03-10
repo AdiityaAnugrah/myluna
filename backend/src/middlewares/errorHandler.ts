@@ -84,6 +84,7 @@ export function errorHandler(
   return res.status(500).json({
     success: false,
     code: 'INTERNAL_ERROR',
-    message: 'An unexpected error occurred',
+    message: err.message || 'An unexpected error occurred',
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
   });
 }

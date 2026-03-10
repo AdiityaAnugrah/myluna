@@ -15,7 +15,7 @@ export function useCreateStockAdjustment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { productId: string; quantity: number; type: 'IN' | 'OUT'; notes?: string }) =>
+    mutationFn: (data: { productId: string; variantName?: string | null; quantity: number; type: 'IN' | 'OUT'; notes?: string }) =>
       stockApi.createAdjustment(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock-movements'] });
@@ -35,7 +35,7 @@ export function useCreateStockRequest() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { productId: string; quantity: number; type: 'IN' | 'OUT'; notes?: string }) =>
+    mutationFn: (data: { productId: string; variantName?: string | null; quantity: number; type: 'IN' | 'OUT'; notes?: string }) =>
       changeRequestsApi.createStockRequest(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['change-requests'] });
