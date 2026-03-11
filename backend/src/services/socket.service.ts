@@ -63,6 +63,16 @@ export class SocketService {
     this.io.to(`user:${userId}`).emit(event, data);
   }
 
+  // Emit notification to all users with a specific role
+  emitToRole(role: 'ADMIN' | 'SUPER_ADMIN' | 'TCP', event: string, data: any) {
+    if (!this.io) return;
+    if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
+      this.io.to('admins').emit(event, data);
+    } else if (role === 'TCP') {
+      this.io.to('tcp').emit(event, data);
+    }
+  }
+
   // Emit notification to all admins
   emitToAdmins(event: string, data: any) {
     if (!this.io) return;

@@ -20,7 +20,7 @@ export const changeRequestController = {
         entityType,
         entityId: entityId || null,
         requestType,
-        payload: typeof payload === 'string' ? payload : JSON.stringify(payload),
+        payload: payload, // Sequelize handles JSON objects correctly for DataTypes.JSON
         status: RequestStatus.PENDING,
         requestedBy: userId,
       });
@@ -175,13 +175,26 @@ export const changeRequestController = {
   },
 };
 
+// Robustly parse payload that might be double-encoded as a string
+function parsePayload(payload: any): any {
+  if (typeof payload !== 'string') return payload;
+  try {
+    const parsed = JSON.parse(payload);
+    // If it's still a string, parse again (recursive)
+    if (typeof parsed === 'string') return parsePayload(parsed);
+    return parsed;
+  } catch (e) {
+    return payload; // Not a valid JSON string, return as is
+  }
+}
+
 // Helper functions to apply changes
 async function handleProductChange(type: RequestType, id: string | null, payload: any, transaction: any) {
-  // Parse payload if it's a string
-  const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+  // Parse payload robustly
+  const data = parsePayload(payload);
 
   // Explicitly pick only valid Product model fields (ignore tracking fields like duration, metadata, etc.)
-  const PRODUCT_FIELDS = ['sku','name','description','categoryId','unit','purchasePrice','sellingPrice','stock','minStock','isActive','imageUrl','length','width','height','weight','variants','marketplaceLinks','slug'];
+  const PRODUCT_FIELDS = ['sku','name','description','categoryId','unit','purchasePrice','sellingPrice','warrantyPrice','stock','minStock','isActive','imageUrl','length','width','height','weight','variants','marketplaceLinks','slug'];
   const productData: any = {};
   for (const key of PRODUCT_FIELDS) {
     if (data[key] !== undefined) productData[key] = data[key];
@@ -200,18 +213,19 @@ async function handleProductChange(type: RequestType, id: string | null, payload
   if (type === RequestType.CREATE) {
     const product = await Product.create(productData, { transaction });
     if (variants && Array.isArray(variants)) {
-      await ProductVariant.bulkCreate(
-        variants.map((v: any) => ({
-          ...v,
-          productId: product.id,
-        })),
-        { transaction }
-      );
+      // Pick ONLY valid Variant model fields (ignore frontend helpers like isNew, tempId)
+      const VARIANT_FIELDS = ['name', 'value', 'priceAdjustment', 'stock'];
+      const sanitizedVariants = variants.map((v: any) => {
+          const sv: any = { productId: product.id };
+          VARIANT_FIELDS.forEach(f => { if(v[f] !== undefined) sv[f] = v[f]; });
+          return sv;
+      });
+      await ProductVariant.bulkCreate(sanitizedVariants, { transaction });
     }
   } else if (type === RequestType.UPDATE) {
-    if (!id) throw new Error('Entity ID required for UPDATE');
+    if (!id) throw new AppError('Entity ID required for UPDATE', 400);
     const product = await Product.findByPk(id, { transaction });
-    if (!product) throw new Error('Product not found');
+    if (!product) throw new AppError('Product not found', 404);
 
     // Don't overwrite SKU on update if not changed
     if (!data.sku) delete productData.sku;
@@ -220,24 +234,25 @@ async function handleProductChange(type: RequestType, id: string | null, payload
 
     if (variants && Array.isArray(variants)) {
       await ProductVariant.destroy({ where: { productId: id }, transaction });
-      await ProductVariant.bulkCreate(
-        variants.map((v: any) => ({
-          ...v,
-          productId: id,
-        })),
-        { transaction }
-      );
+      
+      const VARIANT_FIELDS = ['name', 'value', 'priceAdjustment', 'stock'];
+      const sanitizedVariants = variants.map((v: any) => {
+          const sv: any = { productId: id };
+          VARIANT_FIELDS.forEach(f => { if(v[f] !== undefined) sv[f] = v[f]; });
+          return sv;
+      });
+      await ProductVariant.bulkCreate(sanitizedVariants, { transaction });
     }
   } else if (type === RequestType.DELETE) {
-    if (!id) throw new Error('Entity ID required for DELETE');
+    if (!id) throw new AppError('Entity ID required for DELETE', 400);
     const product = await Product.findByPk(id, { transaction });
-    if (!product) throw new Error('Product not found');
+    if (!product) throw new AppError('Product not found', 404);
     await product.update({ isActive: false }, { transaction });
   }
 }
 
 async function handleCategoryChange(type: RequestType, id: string | null, payload: any, transaction: any) {
-  const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+  const data = parsePayload(payload);
 
   // Explicit allowlist — only valid Category model fields
   const CATEGORY_FIELDS = ['name', 'description', 'parentId', 'isActive'];
@@ -249,20 +264,20 @@ async function handleCategoryChange(type: RequestType, id: string | null, payloa
   if (type === RequestType.CREATE) {
     await Category.create(categoryData, { transaction });
   } else if (type === RequestType.UPDATE) {
-    if (!id) throw new Error('Entity ID required for UPDATE');
+    if (!id) throw new AppError('Entity ID required for UPDATE', 400);
     const category = await Category.findByPk(id, { transaction });
-    if (!category) throw new Error('Category not found');
+    if (!category) throw new AppError('Category not found', 404);
     await category.update(categoryData, { transaction });
   } else if (type === RequestType.DELETE) {
-    if (!id) throw new Error('Entity ID required for DELETE');
+    if (!id) throw new AppError('Entity ID required for DELETE', 400);
     const category = await Category.findByPk(id, { transaction });
-    if (!category) throw new Error('Category not found');
+    if (!category) throw new AppError('Category not found', 404);
     await category.update({ isActive: false }, { transaction });
   }
 }
 
 async function handleSupplierChange(type: RequestType, id: string | null, payload: any, transaction: any) {
-  const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+  const data = parsePayload(payload);
 
   // Explicit allowlist — only valid Supplier model fields
   const SUPPLIER_FIELDS = ['name', 'contact', 'phone', 'email', 'address', 'isActive'];
@@ -274,21 +289,21 @@ async function handleSupplierChange(type: RequestType, id: string | null, payloa
   if (type === RequestType.CREATE) {
     await Supplier.create(supplierData, { transaction });
   } else if (type === RequestType.UPDATE) {
-    if (!id) throw new Error('Entity ID required for UPDATE');
+    if (!id) throw new AppError('Entity ID required for UPDATE', 400);
     const supplier = await Supplier.findByPk(id, { transaction });
-    if (!supplier) throw new Error('Supplier not found');
+    if (!supplier) throw new AppError('Supplier not found', 404);
     await supplier.update(supplierData, { transaction });
   } else if (type === RequestType.DELETE) {
-    if (!id) throw new Error('Entity ID required for DELETE');
+    if (!id) throw new AppError('Entity ID required for DELETE', 400);
     const supplier = await Supplier.findByPk(id, { transaction });
-    if (!supplier) throw new Error('Supplier not found');
+    if (!supplier) throw new AppError('Supplier not found', 404);
     await supplier.update({ isActive: false }, { transaction });
   }
 }
 
 async function handleStockChange(type: RequestType, _id: string | null, payload: any, transaction: any, userId: string) {
-    // Parse payload if it's a string
-    const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+    // Parse payload robustly
+    const data = parsePayload(payload);
     
     if (type === RequestType.CREATE) {
         // payload: { productId, quantity, type, notes }
@@ -296,7 +311,7 @@ async function handleStockChange(type: RequestType, _id: string | null, payload:
         const { productId, variantName, quantity, type: moveType, notes } = data;
         
         const product = await Product.findByPk(productId, { transaction });
-        if(!product) throw new Error("Product not found");
+        if(!product) throw new AppError("Product not found", 404);
 
         const finalQuantity = moveType === 'OUT' ? -Math.abs(quantity) : Math.abs(quantity);
 
@@ -305,15 +320,15 @@ async function handleStockChange(type: RequestType, _id: string | null, payload:
                 where: { productId, value: variantName },
                 transaction,
             });
-            if (!variant) throw new Error(`Varian ${variantName} tidak ditemukan`);
+            if (!variant) throw new AppError(`Varian ${variantName} tidak ditemukan`, 404);
             
             if (moveType === 'OUT' && variant.stock < Math.abs(quantity)) {
-                 throw new Error(`Stok varian tidak cukup. Tersedia: ${variant.stock}`);
+                 throw new AppError(`Stok varian tidak cukup. Tersedia: ${variant.stock}`, 400);
             }
             await variant.update({ stock: variant.stock + finalQuantity }, { transaction });
         } else {
             if (moveType === 'OUT' && product.stock < Math.abs(quantity)) {
-                 throw new Error(`Insufficient stock. Available: ${product.stock}`);
+                 throw new AppError(`Insufficient stock. Available: ${product.stock}`, 400);
             }
         }
 
@@ -331,10 +346,10 @@ async function handleStockChange(type: RequestType, _id: string | null, payload:
 }
 
 async function handleSettlementCancellation(_entityId: string | null, payload: any, transaction: any, _userId: string) {
-  const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+  const data = parsePayload(payload);
   const { settlementId } = data;
 
-  if (!settlementId) throw new Error('Settlement ID is required');
+  if (!settlementId) throw new AppError('Settlement ID is required', 400);
 
   const settlement = await Settlement.findByPk(settlementId, {
     include: [{
@@ -345,7 +360,7 @@ async function handleSettlementCancellation(_entityId: string | null, payload: a
     transaction,
   });
 
-  if (!settlement) throw new Error('Settlement not found');
+  if (!settlement) throw new AppError('Settlement not found', 404);
 
   const sale = (settlement as any).sale;
 
@@ -386,7 +401,7 @@ async function handleSettlementCancellation(_entityId: string | null, payload: a
 }
 
 async function handleSaleCancellation(id: string | null, payload: any, transaction: any, _userId: string) {
-  const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+  const data = parsePayload(payload);
   const { saleId } = data;
 
   if (!saleId && !id) throw new Error('Sale ID is required');
@@ -397,10 +412,10 @@ async function handleSaleCancellation(id: string | null, payload: any, transacti
     transaction,
   });
 
-  if (!sale) throw new Error('Sale not found');
+  if (!sale) throw new AppError('Sale not found', 404);
 
   if (sale.status === 'CANCELLED') {
-      throw new Error('Sale is already cancelled');
+      throw new AppError('Sale is already cancelled', 400);
   }
 
   // 1. Restore stock & record movements

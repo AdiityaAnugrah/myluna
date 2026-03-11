@@ -53,7 +53,20 @@ const fieldNameMap: Record<string, string> = {
   updatedBy: 'Diperbarui Oleh',
 };
 
-export function DiffViewer({ oldData, newData, type }: DiffViewerProps) {
+// Robustly parse payload that might be double-encoded as a string
+const parsePayload = (payload: any): any => {
+  if (typeof payload !== 'string') return payload;
+  try {
+    const parsed = JSON.parse(payload);
+    if (typeof parsed === 'string') return parsePayload(parsed);
+    return parsed;
+  } catch (e) {
+    return payload;
+  }
+};
+
+export function DiffViewer({ oldData, newData: rawNewData, type }: DiffViewerProps) {
+  const newData = parsePayload(rawNewData);
   
   const getFieldLabel = (key: string): string => {
     return fieldNameMap[key] || key;

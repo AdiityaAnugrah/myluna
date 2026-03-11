@@ -32,6 +32,18 @@ import { toast } from 'sonner';
 import { DiffViewer } from '@/components/approvals/DiffViewer';
 import { ChangeRequest } from '@/types';
 
+// Robustly parse payload that might be double-encoded as a string
+const parsePayload = (payload: any): any => {
+  if (typeof payload !== 'string') return payload;
+  try {
+    const parsed = JSON.parse(payload);
+    if (typeof parsed === 'string') return parsePayload(parsed);
+    return parsed;
+  } catch (e) {
+    return payload;
+  }
+};
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 type RequestMeta = {
@@ -43,9 +55,7 @@ type RequestMeta = {
 };
 
 function getRequestMeta(req: ChangeRequest): RequestMeta {
-  const payload: any = typeof req.payload === 'string'
-    ? JSON.parse(req.payload)
-    : (req.payload || {});
+  const payload = parsePayload(req.payload) || {};
 
   if (req.entityType === 'SALE' && req.requestType === 'DELETE') {
     return {
@@ -508,11 +518,7 @@ function MasterApprovals() {
                     Data yang Diajukan
                   </h4>
                   <DiffViewer
-                    newData={
-                      typeof selectedRequest.payload === 'string'
-                        ? JSON.parse(selectedRequest.payload)
-                        : selectedRequest.payload
-                    }
+                    newData={parsePayload(selectedRequest.payload)}
                     type={selectedRequest.requestType}
                   />
                 </div>
