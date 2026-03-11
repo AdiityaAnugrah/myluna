@@ -16,6 +16,7 @@ import { useCreateProduct, useUpdateProduct } from '@/lib/hooks/useProducts';
 import { useCategories } from '@/lib/hooks/useCategories';
 import { apiClient } from '@/lib/api/client';
 import { useVariantOptions, useCreateVariantOption, VariantOption } from '@/lib/hooks/useVariantOptions';
+import { useFormTimer } from '@/lib/hooks/useFormTimer';
 import { Product, Category } from '@/types';
 import { cn } from '@/lib/utils';
 import { getImageUrl } from '@/lib/utils/url';
@@ -52,7 +53,7 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
   
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
-  const formStartTime = useRef<number>(Date.now()); // track how long form was open
+  const { getDurationSeconds } = useFormTimer();
 
   // Variant options logic
   const { data: variantOptionsData } = useVariantOptions();
@@ -190,7 +191,7 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
           : null,
       stock: isEdit ? Number(data.stock || 0) : 0,
         minStock: Number(data.minStock || 0),
-        duration: Math.round((Date.now() - formStartTime.current) / 1000),
+        duration: getDurationSeconds(),
         variants: data.variants?.map((v: any) => ({
           ...v,
           // Auto-set name to value (color) if user didn't enter one
