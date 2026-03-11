@@ -20,6 +20,7 @@ import Settlement from './Settlement';
 import Expense from './Expense';
 import ShippingService from './ShippingService';
 import OtherIncome from './OtherIncome';
+import VariantOption from './VariantOption';
 
 // Define associations
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -136,4 +137,5 @@ export {
   Expense,
   ShippingService,
   OtherIncome,
+  VariantOption,
 };

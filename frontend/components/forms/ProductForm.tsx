@@ -8,19 +8,14 @@ import { useAuthStore } from '@/lib/stores/auth';
 import Link from 'next/link';
 import { Loader2, ArrowLeft, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
 
-const VARIANT_COLOR_OPTIONS = [
-  'PUTIH', 'WALNUT', 'WINGE', 'MARBLE', 'BIRU', 'PINK', 'SONOMA', 'CHERRY',
-  'MARBLE WINGE', 'PUTIH WINGE', 'JATI', 'NANO', 'MARBLE BESI HITAM',
-  'WINGE BESI PUTIH', 'PUTIH BESI HITAM', 'SONOMA BESI PUTIH', 'HITAM',
-  'ABU ABU', 'HIJAU', 'MERAH', 'MAHONI', 'PUTIH MAHONI', 'WINGE PUTIH' , 'CHERRY PUTIH' , 'ORANGE' , 'PUTIH ORANGE' , 'PUTIH PINK' , 'PUTIH HITAM' , 'PUTIH BIRU'
-  , 'CHERRY HITAM', 'SONOMA HITAM', 'SONOMA PUTIH' 
-];
+// Hardcoded VARIANT_COLOR_OPTIONS removed - now fetched from API
 import { toast } from 'sonner';
 
 import { productSchema, ProductFormData } from '@/lib/validations/schemas';
 import { useCreateProduct, useUpdateProduct } from '@/lib/hooks/useProducts';
 import { useCategories } from '@/lib/hooks/useCategories';
 import { apiClient } from '@/lib/api/client';
+import { useVariantOptions, useCreateVariantOption, VariantOption } from '@/lib/hooks/useVariantOptions';
 import { Product, Category } from '@/types';
 import { cn } from '@/lib/utils';
 import { getImageUrl } from '@/lib/utils/url';
@@ -58,6 +53,14 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
   const formStartTime = useRef<number>(Date.now()); // track how long form was open
+
+  // Variant options logic
+  const { data: variantOptionsData } = useVariantOptions();
+  const variantOptions = (variantOptionsData?.data || []) as VariantOption[];
+  const createVariantOption = useCreateVariantOption();
+  const [newColorInput, setNewColorInput] = useState<string>('');
+  const [isAddingNewColor, setIsAddingNewColor] = useState<boolean>(false);
+  const [activeVariantIndex, setActiveVariantIndex] = useState<number | null>(null);
 
   // Initialize Default Values with Defensive Checks
   const defaultValues: Partial<ProductFormData> = product
@@ -238,7 +241,22 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
     }
   };
 
-  const isPending = createMutation.isPending || updateMutation.isPending;
+  const handleAddNewColor = async () => {
+    if (!newColorInput.trim()) return;
+    
+    createVariantOption.mutate(newColorInput.trim().toUpperCase(), {
+      onSuccess: (response) => {
+        if (activeVariantIndex !== null) {
+          setValue(`variants.${activeVariantIndex}.value`, response.data.name);
+        }
+        setNewColorInput('');
+        setIsAddingNewColor(false);
+        setActiveVariantIndex(null);
+      }
+    });
+  };
+
+  const isPending = createMutation.isPending || updateMutation.isPending || createVariantOption.isPending;
 
   // Mode hanya berlaku saat tambah produk baru (bukan edit)
   // REMOVED: mode selector - new products always start at stock 0
@@ -441,16 +459,32 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                         control={control}
                         name={`variants.${index}.value` as const}
                         render={({ field: f }) => (
-                          <Select value={f.value} onValueChange={f.onChange} disabled={isPending}>
+                          <Select 
+                            value={f.value} 
+                            onValueChange={(val) => {
+                              if (val === 'ADD_NEW') {
+                                setActiveVariantIndex(index);
+                                setIsAddingNewColor(true);
+                              } else {
+                                f.onChange(val);
+                              }
+                            }} 
+                            disabled={isPending}
+                          >
                             <SelectTrigger>
                               <SelectValue placeholder="Pilih warna..." />
                             </SelectTrigger>
                             <SelectContent>
-                              {VARIANT_COLOR_OPTIONS.map((color) => (
-                                <SelectItem key={color} value={color}>
-                                  {color}
+                              {variantOptions.map((option) => (
+                                <SelectItem key={option.id} value={option.name}>
+                                  {option.name.toUpperCase()}
                                 </SelectItem>
                               ))}
+                              <Separator className="my-2" />
+                              <SelectItem value="ADD_NEW" className="text-blue-600 font-medium">
+                                <Plus className="h-4 w-4 mr-2 inline" />
+                                + Tambah Warna Baru
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         )}
@@ -546,6 +580,53 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
           </div>
         </div>
       </form>
+
+      {/* Dialog / Modal simple for new color */}
+      {isAddingNewColor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Tambah Warna Baru</CardTitle>
+              <CardDescription>Masukkan nama warna atau varian baru.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-color">Nama Warna</Label>
+                <Input 
+                  id="new-color" 
+                  value={newColorInput} 
+                  onChange={(e) => setNewColorInput(e.target.value)}
+                  placeholder="Contoh: UNGU, HIJAU DAUN, dll"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddNewColor();
+                  }}
+                />
+              </div>
+              <div className="flex gap-3 justify-end">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setIsAddingNewColor(false);
+                    setActiveVariantIndex(null);
+                    setNewColorInput('');
+                  }}
+                  disabled={createVariantOption.isPending}
+                >
+                  Batal
+                </Button>
+                <Button 
+                  onClick={handleAddNewColor}
+                  disabled={createVariantOption.isPending || !newColorInput.trim()}
+                >
+                  {createVariantOption.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Tambah
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
