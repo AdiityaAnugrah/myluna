@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { productApi, categoryApi } from '../api/products';
 import { toast } from 'sonner';
 import { Product, PaginationParams } from '@/types';
@@ -8,6 +8,22 @@ export function useProducts(params?: PaginationParams & { search?: string; categ
     queryKey: ['products', params],
     queryFn: () => productApi.getAll(params),
     ...options,
+  });
+}
+
+export function useInfiniteProducts(params?: { search?: string; categoryId?: string; isActive?: boolean; limit?: number }) {
+  return useInfiniteQuery({
+    queryKey: ['products', 'infinite', params],
+    queryFn: ({ pageParam = 1 }) => 
+      productApi.getAll({ ...params, page: pageParam as number, limit: params?.limit || 20 }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const { pagination } = lastPage.data;
+      if (pagination && pagination.page < pagination.totalPages) {
+        return pagination.page + 1;
+      }
+      return undefined;
+    },
   });
 }
 
