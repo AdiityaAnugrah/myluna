@@ -1,6 +1,6 @@
 import { QueryInterface, DataTypes } from 'sequelize';
 
-export default {
+module.exports = {
   up: async (queryInterface: QueryInterface) => {
     await queryInterface.addColumn('sales', 'processed_at', {
       type: DataTypes.DATE,
