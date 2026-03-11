@@ -2,6 +2,9 @@ import { QueryInterface, DataTypes } from 'sequelize';
 
 module.exports = {
   up: async (queryInterface: QueryInterface) => {
+    const tables = await queryInterface.showAllTables();
+    if (tables.includes('settlements')) return;
+    
     await queryInterface.createTable('settlements', {
       id: {
         type: DataTypes.UUID,
