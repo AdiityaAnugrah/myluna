@@ -458,36 +458,44 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                       <Controller
                         control={control}
                         name={`variants.${index}.value` as const}
-                        render={({ field: f }) => (
-                          <Select 
-                            value={f.value} 
-                            onValueChange={(val) => {
-                              if (val === 'ADD_NEW') {
-                                setActiveVariantIndex(index);
-                                setIsAddingNewColor(true);
-                              } else {
-                                f.onChange(val);
-                              }
-                            }} 
-                            disabled={isPending}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih warna..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {variantOptions.map((option) => (
-                                <SelectItem key={option.id} value={option.name}>
-                                  {option.name.toUpperCase()}
+                        render={({ field: f }) => {
+                          // Combine fetched options with current value if it's missing
+                          const displayOptions = [...variantOptions];
+                          if (f.value && !variantOptions.some(opt => opt.name === f.value)) {
+                            displayOptions.push({ id: `existing-${f.value}`, name: f.value });
+                          }
+
+                          return (
+                            <Select 
+                              value={f.value} 
+                              onValueChange={(val) => {
+                                if (val === 'ADD_NEW') {
+                                  setActiveVariantIndex(index);
+                                  setIsAddingNewColor(true);
+                                } else {
+                                  f.onChange(val);
+                                }
+                              }} 
+                              disabled={isPending}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Pilih warna..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {displayOptions.map((option) => (
+                                  <SelectItem key={option.id} value={option.name}>
+                                    {option.name.toUpperCase()}
+                                  </SelectItem>
+                                ))}
+                                <Separator className="my-2" />
+                                <SelectItem value="ADD_NEW" className="text-blue-600 font-medium">
+                                  <Plus className="h-4 w-4 mr-2 inline" />
+                                  + Tambah Warna Baru
                                 </SelectItem>
-                              ))}
-                              <Separator className="my-2" />
-                              <SelectItem value="ADD_NEW" className="text-blue-600 font-medium">
-                                <Plus className="h-4 w-4 mr-2 inline" />
-                                + Tambah Warna Baru
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
+                              </SelectContent>
+                            </Select>
+                          );
+                        }}
                       />
                     </div>
                     <div className="flex gap-2">

@@ -32,8 +32,9 @@ export async function up(queryInterface: QueryInterface) {
   ];
 
   const now = new Date();
+  const crypto = await import('crypto');
   const options = VARIANT_COLOR_OPTIONS.map(name => ({
-    id: require('crypto').randomUUID(),
+    id: crypto.randomUUID(),
     name,
     createdAt: now,
     updatedAt: now,
