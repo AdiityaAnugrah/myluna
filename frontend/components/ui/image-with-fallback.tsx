@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ImageWithFallbackProps {
@@ -10,6 +11,7 @@ interface ImageWithFallbackProps {
   alt: string;
   className?: string;
   lazy?: boolean;
+  fallback?: React.ReactNode;
 }
 
 export function ImageWithFallback({
@@ -19,13 +21,20 @@ export function ImageWithFallback({
   alt,
   className,
   lazy = true,
+  fallback,
 }: ImageWithFallbackProps) {
   const [imageSrc, setImageSrc] = useState<string>(blurDataUrl || src);
   const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
+  const [hasError, setHasError] = useState(!src);
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
+    if (!src) {
+        setHasError(true);
+        setIsLoading(false);
+        return;
+    }
+    
     if (!lazy || !imgRef.current) {
       loadImage();
       return;
@@ -85,9 +94,10 @@ export function ImageWithFallback({
   };
 
   if (hasError) {
+    if (fallback) return <>{fallback}</>;
     return (
-      <div className={cn('flex items-center justify-center bg-muted', className)}>
-        <span className="text-muted-foreground text-sm">Failed to load image</span>
+      <div className={cn('flex items-center justify-center bg-muted/50', className)}>
+        <Package className="h-1/2 w-1/2 text-muted-foreground/30" />
       </div>
     );
   }
