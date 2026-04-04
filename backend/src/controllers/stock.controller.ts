@@ -127,6 +127,9 @@ export const stockController = {
           }
       }
 
+      // Capture original stock before any update (for accurate audit log)
+      const originalStock = product.stock;
+
       // Create stock movement
       const movement = await StockMovement.create(
         {
@@ -142,13 +145,31 @@ export const stockController = {
 
       // Update product stock
       await product.update(
-        { stock: product.stock + finalQuantity },
+        { stock: originalStock + finalQuantity },
         { transaction }
+      );
+
+      // Log activity inside transaction (before commit) so it's atomic
+      await auditService.log(
+        {
+          userId: req.user!.id,
+          action: 'CREATE' as any,
+          entity: 'StockMovement',
+          entityId: movement.id,
+          before: { stock: originalStock },
+          after: { 
+            ...movement.toJSON(), 
+            newProductStock: originalStock + finalQuantity 
+          },
+          ip: req.ip || '',
+          userAgent: req.get('User-Agent') || '',
+        },
+        transaction
       );
 
       await transaction.commit();
 
-      // Fetch complete movement with relations
+      // Fetch complete movement with relations (after commit, no transaction needed)
       const completeMovement = await StockMovement.findByPk(movement.id, {
         include: [
           {
@@ -163,24 +184,6 @@ export const stockController = {
         ],
       });
 
-      // Log activity
-      await auditService.log(
-        {
-          userId: req.user!.id,
-          action: 'CREATE' as any,
-          entity: 'StockMovement',
-          entityId: movement.id,
-          before: { stock: product.stock },
-          after: { 
-            ...movement.toJSON(), 
-            newProductStock: product.stock + finalQuantity 
-          },
-          ip: req.ip || '',
-          userAgent: req.get('User-Agent') || '',
-        },
-        transaction
-      );
-
       return successResponse(
         res,
         completeMovement,
@@ -188,7 +191,10 @@ export const stockController = {
         201
       );
     } catch (error) {
-      await transaction.rollback();
+      // Only rollback if transaction hasn't been committed yet
+      if (!(transaction as any).finished) {
+        await transaction.rollback();
+      }
       return next(error);
     }
   },
