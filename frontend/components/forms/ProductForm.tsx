@@ -277,7 +277,12 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
       </div>
 
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={handleSubmit(onSubmit, (formErrors) => {
+        console.error('Validation errors:', formErrors);
+        const firstError = Object.values(formErrors)[0] as any;
+        const message = firstError?.message || 'Mohon periksa kembali isian form';
+        toast.error(message);
+      })} className="space-y-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* ── Main Column (left 2/3) ── */}
           <div className="lg:col-span-2 space-y-6">
@@ -379,6 +384,11 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                     <Label>Satuan *</Label>
                     <Input {...register('unit')} placeholder="pcs" disabled={isPending} />
                     {errors.unit && <p className="text-sm text-red-500">{errors.unit.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Harga Beli</Label>
+                    <Input type="number" {...register('purchasePrice', { valueAsNumber: true })} disabled={isPending} placeholder="0" />
+                    {errors.purchasePrice && <p className="text-sm text-red-500">{errors.purchasePrice.message}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label>Harga Jual (Tanpa Garansi) *</Label>
