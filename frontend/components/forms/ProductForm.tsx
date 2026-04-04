@@ -516,7 +516,9 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                         <Input
                           type="number"
                           {...register(`variants.${index}.stock` as const, { valueAsNumber: true })}
-                          disabled={isPending || !isEdit}
+                          disabled={isPending}
+                          readOnly={isEdit}
+                          className={isEdit ? "bg-muted" : ""}
                         />
                       </div>
                       <Button variant="ghost" size="icon" className="text-red-500" onClick={() => remove(index)} disabled={isPending}>
