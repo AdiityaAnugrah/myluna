@@ -423,7 +423,12 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                     {isEdit && (
                       <div className="space-y-2">
                         <Label>Stok Saat Ini</Label>
-                        <Input type="number" value={product?.stock ?? 0} disabled readOnly />
+                        <Input 
+                          type="number" 
+                          {...register('stock', { valueAsNumber: true })} 
+                          readOnly 
+                          className="bg-muted pointer-events-none" 
+                        />
                         <p className="text-xs text-muted-foreground">Gunakan menu Stok untuk mengubah stok.</p>
                       </div>
                     )}
