@@ -189,7 +189,7 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
         warrantyPrice: data.warrantyPrice !== undefined && data.warrantyPrice !== null && !isNaN(Number(data.warrantyPrice)) && Number(data.warrantyPrice) > 0
           ? Number(data.warrantyPrice)
           : null,
-      stock: isEdit ? Number(data.stock || 0) : 0,
+      stock: isEdit ? Number(product?.stock ?? 0) : 0,
         minStock: Number(data.minStock || 0),
         duration: getDurationSeconds(),
         variants: data.variants?.map((v: any) => ({
@@ -422,8 +422,9 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                     )}
                     {isEdit && (
                       <div className="space-y-2">
-                        <Label>Stok Awal</Label>
-                        <Input type="number" {...register('stock', { valueAsNumber: true })} disabled={isEdit || isPending} />
+                        <Label>Stok Saat Ini</Label>
+                        <Input type="number" value={product?.stock ?? 0} disabled readOnly />
+                        <p className="text-xs text-muted-foreground">Gunakan menu Stok untuk mengubah stok.</p>
                       </div>
                     )}
                   </>
