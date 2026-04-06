@@ -16,8 +16,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Check, X, FileText, Loader2, RefreshCw, Printer, AlertCircle } from 'lucide-react';
+import { Check, X, FileText, Loader2, RefreshCw, Printer, AlertCircle, Filter, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatStatus } from '@/lib/utils/format';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -358,7 +360,15 @@ export default function SalesProcessPage() {
   const { user } = useAuth();
   const userRole = user?.role;
   
-  const { data, isLoading, isFetching, error, refetch } = useSales({ limit: 100 });
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('ALL');
+
+  const { data, isLoading, isFetching, error, refetch } = useSales({ 
+    limit: 100,
+    ...(startDate && endDate ? { startDate, endDate } : {}),
+    ...(paymentMethod !== 'ALL' ? { paymentMethod } : {})
+  });
   const approveMutation = useApproveSale();
   const rejectMutation = useRejectSale();
   const processMutation = useProcessSale();
@@ -530,6 +540,54 @@ export default function SalesProcessPage() {
           </Button>
         </div>
       )}
+
+      {/* Filter Section */}
+      <div className="rounded-xl border bg-card p-4 mb-4 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-4 items-end">
+          <div className="w-full md:w-auto flex-1 space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><Filter className="w-3 h-3"/> Mulai Tanggal</label>
+            <Input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)} 
+              className="h-9"
+            />
+          </div>
+          <div className="w-full md:w-auto flex-1 space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Sampai Tanggal</label>
+            <Input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)}
+              className="h-9" 
+            />
+          </div>
+          <div className="w-full md:w-auto flex-1 space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Metode Pembayaran</label>
+            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Semua Metode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Semua Metode</SelectItem>
+                <SelectItem value="CASH">Tunai (CASH)</SelectItem>
+                <SelectItem value="TRANSFER">Transfer</SelectItem>
+                <SelectItem value="CREDIT">Tempo (CREDIT)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-full md:w-auto flex flex-row gap-2 pt-2 md:pt-0">
+             <Button variant="outline" className="h-9 w-full md:w-auto text-muted-foreground" onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                setPaymentMethod('ALL');
+             }}>
+               <XCircle className="h-4 w-4 mr-1.5" />
+               Reset
+             </Button>
+          </div>
+        </div>
+      </div>
 
       <Tabs defaultValue="active" className="w-full">
         <TabsList className={cn("grid w-full mb-4", userRole === 'USER' ? "grid-cols-1" : "grid-cols-2")}>
