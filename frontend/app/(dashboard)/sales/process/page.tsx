@@ -363,11 +363,13 @@ export default function SalesProcessPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
 
   const { data, isLoading, isFetching, error, refetch } = useSales({ 
     limit: 100,
     ...(startDate && endDate ? { startDate, endDate } : {}),
-    ...(paymentMethod !== 'ALL' ? { paymentMethod } : {})
+    ...(paymentMethod !== 'ALL' ? { paymentMethod } : {}),
+    ...(statusFilter !== 'ALL' ? { status: statusFilter } : {})
   });
   const approveMutation = useApproveSale();
   const rejectMutation = useRejectSale();
@@ -425,8 +427,8 @@ export default function SalesProcessPage() {
         const bUrgent = isUrgentSale(b);
         if (aUrgent && !bUrgent) return -1;
         if (!aUrgent && bUrgent) return 1;
-        // Then by date (oldest first)
-        return new Date(a.saleDate).getTime() - new Date(b.saleDate).getTime();
+        // Then by date (newest first)
+        return new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime();
       });
   }, [sales]);
 
@@ -576,11 +578,28 @@ export default function SalesProcessPage() {
               </SelectContent>
             </Select>
           </div>
+          <div className="w-full md:w-auto flex-1 space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Status Awal</label>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Semua Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Semua Status</SelectItem>
+                <SelectItem value="WAITING_APPROVAL">Belum Dilakukan Aksi</SelectItem>
+                <SelectItem value="APPROVED">Disetujui/Dipacking</SelectItem>
+                <SelectItem value="PROCESSED">Sudah Diproses/Resi</SelectItem>
+                <SelectItem value="COMPLETED">Selesai</SelectItem>
+                <SelectItem value="CANCELLED">Dibatalkan</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="w-full md:w-auto flex flex-row gap-2 pt-2 md:pt-0">
              <Button variant="outline" className="h-9 w-full md:w-auto text-muted-foreground" onClick={() => {
                 setStartDate('');
                 setEndDate('');
                 setPaymentMethod('ALL');
+                setStatusFilter('ALL');
              }}>
                <XCircle className="h-4 w-4 mr-1.5" />
                Reset
