@@ -3,7 +3,7 @@ import { salesApi } from '../api/sales';
 import { toast } from 'sonner';
 import { PaginationParams } from '@/types';
 
-export function useSales(params?: PaginationParams & { status?: string; startDate?: string; endDate?: string }, options?: { enabled?: boolean }) {
+export function useSales(params?: PaginationParams & { status?: string; startDate?: string; endDate?: string; search?: string }, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['sales', params],
     queryFn: () => salesApi.getAll(params),

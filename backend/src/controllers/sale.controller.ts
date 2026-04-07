@@ -16,7 +16,8 @@ export const saleController = {
         status = '', 
         paymentMethod = '',
         startDate = '',
-        endDate = ''
+        endDate = '',
+        search = ''
       } = req.query;
 
       const offset = (Number(page) - 1) * Number(limit);
@@ -41,6 +42,15 @@ export const saleController = {
         where.saleDate = {
           [Op.between]: [new Date(startDate as string), new Date(endDate as string)],
         };
+      }
+
+      if (search) {
+        const searchStr = `%${(search as string).toLowerCase()}%`;
+        where[Op.or] = [
+          { saleNumber: { [Op.like]: searchStr } },
+          { customerName: { [Op.like]: searchStr } },
+          { customerPhone: { [Op.like]: searchStr } }
+        ];
       }
 
       const { count, rows } = await Sale.findAndCountAll({

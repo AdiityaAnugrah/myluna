@@ -392,6 +392,12 @@ export default function SalesProcessPage() {
   const [paymentMethod, setPaymentMethod] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const [activePage, setActivePage] = useState(1);
   const [activeLimit, setActiveLimit] = useState(10);
@@ -403,7 +409,8 @@ export default function SalesProcessPage() {
     limit: 500,
     ...(startDate && endDate ? { startDate, endDate } : {}),
     ...(paymentMethod !== 'ALL' ? { paymentMethod } : {}),
-    ...(statusFilter !== 'ALL' ? { status: statusFilter } : {})
+    ...(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
+    ...(debouncedSearch ? { search: debouncedSearch } : {})
   });
   const approveMutation = useApproveSale();
   const rejectMutation = useRejectSale();

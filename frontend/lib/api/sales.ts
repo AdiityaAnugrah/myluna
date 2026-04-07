@@ -2,7 +2,7 @@ import apiClient from './client';
 import { Sale, ApiResponse, PaginatedResponse, PaginationParams } from '@/types';
 
 export const salesApi = {
-  getAll: async (params?: PaginationParams & { status?: string }) => {
+  getAll: async (params?: PaginationParams & { status?: string; search?: string }) => {
     const response = await apiClient.get<PaginatedResponse<Sale>>('/sales', { params });
     return response.data;
   },
