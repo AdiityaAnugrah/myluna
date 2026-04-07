@@ -24,6 +24,7 @@ import { formatStatus } from '@/lib/utils/format';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Pagination } from '@/components/ui/pagination';
 import { useReactToPrint } from 'react-to-print';
 import Barcode from 'react-barcode';
 import { toast } from 'sonner';
@@ -248,8 +249,11 @@ const SalesTable = ({
                   <TableCell className="font-mono text-sm">NO. {index + 1}</TableCell>
                   <TableCell>{format(new Date(sale.saleDate), 'dd MMM yyyy')}</TableCell>
                   <TableCell>
-                    <div className="flex flex-col">
-                        <span className="font-medium">{sale.customerName || 'Umum'}</span>
+                    <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-2">
+                           <span className="font-medium">{sale.customerName || 'Umum'}</span>
+                           <span className="text-[10px] font-mono bg-muted/60 border px-1.5 py-0.5 rounded text-muted-foreground whitespace-nowrap">{sale.saleNumber}</span>
+                        </div>
                         <span className="text-xs text-muted-foreground">{sale.customerPhone}</span>
                     </div>
                   </TableCell>
@@ -365,8 +369,14 @@ export default function SalesProcessPage() {
   const [paymentMethod, setPaymentMethod] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
+  const [activePage, setActivePage] = useState(1);
+  const [activeLimit, setActiveLimit] = useState(10);
+  
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyLimit, setHistoryLimit] = useState(10);
+
   const { data, isLoading, isFetching, error, refetch } = useSales({ 
-    limit: 100,
+    limit: 500,
     ...(startDate && endDate ? { startDate, endDate } : {}),
     ...(paymentMethod !== 'ALL' ? { paymentMethod } : {}),
     ...(statusFilter !== 'ALL' ? { status: statusFilter } : {})
@@ -433,8 +443,29 @@ export default function SalesProcessPage() {
   }, [sales]);
 
   const historySales = useMemo(() => {
-    return sales.filter((s: Sale) => ['PROCESSED', 'REJECTED', 'SETTLED', 'COMPLETED', 'CANCELLED'].includes(s.status));
+    return sales
+      .filter((s: Sale) => ['PROCESSED', 'REJECTED', 'SETTLED', 'COMPLETED', 'CANCELLED'].includes(s.status))
+      .sort((a: Sale, b: Sale) => {
+        const dateA = a.processedAt ? new Date(a.processedAt).getTime() : new Date(a.createdAt).getTime();
+        const dateB = b.processedAt ? new Date(b.processedAt).getTime() : new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
   }, [sales]);
+
+  const paginatedActiveSales = useMemo(() => {
+    const startIndex = (activePage - 1) * activeLimit;
+    return activeSales.slice(startIndex, startIndex + activeLimit);
+  }, [activeSales, activePage, activeLimit]);
+
+  const paginatedHistorySales = useMemo(() => {
+    const startIndex = (historyPage - 1) * historyLimit;
+    return historySales.slice(startIndex, startIndex + historyLimit);
+  }, [historySales, historyPage, historyLimit]);
+
+  useEffect(() => {
+    setActivePage(1);
+    setHistoryPage(1);
+  }, [startDate, endDate, paymentMethod, statusFilter, data]);
 
   // Memoize event handlers
   const handleAction = useCallback((id: string, type: 'approve' | 'reject') => {
@@ -617,9 +648,9 @@ export default function SalesProcessPage() {
         </TabsList>
         
         <TabsContent value="active">
-            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+            <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex flex-col">
                 <SalesTable 
-                    sales={activeSales} 
+                    sales={paginatedActiveSales} 
                     isLoading={isLoading} 
                     onApprove={(id) => handleAction(id, 'approve')}
                     onReject={(id) => handleAction(id, 'reject')}
@@ -627,19 +658,49 @@ export default function SalesProcessPage() {
                     getStatusBadge={getStatusBadge}
                     userRole={userRole}
                 />
+                {!isLoading && activeSales.length > 0 && (
+                   <div className="border-t">
+                     <Pagination
+                        currentPage={activePage}
+                        totalPages={Math.ceil(activeSales.length / activeLimit)}
+                        totalItems={activeSales.length}
+                        itemsPerPage={activeLimit}
+                        onPageChange={setActivePage}
+                        onItemsPerPageChange={(limit) => {
+                          setActiveLimit(limit);
+                          setActivePage(1);
+                        }}
+                     />
+                   </div>
+                )}
             </div>
         </TabsContent>
 
         <TabsContent value="history">
-            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+            <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex flex-col">
                  <SalesTable 
-                    sales={historySales} 
+                    sales={paginatedHistorySales} 
                     isLoading={isLoading} 
                     isHistory
                     onPrint={handlePrintClick}
                     getStatusBadge={getStatusBadge}
                     userRole={userRole}
                 />
+                {!isLoading && historySales.length > 0 && (
+                   <div className="border-t">
+                     <Pagination
+                        currentPage={historyPage}
+                        totalPages={Math.ceil(historySales.length / historyLimit)}
+                        totalItems={historySales.length}
+                        itemsPerPage={historyLimit}
+                        onPageChange={setHistoryPage}
+                        onItemsPerPageChange={(limit) => {
+                          setHistoryLimit(limit);
+                          setHistoryPage(1);
+                        }}
+                     />
+                   </div>
+                )}
             </div>
         </TabsContent>
       </Tabs>
