@@ -213,9 +213,9 @@ export default function GlobalReportPage() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Omset Keseluruhan</p>
+                <p className="text-xs text-muted-foreground font-semibold">Omset Penjualan</p>
                 <p className="text-lg font-bold text-orange-500">{formatCurrency(summary.omsetKeseluruhan || 0)}</p>
-                <p className="text-[10px] text-muted-foreground">akumulasi sejak awal</p>
+                <p className="text-[10px] text-orange-600/70 font-medium">periode yang dipilih</p>
               </div>
               <BarChart3 className="h-5 w-5 text-orange-500" />
             </div>

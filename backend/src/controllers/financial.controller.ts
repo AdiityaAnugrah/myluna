@@ -296,12 +296,16 @@ export const financialController = {
       
       const sisaPiutangAkhir = exactPiutangAtEnd + initialBalanceAtEnd;
 
-      // ─── OMSET KESELURUHAN: total semua penjualan dari awal hingga sekarang ───
+      // ─── OMSET KESELURUHAN: total semua penjualan dalam periode filter ───
+      const omsetWhereClause: any = {
+        status: { [Op.notIn]: ['CANCELLED'] },
+        isInitialBalance: false,
+      };
+      if (start && end) {
+        omsetWhereClause.saleDate = { [Op.between]: [start, end] };
+      }
       const omsetKeseluruhan = await Sale.sum('totalAmount', {
-        where: {
-          status: { [Op.notIn]: ['CANCELLED'] },
-          isInitialBalance: false,
-        },
+        where: omsetWhereClause,
       }) || 0;
 
       const danaBersih = settlements.reduce((sum: number, s: any) =>
