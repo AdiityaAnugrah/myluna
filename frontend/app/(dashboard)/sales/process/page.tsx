@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Check, X, FileText, Loader2, RefreshCw, Printer, AlertCircle, Filter, XCircle } from 'lucide-react';
+import { Check, X, FileText, Loader2, RefreshCw, Printer, AlertCircle, Filter, XCircle, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -30,6 +30,33 @@ import Barcode from 'react-barcode';
 import { toast } from 'sonner';
 import { Sale, SaleStatus } from '@/types';
 import { formatCurrency, getPdfUrl, getDaysSinceSale, isUrgentSale, getVariants, isHematCargo } from '@/lib/utils/sales';
+
+const handleDownloadPdf = async (e: Pick<React.MouseEvent, 'preventDefault'>, documentPath: string | null | undefined, saleNumber: string) => {
+    e.preventDefault();
+    if (!documentPath) {
+        toast.error('Dokumen pengiriman tidak tersedia');
+        return;
+    }
+    const toastId = toast.loading('Mengunduh dokumen PDF...');
+    try {
+        const url = getPdfUrl(documentPath);
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Gagal mengunduh dokumen PDF');
+        const blob = await res.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = blobUrl;
+        a.download = `Resi_Central_Cargo_${saleNumber.replace(/[^a-zA-Z0-9-]/g, '_')}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
+        toast.success('Dokumen PDF berhasil diunduh', { id: toastId });
+    } catch (err) {
+        toast.error('Gagal mengunduh dokumen PDF', { id: toastId });
+    }
+};
 
 interface SalesTableProps {
     sales: Sale[];
@@ -78,15 +105,13 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
                 </div>
                  {isHematCargo(sale.shippingService) && sale.shippingDocument && (
                     <div className="flex justify-end mt-0.5">
-                        <a 
-                            href={getPdfUrl(sale.shippingDocument)} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center text-[10px] text-blue-600 hover:underline bg-blue-50 px-1.5 py-0.5 rounded leading-none"
+                        <button 
+                            onClick={(e) => handleDownloadPdf(e, sale.shippingDocument, sale.saleNumber)}
+                            className="inline-flex items-center text-[10px] text-blue-600 hover:underline bg-blue-50 px-1.5 py-0.5 rounded leading-none border-0 cursor-pointer"
                         >
                             <FileText className="h-3 w-3 mr-1" />
-                            PDF
-                        </a>
+                            Unduh PDF
+                        </button>
                     </div>
                  )}
                  {isUrgent && (
@@ -265,16 +290,14 @@ const SalesTable = ({
                     )}
                     {isHematCargo(sale.shippingService) && sale.shippingDocument && (
                          <div className="mt-1">
-                            <a 
-                                href={getPdfUrl(sale.shippingDocument)} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center text-xs text-blue-600 hover:underline"
-                                aria-label={`Lihat dokumen pengiriman untuk ${sale.saleNumber}`}
+                            <button 
+                                onClick={(e) => handleDownloadPdf(e, sale.shippingDocument, sale.saleNumber)}
+                                className="inline-flex items-center text-xs text-blue-600 hover:underline bg-transparent border-0 cursor-pointer p-0"
+                                aria-label={`Unduh dokumen pengiriman untuk ${sale.saleNumber}`}
                             >
                                 <FileText className="h-3 w-3 mr-1" />
-                                PDF
-                            </a>
+                                Unduh PDF
+                            </button>
                          </div>
                     )}
                   </TableCell>
@@ -368,6 +391,7 @@ export default function SalesProcessPage() {
   const [endDate, setEndDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [activePage, setActivePage] = useState(1);
   const [activeLimit, setActiveLimit] = useState(10);
@@ -430,7 +454,16 @@ export default function SalesProcessPage() {
   // Memoize sorted/filtered sales lists
   const activeSales = useMemo(() => {
     return sales
-      .filter((s: Sale) => ['WAITING_APPROVAL', 'APPROVED'].includes(s.status))
+      .filter((s: Sale) => {
+          if (!['WAITING_APPROVAL', 'APPROVED'].includes(s.status)) return false;
+          if (searchQuery) {
+              const query = searchQuery.toLowerCase();
+              return s.saleNumber.toLowerCase().includes(query) ||
+                  (s.customerName && s.customerName.toLowerCase().includes(query)) ||
+                  (s.customerPhone && s.customerPhone.toLowerCase().includes(query));
+          }
+          return true;
+      })
       .sort((a: Sale, b: Sale) => {
         // Sort urgent sales to top
         const aUrgent = isUrgentSale(a);
@@ -444,7 +477,16 @@ export default function SalesProcessPage() {
 
   const historySales = useMemo(() => {
     return sales
-      .filter((s: Sale) => ['PROCESSED', 'REJECTED', 'SETTLED', 'COMPLETED', 'CANCELLED'].includes(s.status))
+      .filter((s: Sale) => {
+          if (!['PROCESSED', 'REJECTED', 'SETTLED', 'COMPLETED', 'CANCELLED'].includes(s.status)) return false;
+          if (searchQuery) {
+              const query = searchQuery.toLowerCase();
+              return s.saleNumber.toLowerCase().includes(query) ||
+                  (s.customerName && s.customerName.toLowerCase().includes(query)) ||
+                  (s.customerPhone && s.customerPhone.toLowerCase().includes(query));
+          }
+          return true;
+      })
       .sort((a: Sale, b: Sale) => {
         const dateA = a.processedAt ? new Date(a.processedAt).getTime() : new Date(a.createdAt).getTime();
         const dateB = b.processedAt ? new Date(b.processedAt).getTime() : new Date(b.createdAt).getTime();
@@ -465,7 +507,7 @@ export default function SalesProcessPage() {
   useEffect(() => {
     setActivePage(1);
     setHistoryPage(1);
-  }, [startDate, endDate, paymentMethod, statusFilter, data]);
+  }, [startDate, endDate, paymentMethod, statusFilter, searchQuery, data]);
 
   // Memoize event handlers
   const handleAction = useCallback((id: string, type: 'approve' | 'reject') => {
@@ -490,8 +532,8 @@ export default function SalesProcessPage() {
   
   const handlePrintClick = useCallback((sale: Sale) => {
     if (isHematCargo(sale.shippingService) && sale.shippingDocument) {
-        // Open PDF
-        window.open(getPdfUrl(sale.shippingDocument), '_blank');
+        // Download PDF
+        handleDownloadPdf({ preventDefault: () => {} } as any, sale.shippingDocument, sale.saleNumber);
         
         // Only process if it needs processing (WAITING_APPROVAL or APPROVED)
         if (['WAITING_APPROVAL', 'APPROVED'].includes(sale.status)) {
@@ -575,7 +617,19 @@ export default function SalesProcessPage() {
       )}
 
       {/* Filter Section */}
-      <div className="rounded-xl border bg-card p-4 mb-4 shadow-sm">
+      <div className="rounded-xl border bg-card p-4 mb-4 shadow-sm flex flex-col gap-4">
+        <div className="w-full">
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                    placeholder="Cari berdasarkan No. Penjualan, Nama Pelanggan, atau No. Telepon..." 
+                    className="pl-9 h-10 w-full"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+            </div>
+        </div>
+        
         <div className="flex flex-col md:flex-row gap-4 items-end">
           <div className="w-full md:w-auto flex-1 space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><Filter className="w-3 h-3"/> Mulai Tanggal</label>
@@ -631,6 +685,7 @@ export default function SalesProcessPage() {
                 setEndDate('');
                 setPaymentMethod('ALL');
                 setStatusFilter('ALL');
+                setSearchQuery('');
              }}>
                <XCircle className="h-4 w-4 mr-1.5" />
                Reset
