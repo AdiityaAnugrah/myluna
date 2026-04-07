@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from './button';
 import { Card } from './card';
-import axios from 'axios';
+import { apiClient } from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth';
 
 interface Product {
@@ -82,10 +82,8 @@ export function GlobalSearch() {
         setIsLoading(true);
         timer = setTimeout(async () => {
           try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
-            const { data } = await axios.get(`${apiUrl}/search`, {
+            const { data } = await apiClient.get('/search', {
               params: { q: searchQuery },
-              headers: { Authorization: `Bearer ${accessToken}` },
             });
             setProducts(data.data?.products || []);
             setSales(data.data?.sales || []);
