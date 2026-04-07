@@ -169,6 +169,20 @@ Sale.init(
   {
     sequelize,
     tableName: 'sales',
+    hooks: {
+      beforeUpdate: (sale: Sale) => {
+        if (sale.changed('status')) {
+          const newStatus = sale.getDataValue('status');
+          if (newStatus === SaleStatus.CANCELLED || newStatus === SaleStatus.REJECTED) {
+            // Only rename if it doesn't already have the suffix to avoid double renaming
+            if (!sale.saleNumber.includes('-CANCELLED-') && !sale.saleNumber.includes('-REJECTED-')) {
+              const suffix = newStatus === SaleStatus.CANCELLED ? 'CANCELLED' : 'REJECTED';
+              sale.saleNumber = `${sale.saleNumber}-${suffix}-${Date.now()}`;
+            }
+          }
+        }
+      },
+    },
   }
 );
 

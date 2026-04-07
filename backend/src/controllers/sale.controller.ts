@@ -273,9 +273,18 @@ export const saleController = {
       const saleNumber = invoiceNumber.trim();
 
       // Check if sale number already exists
-      const existingSale = await Sale.findOne({ where: { saleNumber } });
+      const existingSale = await Sale.findOne({ where: { saleNumber }, transaction });
       if (existingSale) {
-        throw new AppError('Nomor Invoice sudah digunakan, gunakan nomor yang lain', 400);
+        if (['CANCELLED', 'REJECTED'].includes(existingSale.status as string)) {
+          // If the existing sale is cancelled or rejected, rename it to free up the original number
+          const suffix = existingSale.status === 'CANCELLED' ? 'CANCELLED' : 'REJECTED';
+          await existingSale.update(
+            { saleNumber: `${saleNumber}-${suffix}-${Date.now()}` },
+            { transaction }
+          );
+        } else {
+          throw new AppError('Nomor Invoice sudah digunakan, gunakan nomor yang lain', 400);
+        }
       }
 
       // Validate all products, check stock, and calculate total
