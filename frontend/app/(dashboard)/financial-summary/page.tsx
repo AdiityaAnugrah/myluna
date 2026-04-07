@@ -238,7 +238,22 @@ export default function FinancialSummaryPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Omset Keseluruhan */}
+        <Card className="md:col-span-2 lg:col-span-1">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Omset Keseluruhan</CardTitle>
+            <BarChart3 className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            {isLoading ? <Skeleton className="h-8 w-32" /> : (
+              <>
+                <div className="text-2xl font-bold text-orange-500">{formatCurrency(summary.omsetKeseluruhan || 0)}</div>
+                <p className="text-xs text-muted-foreground mt-1">Akumulasi sejak awal (non-cancel)</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Pendapatan</CardTitle>

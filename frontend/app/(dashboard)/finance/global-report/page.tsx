@@ -12,6 +12,7 @@ import {
   Calendar,
   Download,
   X,
+  BarChart3,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -206,7 +207,20 @@ export default function GlobalReportPage() {
       />
 
       {/* Summary mini cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* Omset Keseluruhan — always first & most prominent */}
+        <Card className="col-span-2 md:col-span-1 border-orange-500/20 bg-orange-500/5">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Omset Keseluruhan</p>
+                <p className="text-lg font-bold text-orange-500">{formatCurrency(summary.omsetKeseluruhan || 0)}</p>
+                <p className="text-[10px] text-muted-foreground">akumulasi sejak awal</p>
+              </div>
+              <BarChart3 className="h-5 w-5 text-orange-500" />
+            </div>
+          </CardContent>
+        </Card>
         <Card className="border-blue-500/20 bg-blue-500/5">
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSettlements, useRequestCancelSettlement } from '@/lib/hooks/useSettlements';
 import { useRequestCancelSale } from '@/lib/hooks/useSales';
@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/table';
 import { Loader2, Search, AlertCircle, CheckCircle2, Clock, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Pagination } from '@/components/ui/pagination';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { SettlementFormDialog } from '@/components/settlements/SettlementFormDialog';
 import { OtherIncomeDialog } from '@/components/settlements/OtherIncomeDialog';
@@ -48,8 +49,22 @@ export default function SettlementsPage() {
   const router = useRouter();
   const { user } = useAuthStore();
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [status, setStatus] = useState<'all' | 'pending' | 'settled'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [sortBy, setSortBy] = useState<'urgent' | 'terbaru'>('urgent');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [status, debouncedSearch, startDate, endDate]);
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const [formOpen, setFormOpen] = useState(false);
   
@@ -66,8 +81,11 @@ export default function SettlementsPage() {
   const { data, isLoading } = useSettlements(
     {
       page,
-      limit: 20,
+      limit,
       status: status === 'all' ? undefined : status,
+      ...(startDate && endDate ? { startDate, endDate } : {}),
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      sortBy,
       userId: user?.id, // Add userId for cache isolation
     },
     { 
@@ -154,35 +172,18 @@ export default function SettlementsPage() {
     }
   };
 
-  const filteredSettlements = settlements
-    .filter((item: any) => {
-      if (!searchQuery) return true;
-      
-      const sale = item.sale || item;
-      const searchLower = searchQuery.toLowerCase();
-      return (
-        sale?.saleNumber?.toLowerCase().includes(searchLower) ||
-        sale?.customerName?.toLowerCase().includes(searchLower) ||
-        sale?.customerPhone?.toLowerCase().includes(searchLower)
-      );
-    })
-    .sort((a: any, b: any) => {
-      const saleA = a.sale || a;
-      const saleB = b.sale || b;
-      
-      // Sort by urgency first (overdue 15+ days)
-      const aOverdue = isOverdue(saleA);
-      const bOverdue = isOverdue(saleB);
-      if (aOverdue && !bOverdue) return -1;
-      if (!aOverdue && bOverdue) return 1;
-      
-      // Then by days since processed (oldest first)
-      if (saleA.processedAt && saleB.processedAt) {
-        return new Date(saleA.processedAt).getTime() - new Date(saleB.processedAt).getTime();
-      }
-      
-      return 0;
-    });
+  // Backend returns data already sorted by sortBy param.
+  // We still filter locally (search done server-side but may need local too for UX).
+  const filteredSettlements = settlements.filter((item: any) => {
+    if (!searchQuery) return true;
+    const sale = item.sale || item;
+    const searchLower = searchQuery.toLowerCase();
+    return (
+      sale?.saleNumber?.toLowerCase().includes(searchLower) ||
+      sale?.customerName?.toLowerCase().includes(searchLower) ||
+      sale?.customerPhone?.toLowerCase().includes(searchLower)
+    );
+  });
 
   return (
     <div className="space-y-6">
@@ -221,7 +222,26 @@ export default function SettlementsPage() {
           <CardTitle>Filter</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2 md:col-span-2">
+                <Label>Rentang Tanggal</Label>
+                <div className="flex gap-2">
+                    <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full"
+                    />
+                    <span className="flex items-center text-muted-foreground">-</span>
+                    <Input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full"
+                    />
+                </div>
+            </div>
+
             <div className="space-y-2 tour-settlements-status">
               <Label>Status</Label>
               <Select value={status} onValueChange={(v: any) => setStatus(v)}>
@@ -246,6 +266,33 @@ export default function SettlementsPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
                 />
+              </div>
+            </div>
+
+            <div className="space-y-2 md:col-span-full">
+              <Label>Urutkan</Label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSortBy('urgent')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
+                    sortBy === 'urgent'
+                      ? 'bg-red-600 text-white border-red-600'
+                      : 'bg-background border-input text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Terlama / Urgent Dulu
+                </button>
+                <button
+                  onClick={() => setSortBy('terbaru')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
+                    sortBy === 'terbaru'
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-background border-input text-foreground hover:bg-muted'
+                  }`}
+                >
+                  Terbaru Dulu
+                </button>
               </div>
             </div>
           </div>
@@ -509,29 +556,18 @@ export default function SettlementsPage() {
 
           {/* Pagination */}
           {pagination && pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <p className="text-sm text-gray-600">
-                Halaman {pagination.page} dari {pagination.totalPages} (Total:{' '}
-                {pagination.total})
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={pagination.page === 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Sebelumnya
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
-                >
-                  Selanjutnya
-                </Button>
-              </div>
+            <div className="mt-4 pt-4 border-t">
+              <Pagination
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.total}
+                itemsPerPage={limit}
+                onPageChange={(p) => setPage(p)}
+                onItemsPerPageChange={(l) => {
+                  setLimit(l);
+                  setPage(1);
+                }}
+              />
             </div>
           )}
         </CardContent>

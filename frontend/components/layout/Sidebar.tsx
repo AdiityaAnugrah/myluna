@@ -59,7 +59,7 @@ const navigationGroups = [
     title: 'Keuangan',
     items: [
       { name: 'Ringkasan Keuangan', href: '/financial-summary', icon: DollarSign },
-      { name: 'Pelunasan', href: '/settlements', icon: Coins },
+      { name: 'Pelunasan', href: '/settlements', icon: Coins, notificationKey: 'overdueSettlements' },
 
       { name: 'Laporan Global', href: '/finance/global-report', icon: FileText },
     ]
@@ -200,6 +200,8 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
                     notificationCount = notifications.pendingSalesCount;
                   } else if (item.notificationKey === 'pendingApprovals') {
                     notificationCount = notifications.pendingApprovalsCount;
+                  } else if (item.notificationKey === 'overdueSettlements') {
+                    notificationCount = notifications.overdueSettlementsCount;
                   }
                 }
                   

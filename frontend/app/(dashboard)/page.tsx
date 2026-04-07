@@ -142,6 +142,9 @@ export default function DashboardPage() {
      .slice(0, 5);
     
     const totalRevenue = sales.reduce((sum, s) => sum + parseFloat(s.totalAmount), 0);
+    const omsetKeseluruhan = sales
+      .filter((s: any) => s.status !== 'CANCELLED')
+      .reduce((sum: number, s: any) => sum + parseFloat(s.totalAmount), 0);
     
     // Calculate growth (last 30 days vs previous 30 days)
     const now = new Date();
@@ -168,6 +171,7 @@ export default function DashboardPage() {
 
     return {
       totalRevenue,
+      omsetKeseluruhan,
       growth,
       chartData,
       recentTransactions: combinedTransactions
@@ -528,7 +532,7 @@ export default function DashboardPage() {
             <CardDescription>Perbandingan penjualan kotor vs dana bersih diterima</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
                 <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Total Penjualan (Kotor)</p>
                 <p className="text-2xl font-bold text-blue-600">
@@ -548,13 +552,20 @@ export default function DashboardPage() {
                 </p>
               </div>
               <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-orange-200 dark:border-orange-800">
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Selisih (Fee & Ongkir)</p>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Selisih (Fee &amp; Ongkir)</p>
                 <p className="text-2xl font-bold text-orange-600">
                   {formatCurrency(parseFloat((settlementStatsData as any).data.difference || '0'))}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
                   {(settlementStatsData as any).data.pendingCount} belum lunas
                 </p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Omset Keseluruhan</p>
+                <p className="text-2xl font-bold text-amber-600">
+                  {formatCurrency(stats.omsetKeseluruhan)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">dari {salesData?.data?.sales?.filter((s:any)=>s.status!=='CANCELLED').length || 0} transaksi aktif</p>
               </div>
             </div>
             <div className="mt-4 flex justify-end">

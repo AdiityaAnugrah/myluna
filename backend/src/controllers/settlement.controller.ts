@@ -15,6 +15,8 @@ export const settlementController = {
         startDate = '',
         endDate = '',
         status = '', // 'pending' or 'settled'
+        search = '',
+        sortBy = 'urgent', // 'urgent' = oldest processedAt first, 'terbaru' = newest saleDate first
       } = req.query;
 
       const offset = (Number(page) - 1) * Number(limit);
@@ -28,18 +30,29 @@ export const settlementController = {
         };
       }
 
-      // Get processed sales with optional settlement filter
-      const saleWhere: any = {
-        status: 'PROCESSED',
-      };
+      // Base sale where for filtering by related sale properties
+      const baseSaleWhere: any = {};
+
+      if (search) {
+        const searchStr = `%${(search as string).toLowerCase()}%`;
+        baseSaleWhere[Op.or] = [
+          { saleNumber: { [Op.like]: searchStr } },
+          { customerName: { [Op.like]: searchStr } },
+          { customerPhone: { [Op.like]: searchStr } },
+        ];
+      }
 
       // Data Isolation: If role is USER, only show their own data
       if ((req as any).user?.roleName === 'USER') {
         const userId = (req as any).user.id;
         settlementWhere.createdBy = userId;
-        saleWhere.createdBy = userId;
+        baseSaleWhere.createdBy = userId;
       }
 
+      const saleWhere: any = {
+        ...baseSaleWhere,
+        status: 'PROCESSED',
+      };
 
       if (status === 'pending') {
         // Get processed sales without settlements
@@ -59,7 +72,9 @@ export const settlementController = {
           ],
           limit: Number(limit),
           offset,
-          order: [['processedAt', 'DESC']],
+          order: sortBy === 'terbaru'
+            ? [['saleDate', 'DESC']]
+            : [['processedAt', 'ASC']], // urgent = oldest processedAt first
         });
 
         // Filter out sales that have settlements
@@ -94,6 +109,7 @@ export const settlementController = {
           {
             model: Sale,
             as: 'sale',
+            where: Object.keys(baseSaleWhere).length > 0 ? baseSaleWhere : undefined,
             include: [
               {
                 model: User,
@@ -110,7 +126,9 @@ export const settlementController = {
         ],
         limit: Number(limit),
         offset,
-        order: [['settlementDate', 'DESC']],
+        order: sortBy === 'terbaru'
+          ? [['settlementDate', 'DESC']]
+          : [['settlementDate', 'ASC']], // oldest settlement first for urgent
       });
 
       return successResponse(

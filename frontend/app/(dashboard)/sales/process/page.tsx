@@ -31,32 +31,7 @@ import { toast } from 'sonner';
 import { Sale, SaleStatus } from '@/types';
 import { formatCurrency, getPdfUrl, getDaysSinceSale, isUrgentSale, getVariants, isHematCargo } from '@/lib/utils/sales';
 
-const handleDownloadPdf = async (e: Pick<React.MouseEvent, 'preventDefault'>, documentPath: string | null | undefined, saleNumber: string) => {
-    e.preventDefault();
-    if (!documentPath) {
-        toast.error('Dokumen pengiriman tidak tersedia');
-        return;
-    }
-    const toastId = toast.loading('Mengunduh dokumen PDF...');
-    try {
-        const url = getPdfUrl(documentPath);
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Gagal mengunduh dokumen PDF');
-        const blob = await res.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = blobUrl;
-        a.download = `Resi_Central_Cargo_${saleNumber.replace(/[^a-zA-Z0-9-]/g, '_')}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(blobUrl);
-        document.body.removeChild(a);
-        toast.success('Dokumen PDF berhasil diunduh', { id: toastId });
-    } catch (err) {
-        toast.error('Gagal mengunduh dokumen PDF', { id: toastId });
-    }
-};
+
 
 interface SalesTableProps {
     sales: Sale[];
@@ -105,13 +80,15 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
                 </div>
                  {isHematCargo(sale.shippingService) && sale.shippingDocument && (
                     <div className="flex justify-end mt-0.5">
-                        <button 
-                            onClick={(e) => handleDownloadPdf(e, sale.shippingDocument, sale.saleNumber)}
-                            className="inline-flex items-center text-[10px] text-blue-600 hover:underline bg-blue-50 px-1.5 py-0.5 rounded leading-none border-0 cursor-pointer"
+                        <a 
+                            href={getPdfUrl(sale.shippingDocument)} 
+                            target="LunaPDFViewer" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center text-[10px] text-blue-600 hover:underline bg-blue-50 px-1.5 py-0.5 rounded leading-none"
                         >
                             <FileText className="h-3 w-3 mr-1" />
-                            Unduh PDF
-                        </button>
+                            PDF
+                        </a>
                     </div>
                  )}
                  {isUrgent && (
@@ -290,14 +267,16 @@ const SalesTable = ({
                     )}
                     {isHematCargo(sale.shippingService) && sale.shippingDocument && (
                          <div className="mt-1">
-                            <button 
-                                onClick={(e) => handleDownloadPdf(e, sale.shippingDocument, sale.saleNumber)}
-                                className="inline-flex items-center text-xs text-blue-600 hover:underline bg-transparent border-0 cursor-pointer p-0"
-                                aria-label={`Unduh dokumen pengiriman untuk ${sale.saleNumber}`}
+                            <a 
+                                href={getPdfUrl(sale.shippingDocument)} 
+                                target="LunaPDFViewer" 
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-xs text-blue-600 hover:underline"
+                                aria-label={`Lihat dokumen pengiriman untuk ${sale.saleNumber}`}
                             >
                                 <FileText className="h-3 w-3 mr-1" />
-                                Unduh PDF
-                            </button>
+                                PDF
+                            </a>
                          </div>
                     )}
                   </TableCell>
@@ -539,8 +518,8 @@ export default function SalesProcessPage() {
   
   const handlePrintClick = useCallback((sale: Sale) => {
     if (isHematCargo(sale.shippingService) && sale.shippingDocument) {
-        // Download PDF
-        handleDownloadPdf({ preventDefault: () => {} } as any, sale.shippingDocument, sale.saleNumber);
+        // Open PDF in a reusable tab to prevent clutter
+        window.open(getPdfUrl(sale.shippingDocument), 'LunaPDFViewer');
         
         // Only process if it needs processing (WAITING_APPROVAL or APPROVED)
         if (['WAITING_APPROVAL', 'APPROVED'].includes(sale.status)) {

@@ -8,6 +8,8 @@ export const useSettlements = (params?: {
   startDate?: string;
   endDate?: string;
   status?: 'pending' | 'settled';
+  search?: string;
+  sortBy?: 'urgent' | 'terbaru';
   userId?: string; // Add userId for cache isolation
 }, options?: any) => {
   return useQuery({

@@ -8,6 +8,8 @@ export const settlementApi = {
     startDate?: string;
     endDate?: string;
     status?: 'pending' | 'settled';
+    search?: string;
+    sortBy?: 'urgent' | 'terbaru';
   }) => {
     const response = await apiClient.get('/settlements', { params });
     return response.data;

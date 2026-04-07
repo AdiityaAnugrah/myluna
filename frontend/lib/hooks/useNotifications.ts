@@ -25,6 +25,28 @@ export function useNotifications() {
   // Fetch pending product status requests - only for admin roles
   const { pendingRequests: productRequests } = useProductRequests({ enabled: isAdmin });
 
+  // Fetch overdue pending settlements (>= 15 days) - only non-TCP roles
+  const { data: overdueData } = useQuery({
+    queryKey: ['settlements-overdue-count'],
+    queryFn: async () => {
+      // Fetch pending settlements with large limit to count overdue ones
+      const res = await apiClient.get('/settlements', {
+        params: { status: 'pending', limit: 500, sortBy: 'urgent' }
+      });
+      const settlements: any[] = res.data?.data?.settlements || [];
+      const now = Date.now();
+      const overdue = settlements.filter((item: any) => {
+        const sale = item.sale || item;
+        if (!sale?.processedAt) return false;
+        const days = Math.floor((now - new Date(sale.processedAt).getTime()) / (1000 * 60 * 60 * 24));
+        return days >= 15;
+      });
+      return overdue.length;
+    },
+    refetchInterval: 60_000, // refetch every 60s
+    enabled: !!user && user?.role !== 'TCP',
+  });
+
   const pendingSalesCount = statsData?.data?.WAITING_APPROVAL || 0;
 
   // Only compute for admin roles to avoid unnecessary API calls influencing count
@@ -32,9 +54,12 @@ export function useNotifications() {
   const pendingProductCount = isAdmin ? (productRequests.data?.data?.length || 0) : 0;
   const pendingApprovalsCount = pendingChangeCount + pendingProductCount;
 
+  const overdueSettlementsCount = (overdueData as number) || 0;
+
   return {
     pendingSalesCount,
     pendingApprovalsCount,
+    overdueSettlementsCount,
     isLoading: statsLoading,
   };
 }

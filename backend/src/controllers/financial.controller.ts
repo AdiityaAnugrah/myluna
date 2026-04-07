@@ -296,6 +296,14 @@ export const financialController = {
       
       const sisaPiutangAkhir = exactPiutangAtEnd + initialBalanceAtEnd;
 
+      // ─── OMSET KESELURUHAN: total semua penjualan dari awal hingga sekarang ───
+      const omsetKeseluruhan = await Sale.sum('totalAmount', {
+        where: {
+          status: { [Op.notIn]: ['CANCELLED'] },
+          isInitialBalance: false,
+        },
+      }) || 0;
+
       const danaBersih = settlements.reduce((sum: number, s: any) =>
         sum + parseFloat(s.netAmount), 0
       ) + otherIncomes.reduce((sum: number, oi: any) =>
@@ -313,10 +321,11 @@ export const financialController = {
         totalSelisih,
         danaBersih,
         piutang,
-        carryForwardPiutang: displayCarryForward,  // sisa piutang terbawa dari bulan lalu yang sudah dikurangi lunas bulan ini
-        sisaPiutangAkhir,     // total piutang yg masih beredar di akhir periode
+        carryForwardPiutang: displayCarryForward,
+        sisaPiutangAkhir,
         totalExpense,
         finalBalance: runningBalance,
+        omsetKeseluruhan,
         transactionCount: transactions.filter(t =>
           t.type === 'income' || t.type === 'other_income' || t.type === 'piutang'
         ).length,
