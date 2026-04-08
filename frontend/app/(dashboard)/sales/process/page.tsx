@@ -42,6 +42,8 @@ interface SalesTableProps {
     onPrint: (sale: Sale) => void;
     getStatusBadge: (status: SaleStatus, isCancelPending?: boolean) => React.ReactNode;
     userRole?: string;
+    currentPage: number;
+    itemsPerPage: number;
 }
 
 const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStatusBadge }: any) => {
@@ -176,7 +178,9 @@ const SalesTable = ({
     onReject, 
     onPrint,
     getStatusBadge,
-    userRole
+    userRole,
+    currentPage = 1,
+    itemsPerPage = 10
 }: SalesTableProps) => {
     return (
         <>
@@ -248,7 +252,7 @@ const SalesTable = ({
                   key={sale.id}
                   className={urgent ? 'bg-red-50 border-l-4 border-l-red-500' : ''}
                 >
-                  <TableCell className="font-mono text-sm">NO. {index + 1}</TableCell>
+                  <TableCell className="font-mono text-sm">NO. {(index + 1) + (currentPage - 1) * itemsPerPage}</TableCell>
                   <TableCell>{format(new Date(sale.saleDate), 'dd MMM yyyy')}</TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-0.5">
@@ -704,6 +708,8 @@ export default function SalesProcessPage() {
                     onPrint={handlePrintClick}
                     getStatusBadge={getStatusBadge}
                     userRole={userRole}
+                    currentPage={activePage}
+                    itemsPerPage={activeLimit}
                 />
                 {!isLoading && activeSales.length > 0 && (
                    <div className="border-t">
@@ -732,6 +738,8 @@ export default function SalesProcessPage() {
                     onPrint={handlePrintClick}
                     getStatusBadge={getStatusBadge}
                     userRole={userRole}
+                    currentPage={historyPage}
+                    itemsPerPage={historyLimit}
                 />
                 {!isLoading && historySales.length > 0 && (
                    <div className="border-t">
