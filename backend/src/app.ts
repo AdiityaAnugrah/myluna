@@ -73,7 +73,13 @@ app.get('/health', (_req, res) => {
 
 // Static files
 import path from 'path';
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+app.use('/uploads', (req, res, next) => {
+  if (req.path.toLowerCase().endsWith('.pdf')) {
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Content-Type', 'application/pdf');
+  }
+  next();
+}, express.static(path.join(process.cwd(), 'uploads')));
 
 // API routes
 import routes from './routes';
