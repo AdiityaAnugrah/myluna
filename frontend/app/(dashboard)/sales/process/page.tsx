@@ -402,6 +402,7 @@ export default function SalesProcessPage() {
   // Print related
   const [printSale, setPrintSale] = useState<Sale | null>(null);
   const printRef = useRef(null);
+  const isPrintingRef = useRef(false);
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -428,10 +429,15 @@ export default function SalesProcessPage() {
     },
   });
 
-  // Trigger print when printSale is set
+  // Trigger print when printSale is set - guarded with ref to prevent double trigger
   useEffect(() => {
-    if (printSale && printRef.current) {
+    if (printSale && printRef.current && !isPrintingRef.current) {
+      isPrintingRef.current = true;
       handlePrint();
+    }
+
+    if (!printSale) {
+      isPrintingRef.current = false;
     }
   }, [printSale, handlePrint]);
 
