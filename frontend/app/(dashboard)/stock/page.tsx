@@ -31,11 +31,14 @@ import {
   ChevronLeft, 
   ChevronRight,
   Filter,
-  Calendar
+  Calendar,
+  Eye,
+  Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { formatStatus } from '@/lib/utils/format';
+import { StockMovementDetailModal } from '@/components/stock/StockMovementDetailModal';
 
 export default function StockPage() {
   const [typeFilter, setTypeFilter] = useState<string>('');
@@ -50,6 +53,8 @@ export default function StockPage() {
   });
   
   const [currentPage, setCurrentPage] = useState(1);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedMovement, setSelectedMovement] = useState<any>(null);
   const itemsPerPage = 50;
 
   const { data, isLoading } = useStockMovements({ 
@@ -113,6 +118,11 @@ export default function StockPage() {
       default:
         return <Badge>{formatStatus(movement.type)}</Badge>;
     }
+  };
+
+  const handleShowDetail = (movement: any) => {
+    setSelectedMovement(movement);
+    setIsDetailModalOpen(true);
   };
 
   return (
@@ -206,6 +216,7 @@ export default function StockPage() {
               <TableHead className="text-right">Jumlah</TableHead>
               <TableHead>Referensi</TableHead>
               <TableHead>Catatan</TableHead>
+              <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -262,6 +273,16 @@ export default function StockPage() {
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
                     {movement.notes || '-'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => handleShowDetail(movement)}
+                      className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))
@@ -382,26 +403,13 @@ export default function StockPage() {
           </div>
         </div>
       </div>
+
+      <StockMovementDetailModal 
+        isOpen={isDetailModalOpen} 
+        onClose={() => setIsDetailModalOpen(false)} 
+        movement={selectedMovement}
+      />
     </div>
   );
 }
 
-// Missing helper
-function Loader2(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
-  );
-}
