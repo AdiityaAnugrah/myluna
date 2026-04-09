@@ -109,11 +109,12 @@ export function OmsetBreakdownModal({ isOpen, onClose }: OmsetBreakdownModalProp
       
       aoa.push(['No', 'Bulan', 'Tahun', 'Total Omset (IDR)']);
       itemsToExport.forEach((item: any, idx: number) => {
+        const totalNum = Number(item.total) || 0;
         aoa.push([
           idx + 1,
           getMonthName(item.month),
           item.year,
-          formatCurrency(item.total)
+          formatCurrency(totalNum)
         ]);
       });
     } else {
@@ -123,27 +124,33 @@ export function OmsetBreakdownModal({ isOpen, onClose }: OmsetBreakdownModalProp
       
       aoa.push(['No', 'Tahun', 'Total Omset (IDR)']);
       itemsToExport.forEach((item: any, idx: number) => {
+        const totalNum = Number(item.total) || 0;
         aoa.push([
           idx + 1,
           item.year,
-          formatCurrency(item.total)
+          formatCurrency(totalNum)
         ]);
       });
     }
 
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    
-    // Auto column width
-    ws['!cols'] = [
-      { wch: 8 },  // No
-      { wch: 15 }, // Bulan/Tahun
-      { wch: 10 }, // Tahun (for monthly)
-      { wch: 25 }, // Total
-    ];
+    try {
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      
+      // Auto column width
+      ws['!cols'] = [
+        { wch: 8 },  // No
+        { wch: 15 }, // Bulan/Tahun
+        { wch: 10 }, // Tahun (for monthly)
+        { wch: 25 }, // Total
+      ];
 
-    XLSX.utils.book_append_sheet(wb, ws, 'Rincian Omset');
-    const fileName = activeTab === 'monthly' ? 'Omset_Bulanan_Lunarea.xlsx' : 'Omset_Tahunan_Lunarea.xlsx';
-    XLSX.writeFile(wb, fileName);
+      XLSX.utils.book_append_sheet(wb, ws, 'Rincian Omset');
+      const fileName = activeTab === 'monthly' ? 'Omset_Bulanan_Lunarea.xlsx' : 'Omset_Tahunan_Lunarea.xlsx';
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      console.error('Excel Export Error:', err);
+      import('sonner').then(({ toast }) => toast.error('Gagal membuat file Excel. Silakan coba lagi.'));
+    }
   };
 
   return (
