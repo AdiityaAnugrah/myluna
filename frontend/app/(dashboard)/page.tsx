@@ -142,32 +142,22 @@ export default function DashboardPage() {
      .slice(0, 5);
     
     const totalRevenue = sales.reduce((sum, s) => sum + parseFloat(s.totalAmount), 0);
-    const omsetKeseluruhan = sales
-      .filter((s: any) => s.status !== 'CANCELLED')
-      .reduce((sum: number, s: any) => sum + parseFloat(s.totalAmount), 0);
     
-    // Calculate growth (last 30 days vs previous 30 days)
-    const now = new Date();
-    const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const last60Days = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+    // Extracted from backend stats for all-time accuracy
+    const omsetKeseluruhan = (salesStatsData as any)?.data?.omsetKeseluruhan || 0;
     
-    const currentPeriodSales = sales.filter(s => new Date(s.saleDate) >= last30Days);
-    const previousPeriodSales = sales.filter(s => 
-      new Date(s.saleDate) >= last60Days && new Date(s.saleDate) < last30Days
-    );
+    // Revenue Trend from backend
+    const chartData = ((salesStatsData as any)?.data?.revenueTrend || []).map((t: any) => ({
+      name: format(new Date(t.date), 'dd MMM'),
+      revenue: t.revenue
+    }));
     
-    const currentRevenue = currentPeriodSales.reduce((sum, s) => sum + parseFloat(s.totalAmount), 0);
-    const previousRevenue = previousPeriodSales.reduce((sum, s) => sum + parseFloat(s.totalAmount), 0);
-    
+    // Calculate growth Based on actual chartData points if possible, or keep simple
+    const currentRevenue = chartData.slice(15, 30).reduce((sum: number, t: any) => sum + t.revenue, 0);
+    const previousRevenue = chartData.slice(0, 15).reduce((sum: number, t: any) => sum + t.revenue, 0);
     const growth = previousRevenue > 0 
       ? ((currentRevenue - previousRevenue) / previousRevenue * 100)
       : 0;
-    
-    // Group data for chart (last 7 sales)
-    const chartData = sales.slice(0, 7).map((s) => ({
-      name: format(new Date(s.saleDate), 'dd MMM'),
-      revenue: parseFloat(s.totalAmount),
-    })).reverse();
 
     return {
       totalRevenue,
@@ -187,7 +177,7 @@ export default function DashboardPage() {
       refetchSales(),
       refetchPurchases(),
       refetchAudit(),
-      user?.role === 'TCP' && refetchStats(),
+      refetchStats(), // Now used by Admins as well for Omset & Chart
       user?.role !== 'TCP' && refetchSettlement()
     ]);
     setIsRefreshing(false);

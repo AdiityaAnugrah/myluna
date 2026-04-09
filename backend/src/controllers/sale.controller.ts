@@ -172,9 +172,13 @@ export const saleController = {
   async getStats(_req: Request, res: Response, next: NextFunction) {
     try {
       const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      today.setHours(23, 59, 59, 999); // End of today
+      
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(today.getDate() - 29); // Include today + 29 previous days = 30 days horizon
+      thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-      const [statusCounts, todayCount] = await Promise.all([
+      const [statusCounts, todayCount, omsetResult, recentSalesData] = await Promise.all([
         Sale.findAll({
           attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
           where: { isInitialBalance: false },
@@ -184,14 +188,63 @@ export const saleController = {
         Sale.count({
           where: {
             saleDate: {
-              [Op.gte]: today,
+              [Op.gte]: new Date(new Date().setHours(0,0,0,0)), // Start of today
             },
             isInitialBalance: false,
           },
         }),
+        // Omset Keseluruhan (All non-cancelled non-initial sales)
+        Sale.findAll({
+          attributes: [[sequelize.fn('SUM', sequelize.col('totalAmount')), 'total']],
+          where: {
+            status: { [Op.ne]: 'CANCELLED' },
+            isInitialBalance: false,
+          },
+          raw: true,
+        }),
+        // Sales for the last 30 days for Revenue Trend
+        Sale.findAll({
+          attributes: ['saleDate', 'totalAmount'],
+          where: {
+            status: { [Op.ne]: 'CANCELLED' },
+            isInitialBalance: false,
+            saleDate: {
+              [Op.gte]: thirtyDaysAgo,
+              [Op.lte]: today,
+            },
+          },
+          raw: true,
+        }),
       ]);
 
-      const stats = {
+      // Calculate the sum for omset
+      const omsetKeseluruhan = omsetResult.length > 0 && (omsetResult as any)[0].total
+        ? parseFloat((omsetResult as any)[0].total)
+        : 0;
+
+      const trendMap = new Map<string, number>();
+      
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        const dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        trendMap.set(dateStr, 0);
+      }
+
+      recentSalesData.forEach((record: any) => {
+        const dateObj = new Date(record.saleDate);
+        const dateStr = dateObj.getFullYear() + '-' + String(dateObj.getMonth() + 1).padStart(2, '0') + '-' + String(dateObj.getDate()).padStart(2, '0');
+        if (trendMap.has(dateStr)) {
+          trendMap.set(dateStr, trendMap.get(dateStr)! + parseFloat(record.totalAmount));
+        }
+      });
+
+      const revenueTrend = Array.from(trendMap.entries()).map(([date, revenue]) => ({
+        date,
+        revenue,
+      }));
+
+      const stats: Record<string, any> = {
         PENDING: 0,
         APPROVED: 0,
         PROCESSED: 0,
@@ -201,11 +254,12 @@ export const saleController = {
         WAITING_APPROVAL: 0,
         todaySales: todayCount,
         totalSales: 0,
+        omsetKeseluruhan,
+        revenueTrend,
       };
-
       statusCounts.forEach((record: any) => {
         if (stats.hasOwnProperty(record.status)) {
-          stats[record.status as keyof typeof stats] = parseInt(record.count);
+           stats[record.status] = parseInt(record.count);
         }
         stats.totalSales += parseInt(record.count);
       });

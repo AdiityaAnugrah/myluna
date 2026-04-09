@@ -462,6 +462,7 @@ export const settlementController = {
           status: {
             [Op.in]: ['PROCESSED', 'SETTLED'],
           },
+          isInitialBalance: false,
           ...dateFilter,
         },
         include: [
