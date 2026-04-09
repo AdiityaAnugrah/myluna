@@ -239,15 +239,52 @@ export default function TotalStockPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <span
-                        className={cn(
-                          'font-bold text-lg',
-                          effectiveStock <= 0 ? 'text-destructive' :
-                          effectiveStock <= (product.minStock || 5) ? 'text-warning' : 'text-primary'
-                        )}
-                      >
-                        {effectiveStock}
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <span
+                          className={cn(
+                            'font-bold text-lg',
+                            effectiveStock <= 0 ? 'text-destructive' :
+                            effectiveStock <= (product.minStock || 5) ? 'text-warning' : 'text-primary'
+                          )}
+                        >
+                          {effectiveStock}
+                        </span>
+                        {(() => {
+                           let vars: any[] = [];
+                           if (Array.isArray(product.variantItems) && product.variantItems.length > 0) {
+                              vars = product.variantItems;
+                           } else {
+                              if (typeof product.variants === 'string') {
+                                try { vars = JSON.parse(product.variants); } catch { vars = []; }
+                              } else if (Array.isArray(product.variants)) {
+                                vars = product.variants;
+                              }
+                           }
+
+                           if (vars && vars.length > 0) {
+                             return (
+                               <div className="flex gap-1 flex-wrap justify-end mt-1 max-w-[150px]">
+                                 {vars.map((v: any, i: number) => {
+                                   const vStock = Number(v.stock) || 0;
+                                   return (
+                                     <Badge 
+                                        key={i} 
+                                        variant="outline" 
+                                        className={cn(
+                                          "text-[10px] px-1 py-0 h-4 leading-none font-normal",
+                                          vStock <= 0 ? "border-red-200 text-red-600 bg-red-50" : "border-slate-200 text-slate-600 bg-slate-50"
+                                        )}
+                                      >
+                                        {v.value || v.name}: {vStock}
+                                      </Badge>
+                                   );
+                                 })}
+                               </div>
+                             );
+                           }
+                           return null;
+                        })()}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right text-sm text-muted-foreground">
                       {product.minStock || 5}

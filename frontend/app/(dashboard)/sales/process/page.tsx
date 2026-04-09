@@ -29,7 +29,7 @@ import { useReactToPrint } from 'react-to-print';
 import Barcode from 'react-barcode';
 import { toast } from 'sonner';
 import { Sale, SaleStatus } from '@/types';
-import { formatCurrency, getPdfUrl, getDaysSinceSale, isUrgentSale, getVariants, isHematCargo, isToday } from '@/lib/utils/sales';
+import { formatCurrency, getPdfUrl, getDaysSinceSale, isUrgentSale, getVariants, isToday } from '@/lib/utils/sales';
 
 
 
@@ -80,7 +80,7 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
                         <span className="text-muted-foreground text-[10px] italic">Tidak ada</span>
                     )}
                 </div>
-                 {isHematCargo(sale.shippingService) && sale.shippingDocument && (
+                 {sale.shippingDocument && (
                     <div className="flex justify-end mt-0.5">
                         <a 
                             href={getPdfUrl(sale.shippingDocument)} 
@@ -287,7 +287,7 @@ const SalesTable = ({
                     ) : (
                         <span className="text-muted-foreground text-xs italic">Tidak ada</span>
                     )}
-                    {isHematCargo(sale.shippingService) && sale.shippingDocument && (
+                    {sale.shippingDocument && (
                          <div className="mt-1">
                             <a 
                                 href={getPdfUrl(sale.shippingDocument)} 
@@ -549,7 +549,7 @@ export default function SalesProcessPage() {
   }, [selectedSaleId, actionType, approveMutation, rejectMutation]);
   
   const handlePrintClick = useCallback((sale: Sale) => {
-    if (isHematCargo(sale.shippingService) && sale.shippingDocument) {
+    if (sale.shippingDocument) {
         // Open PDF in a reusable tab to prevent clutter
         window.open(getPdfUrl(sale.shippingDocument), 'LunaPDFViewer');
         

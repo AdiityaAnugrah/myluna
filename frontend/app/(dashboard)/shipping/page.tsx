@@ -41,14 +41,17 @@ export default function ShippingPage() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingService, setEditingService] = useState<any>(null);
   const [name, setName] = useState('');
+  const [requiresDocument, setRequiresDocument] = useState(false);
 
   const handleOpen = (service?: any) => {
     if (service) {
       setEditingService(service);
       setName(service.name);
+      setRequiresDocument(service.requiresDocument || false);
     } else {
       setEditingService(null);
       setName('');
+      setRequiresDocument(false);
     }
     setIsOpen(true);
   };
@@ -57,6 +60,7 @@ export default function ShippingPage() {
     setIsOpen(false);
     setEditingService(null);
     setName('');
+    setRequiresDocument(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -69,12 +73,12 @@ export default function ShippingPage() {
 
     if (editingService) {
       updateMutation.mutate(
-        { id: editingService.id, data: { name } },
+        { id: editingService.id, data: { name, requiresDocument } },
         { onSuccess: handleClose }
       );
     } else {
       createMutation.mutate(
-        { name },
+        { name, requiresDocument },
         { onSuccess: handleClose }
       );
     }
@@ -84,6 +88,13 @@ export default function ShippingPage() {
     updateMutation.mutate({
       id: service.id,
       data: { isActive: !service.isActive },
+    });
+  };
+
+  const toggleRequiresDocument = (service: any) => {
+    updateMutation.mutate({
+      id: service.id,
+      data: { requiresDocument: !service.requiresDocument },
     });
   };
 
@@ -135,6 +146,19 @@ export default function ShippingPage() {
                   Gunakan huruf kapital (otomatis).
                 </p>
               </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label>Wajib Dokumen PDF</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Otomatis mewajibkan upload resi/dokumen saat menambahkan transaksi penjualan.
+                  </p>
+                </div>
+                <Switch
+                  checked={requiresDocument}
+                  onCheckedChange={setRequiresDocument}
+                  disabled={isPending}
+                />
+              </div>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={handleClose} disabled={isPending}>
                   Batal
@@ -165,13 +189,14 @@ export default function ShippingPage() {
                 <TableRow>
                   <TableHead>Nama Jasa Pengiriman</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Wajib Dokumen</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {services?.data?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                       Belum ada jasa pengiriman.
                     </TableCell>
                   </TableRow>
@@ -192,6 +217,17 @@ export default function ShippingPage() {
                           />
                           <span className="text-sm">
                             {service.isActive ? 'Aktif' : 'Non-aktif'}
+                          </span>
+                        </div>
+                      </TableCell>
+                       <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={service.requiresDocument || false}
+                            onCheckedChange={() => toggleRequiresDocument(service)}
+                          />
+                          <span className="text-sm">
+                            {(service.requiresDocument) ? 'Ya' : 'Tidak'}
                           </span>
                         </div>
                       </TableCell>

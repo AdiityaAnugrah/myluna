@@ -4,6 +4,7 @@ export interface ShippingService {
   id: string;
   name: string;
   isActive: boolean;
+  requiresDocument: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -14,12 +15,12 @@ export const shippingApi = {
     return response.data;
   },
 
-  create: async (data: { name: string }) => {
+  create: async (data: { name: string; requiresDocument?: boolean }) => {
     const response = await api.post('/shipping-services', data);
     return response.data;
   },
 
-  update: async (id: string, data: { name?: string; isActive?: boolean }) => {
+  update: async (id: string, data: { name?: string; isActive?: boolean; requiresDocument?: boolean }) => {
     const response = await api.put(`/shipping-services/${id}`, data);
     return response.data;
   },

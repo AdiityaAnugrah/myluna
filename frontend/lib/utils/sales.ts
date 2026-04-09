@@ -2,16 +2,6 @@ import { Sale, SaleStatus } from '@/types';
 import { differenceInDays } from 'date-fns';
 
 /**
- * Check if a shipping service is Hemat Cargo (case-insensitive, handles space/underscore)
- */
-export const isHematCargo = (serviceName: string | null | undefined): boolean => {
-  if (!serviceName) return false;
-  const normalized = serviceName.toUpperCase().replace(/\s+|_/g, ' ');
-  return normalized === 'HEMAT CARGO';
-};
-
-
-/**
  * Format a number or string value to Indonesian Rupiah currency format
  */
 export const formatCurrency = (value: string | number): string => {

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { Sale, SaleItem, Product, ProductVariant, User, StockMovement, MovementType, ChangeRequest, Settlement } from '../models';
+import { Sale, SaleItem, Product, ProductVariant, User, StockMovement, MovementType, ChangeRequest, Settlement, ShippingService } from '../models';
 import { auditService } from '../services/audit.service';
 import { socketService } from '../services/socket.service';
 import { successResponse } from '../utils/response';
@@ -250,20 +250,23 @@ export const saleController = {
         throw new AppError('Items must be a non-empty array', 400);
       }
 
-      // Check if file is uploaded for HEMAT_CARGO
+      // Check if file is uploaded based on dynamic settings
       let shippingDocument = null;
-      const normalizedShippingService = shippingService?.toUpperCase().replace(/\s+|_/g, ' ');
-      if (normalizedShippingService === 'HEMAT CARGO') {
+      let isDocumentRequired = false;
+
+      if (shippingService) {
+        const serviceObj = await ShippingService.findOne({ where: { name: shippingService }});
+        if (serviceObj && serviceObj.requiresDocument) {
+          isDocumentRequired = true;
+        }
+      }
+
+      if (isDocumentRequired) {
          if (req.file) {
             shippingDocument = req.file.filename;
          } else {
-            throw new AppError('Dokumen PDF wajib diunggah untuk Hemat Cargo', 400);
+            throw new AppError(`Dokumen PDF wajib diunggah untuk ${shippingService}`, 400);
          }
-      } else {
-        // If not HEMAT_CARGO, check if file was uploaded anyway and maybe warn or ignore
-        // But importantly, notes are required if not HEMAT_CARGO (implied by requirement "tambah lagi inputan ya itu alamat text area, nah tapi jika yang di pilih dari jasa pengiriman itu Hemat Caro maka otmatis input catatan hilang")
-        // Actually, the requirement says "if Hemat Cargo, input catatan hilang". It doesn't explicitly say "mandatory" otherwise, but usually notes are optional. 
-        // However, let's strictly follow: Hemat Cargo -> No Notes, PDF Required. Others -> Notes Available (maybe optional), No PDF Req.
       }
 
       // Validate invoice number
@@ -334,7 +337,7 @@ export const saleController = {
           paymentMethod,
           platform: platform || 'OFFLINE_STORE',
           status: 'WAITING_APPROVAL' as any, // Default status
-          notes: normalizedShippingService === 'HEMAT CARGO' ? null : notes,
+          notes: isDocumentRequired ? null : notes,
           shippingService,
           shippingAddress,
           shippingDocument,

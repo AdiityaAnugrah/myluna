@@ -5,6 +5,7 @@ interface ShippingServiceAttributes {
   id: string;
   name: string;
   isActive: boolean;
+  requiresDocument: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -15,6 +16,7 @@ class ShippingService extends Model<ShippingServiceAttributes, ShippingServiceCr
   declare id: string;
   declare name: string;
   declare isActive: boolean;
+  declare requiresDocument: boolean;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 }
@@ -34,6 +36,10 @@ ShippingService.init(
     isActive: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
+    },
+    requiresDocument: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
     createdAt: {
       type: DataTypes.DATE,

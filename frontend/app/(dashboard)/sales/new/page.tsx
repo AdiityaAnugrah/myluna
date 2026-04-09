@@ -1,6 +1,6 @@
-﻿'use client';
+'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateSale } from '@/lib/hooks/useSales';
 import { useAuthStore } from '@/lib/stores/auth';
@@ -40,7 +40,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 import { ProductSelector } from '@/components/sales/ProductSelector';
 import { BulkProductSelector } from '@/components/sales/BulkProductSelector';
-import { formatCurrency, isHematCargo, getVariants } from '@/lib/utils/sales';
+import { formatCurrency, getVariants } from '@/lib/utils/sales';
 
 interface SaleItem {
   productId: string;
@@ -112,6 +112,13 @@ export default function NewSalePage() {
   const [items, setItems] = useState<SaleItem[]>([]);
 
   const [shippingService, setShippingService] = useState<string>('');
+  
+  const isDocumentRequired = useMemo(() => {
+    if (!shippingService || !shippingServices?.data) return false;
+    const service = shippingServices.data.find((s: any) => s.name === shippingService);
+    return service?.requiresDocument || false;
+  }, [shippingService, shippingServices]);
+
   const [shippingAddress, setShippingAddress] = useState('');
   const [shippingDocument, setShippingDocument] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -310,8 +317,8 @@ export default function NewSalePage() {
         return;
     }
 
-    if (isHematCargo(shippingService) && !shippingDocument) {
-        toast.error('Mohon unggah dokumen PDF untuk Hemat Cargo');
+    if (isDocumentRequired && !shippingDocument) {
+        toast.error(`Mohon unggah dokumen PDF untuk ${shippingService}`);
         return;
     }
 
@@ -322,7 +329,7 @@ export default function NewSalePage() {
     formData.append('paymentMethod', paymentMethod);
     formData.append('platform', platform);
     formData.append('saleDate', saleDate);
-    if (!isHematCargo(shippingService) && notes) formData.append('notes', notes);
+    if (!isDocumentRequired && notes) formData.append('notes', notes);
     
     formData.append('items', JSON.stringify(items.map((item) => ({
       productId: item.productId,
@@ -335,7 +342,7 @@ export default function NewSalePage() {
     if (shippingService) {
         formData.append('shippingService', shippingService);
         if (shippingAddress) formData.append('shippingAddress', shippingAddress);
-        if (isHematCargo(shippingService) && shippingDocument) {
+        if (isDocumentRequired && shippingDocument) {
             formData.append('shippingDocument', shippingDocument);
         }
     }
@@ -481,7 +488,10 @@ export default function NewSalePage() {
                       value={shippingService}
                       onValueChange={(value) => {
                           setShippingService(value);
-                          if (isHematCargo(value)) {
+                          // We need to use the value here to find if it requires document, 
+                          // because isDocumentRequired will only update on next render
+                          const selectedService = shippingServices?.data?.find((s: any) => s.name === value);
+                          if (selectedService?.requiresDocument) {
                               setNotes('');
                           } else {
                               setShippingDocument(null);
@@ -526,7 +536,7 @@ export default function NewSalePage() {
                   </div>
                 </div>
 
-                {isHematCargo(shippingService) ? (
+                {isDocumentRequired ? (
                     <div className="space-y-2">
                         <Label htmlFor="shippingDocument">Upload Dokumen (PDF, Max 2MB) *</Label>
                         <Input
@@ -538,7 +548,7 @@ export default function NewSalePage() {
                             ref={fileInputRef}
                         />
                         <p className="text-sm text-gray-500">
-                            Wajib upload untuk Hemat Cargo. Catatan dinonaktifkan.
+                            Wajib upload untuk {shippingService}. Catatan dinonaktifkan.
                         </p>
                     </div>
                 ) : (

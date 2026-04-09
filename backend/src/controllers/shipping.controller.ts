@@ -20,7 +20,7 @@ export const shippingController = {
 
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const { name } = req.body;
+      const { name, requiresDocument = false } = req.body;
 
       const existingService = await ShippingService.findOne({ where: { name } });
       if (existingService) {
@@ -32,8 +32,8 @@ export const shippingController = {
             action: AuditAction.UPDATE,
             entity: 'ShippingService',
             entityId: existingService.id,
-            before: { name: existingService.name, isActive: false },
-            after: { name: existingService.name, isActive: true },
+            before: { name: existingService.name, isActive: false, requiresDocument: existingService.requiresDocument },
+            after: { name: existingService.name, isActive: true, requiresDocument: existingService.requiresDocument },
             ip: req.ip || req.socket.remoteAddress || '',
             userAgent: req.headers['user-agent'] || '',
           });
@@ -43,7 +43,7 @@ export const shippingController = {
         throw new AppError('Shipping service already exists', 400);
       }
 
-      const service = await ShippingService.create({ name, isActive: true });
+      const service = await ShippingService.create({ name, isActive: true, requiresDocument });
 
       await auditService.log({
         userId: req.user!.id,
@@ -51,7 +51,7 @@ export const shippingController = {
         entity: 'ShippingService',
         entityId: service.id,
         before: null,
-        after: { name, isActive: true },
+        after: { name, isActive: true, requiresDocument },
         ip: req.ip || req.socket.remoteAddress || '',
         userAgent: req.headers['user-agent'] || '',
       });
@@ -65,18 +65,19 @@ export const shippingController = {
   async update(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const { name, isActive } = req.body;
+      const { name, isActive, requiresDocument } = req.body;
 
       const service = await ShippingService.findByPk(id);
       if (!service) {
         throw new AppError('Shipping service not found', 404);
       }
 
-      const before = { name: service.name, isActive: service.isActive };
+      const before = { name: service.name, isActive: service.isActive, requiresDocument: service.requiresDocument };
 
       await service.update({
         name: name || service.name,
         isActive: isActive !== undefined ? isActive : service.isActive,
+        requiresDocument: requiresDocument !== undefined ? requiresDocument : service.requiresDocument,
       });
 
       await auditService.log({
@@ -85,7 +86,7 @@ export const shippingController = {
         entity: 'ShippingService',
         entityId: id,
         before,
-        after: { name: service.name, isActive: service.isActive },
+        after: { name: service.name, isActive: service.isActive, requiresDocument: service.requiresDocument },
         ip: req.ip || req.socket.remoteAddress || '',
         userAgent: req.headers['user-agent'] || '',
       });
@@ -105,7 +106,7 @@ export const shippingController = {
         throw new AppError('Shipping service not found', 404);
       }
 
-      const before = { name: service.name, isActive: service.isActive };
+      const before = { name: service.name, isActive: service.isActive, requiresDocument: service.requiresDocument };
 
       // Soft delete
       await service.update({ isActive: false });
@@ -116,7 +117,7 @@ export const shippingController = {
         entity: 'ShippingService',
         entityId: id,
         before,
-        after: { name: service.name, isActive: false },
+        after: { name: service.name, isActive: false, requiresDocument: service.requiresDocument },
         ip: req.ip || req.socket.remoteAddress || '',
         userAgent: req.headers['user-agent'] || '',
       });
