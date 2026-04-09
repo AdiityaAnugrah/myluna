@@ -88,6 +88,10 @@ export function OmsetBreakdownModal({ isOpen, onClose }: OmsetBreakdownModalProp
   };
 
   const handleExportExcel = () => {
+    if ((activeTab === 'monthly' && monthlyData.length === 0) || (activeTab === 'yearly' && yearlyData.length === 0)) {
+      import('sonner').then(({ toast }) => toast.error('Data kosong! Fitur Export tidak dapat berjalan tanpa data dari server.'));
+      return;
+    }
     const wb = XLSX.utils.book_new();
     const todayStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
     
