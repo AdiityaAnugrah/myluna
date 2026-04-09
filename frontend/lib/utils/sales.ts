@@ -62,3 +62,17 @@ export const getVariants = (variantList: any): string[] => {
   }
   return [];
 };
+
+/**
+ * Check if a date string is today
+ */
+export const isToday = (dateString: string | null | undefined): boolean => {
+  if (!dateString) return false;
+  const date = new Date(dateString);
+  const today = new Date();
+  return (
+    date.getDate() === today.getDate() &&
+    date.getMonth() === today.getMonth() &&
+    date.getFullYear() === today.getFullYear()
+  );
+};

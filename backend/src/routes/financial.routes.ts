@@ -8,8 +8,9 @@ const router = express.Router();
 // All financial routes require authentication
 router.use(auth);
 
-// SUPER_ADMIN and ADMIN can view financial summary
+// SUPER_ADMIN and ADMIN can view financial summary and breakdowns
 router.get('/', rbac(['SUPER_ADMIN', 'ADMIN']), financialController.getSummary);
+router.get('/omset-breakdown', rbac(['SUPER_ADMIN', 'ADMIN']), financialController.getOmsetBreakdown);
 
 // Only SUPER_ADMIN can set initial balance
 router.post('/initial-receivable', rbac(['SUPER_ADMIN']), financialController.setInitialBalance);

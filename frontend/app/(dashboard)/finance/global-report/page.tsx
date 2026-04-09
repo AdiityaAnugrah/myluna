@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/table';
 import * as XLSX from 'xlsx';
 import { SetInitialBalanceModal } from '@/components/SetInitialBalanceModal';
+import { OmsetBreakdownModal } from '@/components/OmsetBreakdownModal';
 
 export default function GlobalReportPage() {
   const today = new Date();
@@ -42,6 +43,7 @@ export default function GlobalReportPage() {
   const [startDate, setStartDate] = useState<string>(firstDay);
   const [endDate, setEndDate] = useState<string>(lastDay);
   const [isInitialBalanceModalOpen, setIsInitialBalanceModalOpen] = useState(false);
+  const [isOmsetModalOpen, setIsOmsetModalOpen] = useState(false);
 
   const { user } = useAuth();
 
@@ -206,18 +208,29 @@ export default function GlobalReportPage() {
         onClose={() => setIsInitialBalanceModalOpen(false)} 
       />
 
+      <OmsetBreakdownModal
+        isOpen={isOmsetModalOpen}
+        onClose={() => setIsOmsetModalOpen(false)}
+      />
+
       {/* Summary mini cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {/* Omset Keseluruhan — always first & most prominent */}
-        <Card className="col-span-2 md:col-span-1 border-orange-500/20 bg-orange-500/5">
+        <Card 
+          className="col-span-2 md:col-span-1 border-orange-500/20 bg-orange-500/5 cursor-pointer hover:shadow-md hover:border-orange-500/40 transition-all group"
+          onClick={() => setIsOmsetModalOpen(true)}
+        >
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-semibold">Omset Penjualan</p>
+                <p className="text-xs text-muted-foreground font-semibold flex items-center gap-1 group-hover:text-orange-500 transition-colors">
+                  Omset Penjualan
+                  <BarChart3 className="h-3 w-3 inline opacity-0 group-hover:opacity-100 transition-opacity" />
+                </p>
                 <p className="text-lg font-bold text-orange-500">{formatCurrency(summary.omsetKeseluruhan || 0)}</p>
-                <p className="text-[10px] text-orange-600/70 font-medium">periode yang dipilih</p>
+                <p className="text-[10px] text-orange-600/70 font-medium italic">Klik untuk rincian ⮕</p>
               </div>
-              <BarChart3 className="h-5 w-5 text-orange-500" />
+              <BarChart3 className="h-5 w-5 text-orange-500 group-hover:scale-110 transition-transform" />
             </div>
           </CardContent>
         </Card>

@@ -29,7 +29,7 @@ import { useReactToPrint } from 'react-to-print';
 import Barcode from 'react-barcode';
 import { toast } from 'sonner';
 import { Sale, SaleStatus } from '@/types';
-import { formatCurrency, getPdfUrl, getDaysSinceSale, isUrgentSale, getVariants, isHematCargo } from '@/lib/utils/sales';
+import { formatCurrency, getPdfUrl, getDaysSinceSale, isUrgentSale, getVariants, isHematCargo, isToday } from '@/lib/utils/sales';
 
 
 
@@ -106,7 +106,12 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
             <div className="pt-1.5 border-t flex flex-col gap-0.5">
                 <div className="flex items-center justify-between pr-0.5">
                     <span className="text-[10px] text-muted-foreground mr-2">Aktualisasi:</span>
-                    <span className="text-[10px] font-mono text-right">{sale.processedAt ? format(new Date(sale.processedAt), 'dd MMM yy, HH:mm') : '-'}</span>
+                    <span className="text-[10px] font-mono text-right flex items-center gap-1.5">
+                        {sale.processedAt ? format(new Date(sale.processedAt), 'dd MMM yy, HH:mm') : '-'}
+                        {sale.processedAt && isToday(sale.processedAt) && (
+                            <Badge className="bg-green-600 hover:bg-green-600 text-[8px] h-3.5 px-1 leading-none">Hari Ini</Badge>
+                        )}
+                    </span>
                 </div>
                 <div className="flex items-center justify-between pt-0.5">
                     {userRole !== 'TCP' && <div className="font-bold text-[12px] text-primary">{formatCurrency(sale.totalAmount)}</div>}
@@ -247,10 +252,15 @@ const SalesTable = ({
                 const urgent = !isHistory && isUrgentSale(sale);
                 const daysSince = getDaysSinceSale(sale.saleDate);
                 
+                const processedToday = isHistory && sale.processedAt && isToday(sale.processedAt);
+                
                 return (
                 <TableRow 
                   key={sale.id}
-                  className={urgent ? 'bg-red-50 border-l-4 border-l-red-500' : ''}
+                  className={cn(
+                    urgent ? 'bg-red-50 border-l-4 border-l-red-500' : '',
+                    processedToday ? 'bg-green-50/50' : ''
+                  )}
                 >
                   <TableCell className="font-mono text-sm">NO. {(index + 1) + (currentPage - 1) * itemsPerPage}</TableCell>
                   <TableCell>{format(new Date(sale.saleDate), 'dd MMM yyyy')}</TableCell>
@@ -261,6 +271,14 @@ const SalesTable = ({
                            <span className="text-[10px] font-mono bg-muted/60 border px-1.5 py-0.5 rounded text-muted-foreground whitespace-nowrap">{sale.saleNumber}</span>
                         </div>
                         <span className="text-xs text-muted-foreground">{sale.customerPhone}</span>
+                        {processedToday && (
+                            <div className="mt-1">
+                                <Badge variant="default" className="bg-green-600 hover:bg-green-600 text-[10px] h-4 px-1.5 flex w-fit items-center gap-1">
+                                    <Check className="w-2.5 h-2.5" />
+                                    Dikerjakan Hari Ini
+                                </Badge>
+                            </div>
+                        )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -489,6 +507,10 @@ export default function SalesProcessPage() {
         return dateB - dateA;
       });
   }, [sales]);
+
+  const processedTodayCount = useMemo(() => {
+    return historySales.filter(s => s.processedAt && isToday(s.processedAt)).length;
+  }, [historySales]);
 
   const paginatedActiveSales = useMemo(() => {
     const startIndex = (activePage - 1) * activeLimit;
@@ -730,6 +752,20 @@ export default function SalesProcessPage() {
         </TabsContent>
 
         <TabsContent value="history">
+            <div className="mb-4 flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center gap-3">
+                    <div className="bg-green-100 p-2 rounded-lg text-green-700">
+                        <Check className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-semibold text-green-900">Pengerjaan Hari Ini</h3>
+                        <p className="text-xs text-green-700">Total pesanan yang telah diselesaikan hari ini.</p>
+                    </div>
+                </div>
+                <div className="text-2xl font-bold text-green-700">
+                    {processedTodayCount} <span className="text-xs font-normal text-green-600 ml-1">Pesanan</span>
+                </div>
+            </div>
             <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex flex-col">
                  <SalesTable 
                     sales={paginatedHistorySales} 
@@ -776,214 +812,186 @@ export default function SalesProcessPage() {
         <div className="absolute top-0 left-0 w-0 h-0 overflow-hidden opacity-0 pointer-events-none">
             <div ref={printRef} style={{ fontFamily: '"Arial", sans-serif', color: '#111', background: '#fff', padding: '0' }}>
                 {printSale && (() => {
-                    // Receipt content — rendered twice for 2-up printing
+                    // Receipt content
                     const renderReceipt = () => (
-                    <>
-                    <div style={{ padding: '10px 12px', border: '1px solid #111', pageBreakInside: 'avoid' }}>
+                    <div style={{ padding: '20px 25px', border: '2px solid #000', pageBreakInside: 'avoid', background: '#fff' }}>
 
                         {/* ── HEADER TOKO ── */}
-                        <div style={{ textAlign: 'center', borderBottom: '1.5px double #111', paddingBottom: '8px', marginBottom: '10px' }}>
-                            <div style={{ fontSize: '12px', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-                                ✦ LUNAREA FURNITURE ✦
-                            </div>
-                            <div style={{ fontSize: '7px', marginTop: '3px', letterSpacing: '0.3px', textTransform: 'uppercase', color: '#333' }}>
-                                DESA KEDUNGPANE, JL. RAYA BOJA, KEC. MIJEN, KOTA SEMARANG, JAWA TENGAH
-                            </div>
-                            <div style={{ fontSize: '7px', marginTop: '2px', letterSpacing: '0.3px', textTransform: 'uppercase', color: '#333' }}>
-                                TELP: +62 811-2938-160
-                            </div>
-                        </div>
-
-                        {/* ── LABEL RESI ── */}
-                        <div style={{ textAlign: 'center', marginBottom: '6px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '3px', textTransform: 'uppercase', border: '1.5px solid #111', padding: '3px 15px', display: 'inline-block' }}>
-                                RESI PENGIRIMAN
-                            </span>
-                        </div>
-
-                        {/* ── BARCODE ── */}
-                        {/* ── BARCODE ── */}
-                        <div style={{ textAlign: 'center', marginBottom: '4px', fontSize: '7px', color: '#555', textTransform: 'uppercase' }}>
-                            TANGGAL PESANAN: {format(new Date(printSale.createdAt || new Date()), "dd MMM yyyy, HH:mm 'WIB'")}
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
-                            <Barcode value={printSale.saleNumber} format="CODE128" width={1.5} height={45} fontSize={12} font="monospace" margin={0} />
-                        </div>
-
-                        {/* ── INFO EKSPEDISI & PEMBAYARAN ── */}
-                        {/* ── INFO EKSPEDISI & PEMBAYARAN ── */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', borderBottom: '1px solid #ccc', paddingBottom: '6px', alignItems: 'flex-end' }}>
-                            <div>
-                                <div style={{ color: '#777', letterSpacing: '0.3px', fontSize: '7px', textTransform: 'uppercase' }}>METODE PEMBAYARAN</div>
-                                <div style={{ fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', color: '#111' }}>
-                                    {printSale.paymentMethod === 'CREDIT' ? 'TEMPO (CREDIT)' : printSale.paymentMethod}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px double #000', paddingBottom: '15px', marginBottom: '20px', alignItems: 'center' }}>
+                            <div style={{ textAlign: 'left' }}>
+                                <div style={{ fontSize: '17px', fontWeight: '600', letterSpacing: '2px', textTransform: 'uppercase' }}>
+                                    ✦ LUNAREA FURNITURE ✦
+                                </div>
+                                <div style={{ fontSize: '10px', marginTop: '4px', letterSpacing: '0.5px', textTransform: 'uppercase', color: '#000', fontWeight: '600', maxWidth: '400px' }}>
+                                    DESA KEDUNGPANE, JL. RAYA BOJA, KEC. MIJEN, KOTA SEMARANG, JAWA TENGAH
+                                </div>
+                                <div style={{ fontSize: '11px', marginTop: '4px', letterSpacing: '0.5px', textTransform: 'uppercase', color: '#000', fontWeight: '800' }}>
+                                    TELP: +62 811-2938-160
                                 </div>
                             </div>
                             <div style={{ textAlign: 'right' }}>
-                                <div style={{ color: '#777', letterSpacing: '0.3px', fontSize: '7px', textTransform: 'uppercase' }}>JASA PENGIRIMAN</div>
-                                <div style={{ fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', color: '#111' }}>
-                                    {printSale.shippingService?.replace(/_/g, ' ') || '-'}
+                                <div style={{ fontSize: '16px', fontWeight: '800', letterSpacing: '4px', textTransform: 'uppercase', border: '3px solid #000', padding: '8px 30px', display: 'inline-block' }}>
+                                    RESI PENGIRIMAN
+                                </div>
+                                <div style={{ marginTop: '5px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>
+                                    DOKUMEN ASLI PEMESANAN
                                 </div>
                             </div>
                         </div>
 
+                        {/* ── INFO UTAMA (NO PESANAN & EKSPEDISI) ── */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', marginBottom: '20px', background: '#f9f9f9', padding: '12px', border: '1px solid #ddd' }}>
+                            <div>
+                                <div style={{ fontSize: '9px', color: '#555', fontWeight: '800', textTransform: 'uppercase', marginBottom: '2px' }}>NO. PENJUALAN</div>
+                                <div style={{ fontSize: '16px', fontWeight: '900', fontFamily: 'monospace' }}>{printSale.saleNumber}</div>
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '9px', color: '#555', fontWeight: '800', textTransform: 'uppercase', marginBottom: '2px' }}>METODE PEMBAYARAN</div>
+                                <div style={{ fontSize: '15px', fontWeight: '900' }}>{printSale.paymentMethod === 'CREDIT' ? 'TEMPO (CREDIT)' : printSale.paymentMethod}</div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '9px', color: '#555', fontWeight: '800', textTransform: 'uppercase', marginBottom: '2px' }}>EKSPEDISI / KURIR</div>
+                                <div style={{ fontSize: '15px', fontWeight: '900' }}>{printSale.shippingService?.replace(/_/g, ' ') || '-'}</div>
+                            </div>
+                        </div>
+
+                        {/* ── BARCODE & TANGGAL ── */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '0 10px' }}>
+                             <div style={{ textAlign: 'left' }}>
+                                <div style={{ fontSize: '9px', color: '#555', fontWeight: '800', textTransform: 'uppercase', marginBottom: '2px' }}>TANGGAL TRANSAKSI</div>
+                                <div style={{ fontSize: '12px', fontWeight: '700' }}>{format(new Date(printSale.createdAt || new Date()), "dd MMMM yyyy, HH:mm 'WIB'")}</div>
+                             </div>
+                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <Barcode value={printSale.saleNumber} format="CODE128" width={2} height={40} fontSize={12} font="monospace" margin={0} />
+                             </div>
+                        </div>
+
                         {/* ── PENGIRIM & PENERIMA ── */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0', marginBottom: '10px', border: '1px solid #111' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
                             {/* PENGIRIM */}
-                            <div style={{ padding: '6px 8px', borderRight: '1px solid #111' }}>
-                                <div style={{ fontSize: '7px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase', color: '#555', marginBottom: '3px', borderBottom: '1px solid #eee', paddingBottom: '2px' }}>
-                                    ▶ PENGIRIM
+                            <div style={{ border: '1.5px solid #000' }}>
+                                <div style={{ background: '#000', color: '#fff', padding: '5px 12px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                    PENGIRIM 
                                 </div>
-                                <div style={{ fontWeight: '700', fontSize: '9px', textTransform: 'uppercase', marginBottom: '2px' }}>
-                                    LUNAREA FURNITURE
-                                </div>
-                                <div style={{ fontSize: '8px', marginBottom: '2px', textTransform: 'uppercase', color: '#333' }}>TELP: +62 811-2938-160</div>
-                                <div style={{ fontSize: '7px', lineHeight: '1.4', color: '#444', textTransform: 'uppercase' }}>
-                                    DESA KEDUNGPANE, JL. RAYA BOJA<br/>KEC. MIJEN, SEMARANG, JATENG
+                                <div style={{ padding: '10px 12px' }}>
+                                    <div style={{ fontWeight: '900', fontSize: '14px', textTransform: 'uppercase', marginBottom: '3px' }}>LUNAREA FURNITURE</div>
+                                    <div style={{ fontSize: '11px', fontWeight: '700', marginBottom: '5px' }}>TLP: +62 811-2938-160</div>
+                                    <div style={{ fontSize: '10px', lineHeight: '1.5', fontWeight: '600', textTransform: 'uppercase' }}>
+                                        DESA KEDUNGPANE, JL. RAYA BOJA, KEC. MIJEN<br/>KOTA SEMARANG, JAWA TENGAH
+                                    </div>
                                 </div>
                             </div>
                             {/* PENERIMA */}
-                            <div style={{ padding: '6px 8px' }}>
-                                <div style={{ fontSize: '7px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase', color: '#555', marginBottom: '3px', borderBottom: '1px solid #eee', paddingBottom: '2px' }}>
-                                    ▶ PENERIMA
+                            <div style={{ border: '1.5px solid #000' }}>
+                                <div style={{ background: '#000', color: '#fff', padding: '5px 12px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                    PENERIMA
                                 </div>
-                                <div style={{ fontWeight: '700', fontSize: '9px', textTransform: 'uppercase', marginBottom: '2px' }}>
-                                    {(printSale.customerName || 'PELANGGAN UMUM')}
-                                </div>
-                                <div style={{ fontSize: '8px', marginBottom: '2px', textTransform: 'uppercase', color: '#333' }}>
-                                    TELP: {printSale.customerPhone || '-'}
-                                </div>
-                                <div style={{ fontSize: '7px', lineHeight: '1.4', color: '#444', textTransform: 'uppercase', whiteSpace: 'pre-wrap' }}>
-                                    {(printSale.shippingAddress || 'ALAMAT TIDAK TERSEDIA')}
+                                <div style={{ padding: '10px 12px' }}>
+                                    <div style={{ fontWeight: '900', fontSize: '14px', textTransform: 'uppercase', marginBottom: '3px' }}>{printSale.customerName || 'PELANGGAN UMUM'}</div>
+                                    <div style={{ fontSize: '11px', fontWeight: '700', marginBottom: '5px' }}>TLP: {printSale.customerPhone || '-'}</div>
+                                    <div style={{ fontSize: '10px', lineHeight: '1.5', fontWeight: '700', textTransform: 'uppercase', whiteSpace: 'pre-wrap' }}>
+                                        {printSale.shippingAddress || 'ALAMAT TIDAK TERSEDIA'}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         {/* ── DAFTAR BARANG ── */}
-                        <div style={{ border: '1px solid #111', marginBottom: '10px' }}>
-                            <div style={{ background: '#111', color: '#fff', padding: '3px 8px', fontSize: '8px', fontWeight: '600', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-                                DAFTAR BARANG
+                        <div style={{ border: '2px solid #000', marginBottom: '20px' }}>
+                            <div style={{ background: '#000', color: '#fff', padding: '6px 15px', fontSize: '11px', fontWeight: '900', letterSpacing: '2px', textTransform: 'uppercase' }}>
+                                RINCIAN DAFTAR BARANG
                             </div>
-                            <div style={{ padding: '0' }}>
-                                {/* Header kolom */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto auto', gap: '0', borderBottom: '1px solid #ddd', padding: '3px 8px', fontSize: '7px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase', color: '#666' }}>
-                                    <span style={{ textAlign: 'center' }}>CEK</span>
-                                    <span>NAMA BARANG / VARIAN</span>
-                                    <span style={{ textAlign: 'center', minWidth: '75px' }}>DIMENSI & BERAT</span>
-                                    <span style={{ textAlign: 'right', marginRight: '2px', minWidth: '36px' }}>JML</span>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ background: '#f2f2f2', borderBottom: '2px solid #000' }}>
+                                        <th style={{ width: '40px', padding: '8px', fontSize: '10px', fontWeight: '900', borderRight: '1.5px solid #000' }}>CEK</th>
+                                        <th style={{ textAlign: 'left', padding: '8px', fontSize: '10px', fontWeight: '900', borderRight: '1.5px solid #000' }}>NAMA BARANG & VARIAN</th>
+                                        <th style={{ width: '150px', padding: '8px', fontSize: '10px', fontWeight: '900', borderRight: '1.5px solid #000' }}>DIMENSI / BERAT</th>
+                                        <th style={{ width: '60px', padding: '8px', fontSize: '10px', fontWeight: '900' }}>JUMLAH</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {printSale.items?.map((item: any, idx: number) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid #000' }}>
+                                            <td style={{ textAlign: 'center', padding: '10px', borderRight: '1.5px solid #000' }}>
+                                                <div style={{ width: '18px', height: '18px', border: '2px solid #000', margin: '0 auto', borderRadius: '3px' }}></div>
+                                            </td>
+                                            <td style={{ padding: '10px', borderRight: '1.5px solid #000' }}>
+                                                <div style={{ fontWeight: '900', fontSize: '13px', textTransform: 'uppercase' }}>{item.product?.name}</div>
+                                                {item.variantName && (
+                                                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#000', padding: '2px 0', textTransform: 'uppercase' }}>
+                                                        ➤ VARIAN: {item.variantName}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td style={{ padding: '10px', textAlign: 'center', fontSize: '10px', fontWeight: '700', borderRight: '1.5px solid #000' }}>
+                                                {item.product?.length ? `${item.product.length}×${item.product.width}×${item.product.height} cm` : '-'}
+                                                <br/>
+                                                {item.product?.weight ? `${item.product.weight} kg` : ''}
+                                            </td>
+                                            <td style={{ padding: '10px', textAlign: 'center', fontSize: '16px', fontWeight: '900' }}>
+                                                {item.quantity}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot>
+                                    <tr style={{ background: '#f2f2f2', fontWeight: '900', fontSize: '11px' }}>
+                                        <td colSpan={3} style={{ padding: '8px 15px', textAlign: 'right', borderRight: '1.5px solid #000' }}>TOTAL JUMLAH BARANG (QTY) :</td>
+                                        <td style={{ padding: '8px', textAlign: 'center', fontSize: '16px' }}>
+                                            {printSale.items?.reduce((ttl: number, it: any) => ttl + (it.quantity || 1), 0)}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+
+                        {/* ── FOOTER SECTION ── */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                            {/* NOTES & WARNING */}
+                            <div>
+                                {printSale.notes && (
+                                    <div style={{ border: '1.5px dashed #000', padding: '10px', marginBottom: '10px' }}>
+                                        <div style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', marginBottom: '3px' }}>CATATAN PESANAN:</div>
+                                        <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>{printSale.notes}</div>
+                                    </div>
+                                )}
+                                <div style={{ border: '2px solid #000', padding: '10px', textAlign: 'center', background: '#ffff00' }}>
+                                    <div style={{ fontWeight: '900', fontSize: '15px' }}>⚠ AWAS MUDAH LECET ⚠</div>
+                                    <div style={{ fontSize: '10px', fontWeight: '900', marginTop: '2px' }}>JANGAN DIBANTING / DITUMPUK BERAT</div>
                                 </div>
-                                {printSale.items?.map((item: any, idx: number) => {
-                                    let productVariants: any[] = [];
-                                    try {
-                                        const raw = item.product?.variants;
-                                        if (Array.isArray(raw)) productVariants = raw;
-                                        else if (typeof raw === 'string') productVariants = JSON.parse(raw);
-                                    } catch {}
-                                    const hasProductVariants = productVariants.length > 0;
-                                    const isLast = idx === (printSale.items?.length ?? 0) - 1;
-                                    const p = item.product;
-                                    const hasDimension = p?.length || p?.width || p?.height;
-                                    const hasWeight = p?.weight;
-                                    return (
-                                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto auto', gap: '4px', padding: '5px 8px', borderBottom: isLast ? 'none' : '1px dashed #eee', alignItems: 'center' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'center' }}>
-                                                <div style={{ width: '12px', height: '12px', border: '1px solid #666', borderRadius: '2px' }}></div>
-                                            </div>
-                                            <div>
-                                                <div style={{ fontWeight: '700', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                                                    {(item.product?.name || 'PRODUK')}
-                                                </div>
-                                                {item.variantName ? (
-                                                    <div style={{ fontSize: '8px', color: '#555', marginTop: '1px', textTransform: 'uppercase' }}>
-                                                        VARIAN: <span style={{ fontWeight: '600' }}>{item.variantName}</span>
-                                                    </div>
-                                                ) : hasProductVariants ? (
-                                                    <div style={{ fontSize: '7px', color: '#cc0000', marginTop: '1px', fontWeight: '600', textTransform: 'uppercase' }}>
-                                                        &#9888; VARIAN TIDAK DIPILIH
-                                                    </div>
-                                                ) : null}
-                                            </div>
-                                            <div style={{ minWidth: '75px', textAlign: 'center', fontSize: '7px', color: '#333', lineHeight: '1.5' }}>
-                                                {hasDimension && (
-                                                    <div style={{ fontWeight: '600' }}>
-                                                        {Number(p.length) || '-'}×{Number(p.width) || '-'}×{Number(p.height) || '-'} <span style={{ fontWeight: '400' }}>cm</span>
-                                                    </div>
-                                                )}
-                                                {hasWeight && (
-                                                    <div style={{ fontWeight: '600' }}>
-                                                        {Number(p.weight)} <span style={{ fontWeight: '400' }}>kg</span>
-                                                    </div>
-                                                )}
-                                                {!hasDimension && !hasWeight && (
-                                                    <span style={{ color: '#bbb', fontStyle: 'italic' }}>-</span>
-                                                )}
-                                            </div>
-                                            <div style={{ fontWeight: '700', fontSize: '10px', textAlign: 'right', minWidth: '36px', textTransform: 'uppercase' }}>
-                                                ×{item.quantity}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                                {/* Summary Footer Daftar Barang */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 8px', background: '#f5f5f5', borderTop: '1px solid #111', fontSize: '8px', fontWeight: '700', textTransform: 'uppercase' }}>
-                                    <div>
-                                        TOTAL BERAT: {
-                                            printSale.items?.reduce((ttl: number, it: any) => ttl + (Number(it.product?.weight) || 0) * (it.quantity || 1), 0)
-                                        } KG
-                                    </div>
-                                    <div>
-                                        TOTAL QTY: {
-                                            printSale.items?.reduce((ttl: number, it: any) => ttl + (it.quantity || 1), 0)
-                                        } PCS
-                                    </div>
+                            </div>
+                            {/* THANKS & UNBOXING */}
+                            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: '1.5px solid #000', padding: '10px' }}>
+                                <div style={{ fontSize: '11px', fontWeight: '900', marginBottom: '5px' }}>TERIMA KASIH TELAH BERBELANJA</div>
+                                <div style={{ fontSize: '13px', fontWeight: '700' }}>✦ LUNAREA FURNITURE ✦</div>
+                                <div style={{ fontSize: '9px', marginTop: '10px', background: '#000', color: '#fff', padding: '4px', fontWeight: '700' }}>
+                                    WAJIB VIDEO UNBOXING UNTUK KLAIM GARANSI
                                 </div>
                             </div>
                         </div>
 
-                        {/* ── CATATAN ── */}
-                        {printSale.notes && (
-                            <div style={{ border: '1px dashed #888', padding: '5px 8px', marginBottom: '10px', fontSize: '8px' }}>
-                                <div style={{ fontWeight: '600', fontSize: '7px', letterSpacing: '1px', textTransform: 'uppercase', color: '#666', marginBottom: '2px' }}>CATATAN:</div>
-                                <div style={{ textTransform: 'uppercase', whiteSpace: 'pre-wrap', color: '#333' }}>{(printSale.notes)}</div>
-                            </div>
-                        )}
-
-                        {/* ── WARNING FURNITURE ── */}
-                        <div style={{ border: '1.5px solid #000', padding: '6px', marginBottom: '10px', textAlign: 'center', background: '#ffebee' }}>
-                            <div style={{ fontWeight: '800', fontSize: '11px', letterSpacing: '1px', color: '#c62828', textTransform: 'uppercase' }}>
-                                ⚠ AWAS MUDAH LECET ⚠
-                            </div>
-                            <div style={{ fontSize: '8px', fontWeight: '700', marginTop: '3px', textTransform: 'uppercase', color: '#000' }}>
-                                JANGAN DIBANTING / DITUMPUK BARANG BERAT
-                            </div>
-                        </div>
-
-                        {/* ── FOOTER ── */}
-                        <div style={{ borderTop: '1.5px double #111', paddingTop: '6px', textAlign: 'center', fontSize: '7px', color: '#666', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
-                            <div>TERIMA KASIH TELAH BERBELANJA DI LUNAREA FURNITURE</div>
-                            <div style={{ marginTop: '2px' }}>BARANG YANG SUDAH DIBELI WAJIB DI VIDEO UNBOXING UNTUK KLAIM GARANSI</div>
-                        </div>
-
                     </div>
-                    {/* ── CUT HERE LINE ── */}
-                    <div style={{ marginTop: '12px', marginBottom: '5px', display: 'flex', alignItems: 'center', color: '#bbb', fontSize: '8px', letterSpacing: '1px' }}>
-                        <div style={{ flex: 1, borderBottom: '1.5px dashed #aaa' }}></div>
-                        <span style={{ whiteSpace: 'nowrap', background: '#fff', padding: '0 8px' }}>✂ POTONG DISINI ✂</span>
-                        <div style={{ flex: 1, borderBottom: '1.5px dashed #aaa' }}></div>
-                    </div>
-                    </>
-                    ); // end renderReceipt
+                    );
 
                     return (
                         <>
                             <style type="text/css" media="print">
                                 {`
-                                  @page { size: A5 portrait; margin: 0; }
-                                  body { margin: 0; }
+                                  @page { size: A4 portrait; margin: 0; }
+                                  body { margin: 0; padding: 0; }
+                                  @media print {
+                                    .print-root { padding: 10mm; width: 210mm; box-sizing: border-box; }
+                                    .cut-line { margin-top: 25px; border-bottom: 2px dashed #999; width: 100%; position: relative; }
+                                    .cut-label { position: absolute; left: 50%; top: -10px; transform: translateX(-50%); background: #fff; padding: 0 15px; font-size: 11px; color: #999; font-weight: bold; }
+                                  }
                                 `}
                             </style>
-                            <div style={{ padding: '8mm', width: '105mm' }}>
+                            <div className="print-root">
                                 {renderReceipt()}
+                                <div className="cut-line">
+                                    <span className="cut-label">✂ POTONG DI SINI UNTUK PENGGUNAAN ULANG KERTAS ✂</span>
+                                </div>
                             </div>
                         </>
                     );

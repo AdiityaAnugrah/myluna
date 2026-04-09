@@ -4,6 +4,7 @@ import { PaymentMethod, SalePlatform } from '../models/Sale';
 import OtherIncome from '../models/OtherIncome';
 import { successResponse } from '../utils/response';
 import { Op } from 'sequelize';
+import { sequelize } from '../config/database';
 import bcrypt from 'bcrypt';
 
 export const financialController = {
@@ -401,6 +402,59 @@ export const financialController = {
       });
 
       return successResponse(res, initialBalanceSale, 'Saldo awal piutang berhasil diatur', 201);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async getOmsetBreakdown(_req: Request, res: Response, next: NextFunction) {
+    try {
+      // 1. Monthly Breakdown
+      const monthly = await Sale.findAll({
+        attributes: [
+          [sequelize.fn('YEAR', sequelize.col('saleDate')), 'year'],
+          [sequelize.fn('MONTH', sequelize.col('saleDate')), 'month'],
+          [sequelize.fn('SUM', sequelize.col('totalAmount')), 'total'],
+        ],
+        where: {
+          status: { [Op.not]: 'CANCELLED' },
+          isInitialBalance: false,
+        },
+        group: [
+          sequelize.fn('YEAR', sequelize.col('saleDate')),
+          sequelize.fn('MONTH', sequelize.col('saleDate')),
+        ],
+        order: [
+          [sequelize.fn('YEAR', sequelize.col('saleDate')), 'DESC'],
+          [sequelize.fn('MONTH', sequelize.col('saleDate')), 'DESC'],
+        ],
+        raw: true,
+      });
+
+      // 2. Yearly Breakdown
+      const yearly = await Sale.findAll({
+        attributes: [
+          [sequelize.fn('YEAR', sequelize.col('saleDate')), 'year'],
+          [sequelize.fn('SUM', sequelize.col('totalAmount')), 'total'],
+        ],
+        where: {
+          status: { [Op.not]: 'CANCELLED' },
+          isInitialBalance: false,
+        },
+        group: [sequelize.fn('YEAR', sequelize.col('saleDate'))],
+        order: [[sequelize.fn('YEAR', sequelize.col('saleDate')), 'DESC']],
+        raw: true,
+      });
+
+      // 3. Grand Total
+      const grandTotal = await Sale.sum('totalAmount', {
+        where: {
+          status: { [Op.not]: 'CANCELLED' },
+          isInitialBalance: false,
+        },
+      }) || 0;
+
+      return successResponse(res, { monthly, yearly, grandTotal }, 'Omset breakdown retrieved successfully', 200);
     } catch (error) {
       return next(error);
     }

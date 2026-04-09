@@ -2,7 +2,7 @@ import apiClient from './client';
 import { StockMovement, ApiResponse, PaginatedResponse, PaginationParams } from '@/types';
 
 export const stockApi = {
-  getMovements: async (params?: PaginationParams & { productId?: string; type?: string }) => {
+  getMovements: async (params?: PaginationParams & { productId?: string; type?: string; startDate?: string; endDate?: string }) => {
     const response = await apiClient.get<PaginatedResponse<StockMovement>>('/stock/movements', { params });
     return response.data;
   },

@@ -4,7 +4,7 @@ import { changeRequestsApi } from '../api/requests';
 import { toast } from 'sonner';
 import { PaginationParams } from '@/types';
 
-export function useStockMovements(params?: PaginationParams & { productId?: string; type?: string }) {
+export function useStockMovements(params?: PaginationParams & { productId?: string; type?: string; startDate?: string; endDate?: string }) {
   return useQuery({
     queryKey: ['stock-movements', params],
     queryFn: () => stockApi.getMovements(params),

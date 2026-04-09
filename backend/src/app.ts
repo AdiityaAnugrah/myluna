@@ -75,8 +75,10 @@ app.get('/health', (_req, res) => {
 import path from 'path';
 app.use('/uploads', (req, res, next) => {
   if (req.path.toLowerCase().endsWith('.pdf')) {
-    res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour to speed up re-opening
+    res.setHeader('X-Content-Type-Options', 'nosniff');
   }
   next();
 }, express.static(path.join(process.cwd(), 'uploads')));

@@ -18,7 +18,7 @@ const newLayout = `{/* ===== AREA CETAK (TERSEMBUNYI DI LAYAR, MUNCUL SAAT PRINT
 
                         {/* ── HEADER TOKO ── */}
                         <div style={{ textAlign: 'center', borderBottom: '3px double #111', paddingBottom: '14px', marginBottom: '18px' }}>
-                            <div style={{ fontSize: '22px', fontWeight: '900', letterSpacing: '3px', textTransform: 'uppercase' }}>
+                            <div style={{ fontSize: '17px', fontWeight: '600', letterSpacing: '3px', textTransform: 'uppercase' }}>
                                 ✦ LUNAREA FURNITURE OFFICIAL ✦
                             </div>
                             <div style={{ fontSize: '12px', marginTop: '4px', letterSpacing: '1px', textTransform: 'uppercase' }}>
