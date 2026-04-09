@@ -35,7 +35,12 @@ const ENTITY_MAP: Record<string, string> = {
   'StockMovement': 'Pergerakan Stok',
   'Settlement': 'Pelunasan',
   'Expense': 'Pengeluaran',
+  'OtherIncome': 'Pendapatan Lain',
+  'Platform': 'Platform',
   'ShippingService': 'Jasa Pengiriman',
+  'ChangeRequest': 'Permintaan Persetujuan',
+  'ProductVariant': 'Varian Produk',
+  'Role': 'Peran',
 };
 
 const ACTION_LABEL: Record<string, string> = {
@@ -44,6 +49,7 @@ const ACTION_LABEL: Record<string, string> = {
   'DELETE': 'Hapus',
   'LOGIN': 'Masuk',
   'LOGOUT': 'Keluar',
+  'RESUME': 'Kembali Aktif',
 };
 
 const ACTION_COLOR: Record<string, string> = {
@@ -52,6 +58,7 @@ const ACTION_COLOR: Record<string, string> = {
   'DELETE': 'destructive',
   'LOGIN': 'success',
   'LOGOUT': 'secondary',
+  'RESUME': 'info',
 };
 
 const FIELD_LABEL: Record<string, string> = {
@@ -73,13 +80,23 @@ const FIELD_LABEL: Record<string, string> = {
   shippingService: 'Jasa Kirim',
   shippingCost: 'Ongkir',
   isActive_raw: 'Status',
-  // Expense fields
+  // Expense & OtherIncome fields
   category: 'Kategori',
   description: 'Deskripsi',
-  amount: 'Jumlah (Rp)',
+  amount: 'Jumlah',
   expenseDate: 'Tanggal',
-  // Auth fields
+  incomeDate: 'Tanggal',
+  source: 'Sumber',
+  // Settlement fields
+  invoiceNumber: 'No. Invoice',
+  paymentMethod: 'Metode Bayar',
+  settlementDate: 'Tanggal Bayar',
+  remainingAmount: 'Sisa Tagihan',
+  paidAmount: 'Jumlah Bayar',
+  // Auth & System fields
   action: 'Tindakan',
+  roleName: 'Nama Peran',
+  username: 'Username',
   // ShippingService fields
   isActive_shipping: 'Status Aktif',
 };
@@ -94,9 +111,16 @@ function parseJson(val: any): any {
   return val;
 }
 
-function formatValue(val: any): string {
+function formatValue(val: any, key?: string): string {
   if (val === null || val === undefined) return '—';
   if (typeof val === 'boolean') return val ? 'Aktif' : 'Nonaktif';
+  
+  // Format as Currency if key indicates money
+  const moneyKeys = ['price', 'amount', 'cost', 'total', 'Price', 'Amount', 'Cost', 'Total'];
+  if (key && typeof val === 'number' && moneyKeys.some(mk => key.includes(mk))) {
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+  }
+
   if (typeof val === 'number') return val.toLocaleString('id-ID');
   if (typeof val === 'object') return JSON.stringify(val).substring(0, 60);
   return String(val).substring(0, 80);
@@ -116,8 +140,8 @@ function getDiff(before: any, after: any): Array<{ key: string; label: string; f
     result.push({
       key,
       label: FIELD_LABEL[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()),
-      from: formatValue(before[key]),
-      to: formatValue(after[key]),
+      from: formatValue(before[key], key),
+      to: formatValue(after[key], key),
     });
   }
   return result;
@@ -142,6 +166,8 @@ function getSummary(log: any): string {
     if (diff.length === 0) return `Mengubah data ${entity}`;
     return `Mengubah ${diff.length} field pada ${entity}${name ? ` "${name}"` : ''}`;
   }
+  if (log.action === 'RESUME') return 'Kembali beraktivitas di sistem';
+
   return `${action} ${entity}`;
 }
 
@@ -222,7 +248,7 @@ function LogDetail({ log }: { log: any }) {
               .map(([k, v]) => (
                 <div key={k} className="flex justify-between text-xs bg-success/10 rounded px-2 py-1">
                   <span className="text-muted-foreground">{FIELD_LABEL[k] || k}</span>
-                  <span className="font-medium text-success ml-2 truncate max-w-[160px]">{formatValue(v)}</span>
+                  <span className="font-medium text-success ml-2 truncate max-w-[160px]">{formatValue(v, k)}</span>
                 </div>
               ))}
           </div>
@@ -239,7 +265,7 @@ function LogDetail({ log }: { log: any }) {
               .map(([k, v]) => (
                 <div key={k} className="flex justify-between text-xs bg-destructive/10 rounded px-2 py-1">
                   <span className="text-muted-foreground">{FIELD_LABEL[k] || k}</span>
-                  <span className="font-medium text-destructive ml-2 truncate max-w-[160px]">{formatValue(v)}</span>
+                  <span className="font-medium text-destructive ml-2 truncate max-w-[160px]">{formatValue(v, k)}</span>
                 </div>
               ))}
           </div>

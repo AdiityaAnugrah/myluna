@@ -1,4 +1,5 @@
 import { Transaction, Op } from 'sequelize';
+import { sequelize } from '../config/database';
 import { AuditLog, AuditAction, User, Role } from '../models';
 
 interface AuditLogData {
@@ -135,5 +136,46 @@ export const auditService = {
     });
 
     return deletedCount;
+  },
+
+  async getDailySummary(params: { userId?: string; startDate?: string; endDate?: string }) {
+    const { userId, startDate, endDate } = params;
+    const where: any = {};
+
+    if (userId && userId !== 'all') {
+      where.userId = userId;
+    }
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt[Op.gte] = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        where.createdAt[Op.lte] = end;
+      }
+    }
+
+    // Menggunakan query mentah atau fungsi agregasi Sequelize untuk mengelompokkan per hari
+    const stats = await AuditLog.findAll({
+      where,
+      attributes: [
+        [sequelize.fn('DATE', sequelize.col('AuditLog.createdAt')), 'date'],
+        [sequelize.fn('MIN', sequelize.col('AuditLog.createdAt')), 'startTime'],
+        [sequelize.fn('MAX', sequelize.col('AuditLog.createdAt')), 'endTime'],
+        [sequelize.fn('COUNT', sequelize.col('AuditLog.id')), 'activityCount'],
+      ],
+      group: [sequelize.fn('DATE', sequelize.col('AuditLog.createdAt')), 'AuditLog.userId'],
+      order: [[sequelize.fn('DATE', sequelize.col('AuditLog.createdAt')), 'DESC']],
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'fullName', 'username'],
+        },
+      ],
+    });
+
+    return stats;
   },
 };

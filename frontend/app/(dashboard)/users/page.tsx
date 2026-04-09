@@ -19,8 +19,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Plus, MoreHorizontal, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Search, Loader2, Activity } from 'lucide-react';
 import { UserForm } from './components/UserForm';
+import { UserActivityModal } from './components/UserActivityModal';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useRouter } from 'next/navigation';
@@ -55,6 +56,8 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [activityModalOpen, setActivityModalOpen] = useState(false);
+  const [activityUser, setActivityUser] = useState<{ id: string; name: string } | null>(null);
 
 
   // Redirect if not Super Admin (Frontend check mainly for UX, backend protects mostly)
@@ -88,6 +91,11 @@ export default function UsersPage() {
   const handleCreate = () => {
     setSelectedUser(undefined);
     setIsFormOpen(true);
+  };
+
+  const handleViewActivity = (user: User) => {
+    setActivityUser({ id: user.id, name: user.fullName });
+    setActivityModalOpen(true);
   };
 
   return (
@@ -193,6 +201,10 @@ export default function UsersPage() {
                           <Pencil className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleViewActivity(user)}>
+                          <Activity className="mr-2 h-4 w-4 text-primary" />
+                          Lihat Aktivitas
+                        </DropdownMenuItem>
                         <DropdownMenuItem 
                             onClick={() => handleDelete(user.id)}
                             className="text-red-600 focus:text-red-600"
@@ -225,6 +237,13 @@ export default function UsersPage() {
         description="Are you sure you want to delete this user? This action cannot be undone."
         confirmText="Delete"
         variant="destructive"
+      />
+
+      <UserActivityModal
+        open={activityModalOpen}
+        onOpenChange={setActivityModalOpen}
+        userId={activityUser?.id}
+        userName={activityUser?.name}
       />
     </div>
 

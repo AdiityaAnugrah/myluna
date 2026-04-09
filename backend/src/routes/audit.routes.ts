@@ -6,5 +6,6 @@ const router = Router();
 
 // Retrieve logs - Accessible by all authenticated users
 router.get('/', auth, auditController.getLogs);
+router.get('/stats/daily', auth, auditController.getDailyStats);
 
 export default router;

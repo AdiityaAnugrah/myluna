@@ -20,6 +20,18 @@ export interface AuditLog {
   };
 }
 
+export interface DailyAuditStat {
+  date: string;
+  startTime: string;
+  endTime: string;
+  activityCount: number;
+  user?: {
+    id: string;
+    fullName: string;
+    username: string;
+  };
+}
+
 export interface AuditLogParams {
   page?: number;
   limit?: number;
@@ -32,6 +44,10 @@ export interface AuditLogParams {
 export const auditApi = {
   getAll: async (params?: AuditLogParams) => {
     const response = await apiClient.get<PaginatedListResponse<AuditLog>>('/audit-logs', { params });
+    return response.data;
+  },
+  getDailyStats: async (params?: { userId?: string; startDate?: string; endDate?: string }) => {
+    const response = await apiClient.get<ApiResponse<DailyAuditStat[]>>('/audit-logs/stats/daily', { params });
     return response.data;
   },
 };

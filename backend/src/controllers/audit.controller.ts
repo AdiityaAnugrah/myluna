@@ -24,4 +24,20 @@ export const auditController = {
       return next(error);
     }
   },
+
+  async getDailyStats(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { userId, startDate, endDate } = req.query;
+
+      const result = await auditService.getDailySummary({
+        userId: userId as string,
+        startDate: startDate as string,
+        endDate: endDate as string,
+      });
+
+      return successResponse(res, result, 'Audit daily stats retrieved successfully', 200);
+    } catch (error) {
+      return next(error);
+    }
+  },
 };

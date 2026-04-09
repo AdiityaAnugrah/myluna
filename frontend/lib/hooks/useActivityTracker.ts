@@ -25,7 +25,7 @@ export function useActivityTracker() {
       }
     };
 
-    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'wheel', 'contextmenu'];
     events.forEach(event => document.addEventListener(event, handleActivity));
 
     // Monitor AFK status

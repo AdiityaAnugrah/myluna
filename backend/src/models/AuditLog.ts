@@ -7,6 +7,7 @@ export enum AuditAction {
   DELETE = 'DELETE',
   LOGIN = 'LOGIN',
   LOGOUT = 'LOGOUT',
+  RESUME = 'RESUME',
 }
 
 interface AuditLogAttributes {

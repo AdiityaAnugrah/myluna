@@ -3,6 +3,7 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { jwtConfig } from '../config/jwt';
 import { User, Role, RefreshToken } from '../models';
+import { AuditAction } from '../models/AuditLog';
 import { UnauthorizedError, NotFoundError } from '../utils/errors';
 import { auditService } from './audit.service';
 import { SecurityLogger } from '../utils/security-logger';
@@ -244,6 +245,22 @@ export const authService = {
     // (meaning the user just came back from AFK or fresh session)
     if (diffSeconds > 0 && diffSeconds < 120) {
       user.totalDuration += diffSeconds;
+    } else if (diffSeconds >= 180) {
+      // Log Resume Activity if gap is significant
+      try {
+        await auditService.log({
+          userId: user.id,
+          action: AuditAction.RESUME,
+          entity: 'Auth',
+          entityId: user.id,
+          before: null,
+          after: { lastActivityGap: diffSeconds },
+          ip: '',
+          userAgent: '',
+        });
+      } catch (err) {
+        console.error('Failed to log RESUME activity:', err);
+      }
     }
 
     user.lastActivityAt = now;
