@@ -114,13 +114,13 @@ export default function GlobalReportPage() {
 
     // Spacer + summary
     aoa.push([]);
-    aoa.push(['', '', '', 'TOTAL', formatIDR(summary.totalIncome || 0), formatIDR(summary.totalExpense || 0), formatIDR(summary.finalBalance || 0), '']);
+    aoa.push(['', '', '', 'TOTAL', formatIDR(summary.totalIncome || 0), formatIDR(summary.totalExpense || 0), formatIDR(summary.danaBersih || 0), '']);
     aoa.push([]);
     aoa.push(['RINGKASAN PERIODE']);
     aoa.push(['Total Pendapatan (Penjualan + Lain-lain)', '', '', '', formatIDR(summary.totalIncome || 0)]);
     aoa.push(['Total Beban Platform', '', '', '', formatIDR(summary.totalSelisih || 0)]);
     aoa.push(['Dana Bersih Diterima', '', '', '', formatIDR(summary.danaBersih || 0)]);
-    aoa.push(['Piutang Periode Ini', '', '', '', formatIDR(summary.piutang || 0)]);
+    aoa.push(['Total Piutang (Belum Dilunasi)', '', '', '', formatIDR(summary.sisaPiutangAkhir || 0)]);
     if (summary.carryForwardPiutang > 0) {
       aoa.push(['Piutang Bulan Lalu', '', '', '', formatIDR(summary.carryForwardPiutang || 0)]);
     }

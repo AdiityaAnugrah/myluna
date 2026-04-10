@@ -653,7 +653,7 @@ export default function DashboardPage() {
             <CardTitle>Transaksi Terkini</CardTitle>
             <CardDescription>Daftar penjualan dan pembelian terbaru.</CardDescription>
           </div>
-          <Link href="/finance">
+          <Link href="/financial-summary">
             <Button variant="outline" size="sm" className="rounded-xl">Laporan Lanjut</Button>
           </Link>
         </CardHeader>

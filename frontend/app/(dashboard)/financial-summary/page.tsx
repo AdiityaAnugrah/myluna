@@ -153,7 +153,7 @@ export default function FinancialSummaryPage() {
       ['Total Pendapatan (Penjualan + Lain-lain)', formatIDR(summary.totalIncome || 0)],
       ['Total Beban Platform (Selisih)', formatIDR(summary.totalSelisih || 0)],
       ['Dana Bersih Diterima', formatIDR(summary.danaBersih || 0)],
-      ['Piutang Periode Ini (Belum Dilunasi)', formatIDR(summary.piutang || 0)],
+      ['Total Piutang (Belum Dilunasi)', formatIDR(summary.sisaPiutangAkhir || 0)],
     ];
     if ((summary.carryForwardPiutang || 0) > 0) {
       summaryAoa.push(['Sisa Piutang Terbawa (Bulan Lalu)', formatIDR(summary.carryForwardPiutang || 0)]);
