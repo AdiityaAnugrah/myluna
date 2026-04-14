@@ -376,13 +376,13 @@ async function handleSettlementCancellation(_entityId: string | null, payload: a
         await product.update({ stock: product.stock + item.quantity }, { transaction });
 
         if (item.variantName) {
-            const variant = await ProductVariant.findOne({
-                where: { productId: item.productId, value: item.variantName },
-                transaction,
-            });
-            if (variant) {
-                await variant.update({ stock: variant.stock + item.quantity }, { transaction });
-            }
+          const variant = await ProductVariant.findOne({
+            where: { productId: item.productId, value: item.variantName },
+            transaction,
+          });
+          if (variant) {
+            await variant.update({ stock: variant.stock + item.quantity }, { transaction });
+          }
         }
 
         await StockMovement.create({

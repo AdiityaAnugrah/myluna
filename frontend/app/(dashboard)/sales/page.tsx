@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useSales, useDeleteSale } from '@/lib/hooks/useSales';
+import { usePlatforms } from '@/lib/hooks/usePlatforms';
 import { useAuthStore } from '@/lib/stores/auth';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -54,15 +55,6 @@ const STATUS_OPTIONS = [
   { value: 'REJECTED', label: 'Ditolak' },
 ];
 
-const PLATFORM_OPTIONS = [
-  { value: 'all', label: 'Semua Platform' },
-  { value: 'OFFLINE_STORE', label: 'Toko Langsung' },
-  { value: 'TOKOPEDIA', label: 'Tokopedia' },
-  { value: 'SHOPEE', label: 'Shopee' },
-  { value: 'TIKTOK_SHOP', label: 'TikTok Shop' },
-  { value: 'LAZADA', label: 'Lazada' },
-  { value: 'OTHER', label: 'Lainnya' },
-];
 
 const PAYMENT_OPTIONS = [
   { value: 'all', label: 'Semua Pembayaran' },
@@ -112,6 +104,9 @@ export default function SalesPage() {
   const [saleToCancel, setSaleToCancel] = useState<string | null>(null);
 
   const isEnabled = user?.role !== 'TCP';
+
+  const { data: platformsData } = usePlatforms();
+  const activePlatforms: { id: string; name: string }[] = (platformsData?.data || []).filter((p: any) => p.isActive);
 
   const { data, isLoading } = useSales(
     {
@@ -252,6 +247,7 @@ export default function SalesPage() {
               <p className="text-xl font-black text-yellow-600">
                 {sales.filter((s: any) => s.status === 'WAITING_APPROVAL').length}
               </p>
+              <p className="text-[9px] text-muted-foreground">(halaman ini)</p>
             </div>
           </div>
           <div className="bg-card border rounded-xl p-4 flex items-center gap-3">
@@ -261,6 +257,7 @@ export default function SalesPage() {
               <p className="text-xl font-black text-green-600">
                 {sales.filter((s: any) => s.status === 'SETTLED').length}
               </p>
+              <p className="text-[9px] text-muted-foreground">(halaman ini)</p>
             </div>
           </div>
           <div className="bg-card border rounded-xl p-4 flex items-center gap-3">
@@ -318,7 +315,12 @@ export default function SalesPage() {
           <Select value={platformFilter || 'all'} onValueChange={handleFilterChange(setPlatformFilter)}>
             <SelectTrigger><SelectValue placeholder="Semua Platform" /></SelectTrigger>
             <SelectContent>
-              {PLATFORM_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              <SelectItem value="all">Semua Platform</SelectItem>
+              {activePlatforms.map(p => (
+                <SelectItem key={p.id} value={p.name}>
+                  {p.name.replace(/_/g, ' ')}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 

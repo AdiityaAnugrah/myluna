@@ -55,9 +55,12 @@ export const settlementController = {
       };
 
       if (status === 'pending') {
-        // Get processed sales without settlements
+        // Use LEFT JOIN + WHERE settlement IS NULL to get accurate count at DB level
         const { count, rows } = await Sale.findAndCountAll({
-          where: saleWhere,
+          where: {
+            ...saleWhere,
+            '$settlement.id$': null, // Only sales without a settlement
+          },
           include: [
             {
               model: Settlement,
@@ -70,20 +73,18 @@ export const settlementController = {
               attributes: ['id', 'fullName', 'email'],
             },
           ],
+          distinct: true, // Ensure correct count with LEFT JOIN
           limit: Number(limit),
           offset,
           order: sortBy === 'terbaru'
             ? [['saleDate', 'DESC']]
-            : [['processedAt', 'ASC']], // urgent = oldest processedAt first
+            : [['processedAt', 'ASC']],
         });
 
-        // Filter out sales that have settlements
-        const pendingSales = rows.filter(sale => !sale.settlement);
-        
         return successResponse(
           res,
           {
-            settlements: pendingSales.map(sale => ({
+            settlements: rows.map(sale => ({
               sale,
               needsSettlement: true,
               daysSinceProcessed: Math.floor(
@@ -451,8 +452,8 @@ export const settlementController = {
 
       const dateFilter: any = {};
       if (startDate && endDate) {
-        dateFilter.createdAt = {
-          [Op.between]: [new Date(startDate as string), new Date(endDate as string)],
+        dateFilter.saleDate = {
+          [Op.between]: [new Date(startDate as string), new Date(`${endDate}T23:59:59`)],
         };
       }
 

@@ -65,7 +65,7 @@ export const financialController = {
       if (start) {
         const prevUnsettled = await Sale.findAll({
           where: {
-            status: { [Op.notIn]: ['SETTLED', 'CANCELLED'] },
+            status: { [Op.notIn]: ['SETTLED', 'CANCELLED', 'REJECTED'] },
             saleDate: { [Op.lt]: start },
             isInitialBalance: false // Excluded from raw query, added mathematically below
           },
@@ -283,7 +283,7 @@ export const financialController = {
 
       // Sisa piutang akhir = Exact sum of all unsettled sales up to End Date + remaining initial balance
       const allUnsettledUpToEndWhere: any = {
-        status: { [Op.notIn]: ['SETTLED', 'CANCELLED'] },
+        status: { [Op.notIn]: ['SETTLED', 'CANCELLED', 'REJECTED'] },
         isInitialBalance: false
       };
       if (end) {

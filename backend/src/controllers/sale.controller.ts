@@ -349,40 +349,51 @@ export const saleController = {
         }
       }
 
-      // Validate all products, check stock, and calculate total
-      let totalAmount = 0;
+      // Aggregate required stock per (productId, variantName) to handle duplicates correctly
+      const stockRequired = new Map<string, number>();
       for (const item of items) {
-        const product = await Product.findByPk(item.productId, { transaction });
-        if (!product) {
-          throw new AppError(`Product with ID ${item.productId} not found`, 404);
-        }
+        const key = `${item.productId}|${item.variantName || ''}`;
+        stockRequired.set(key, (stockRequired.get(key) || 0) + Number(item.quantity));
+      }
 
-        // If item has a variant, validate against variant stock; otherwise use main product stock
-        if (item.variantName) {
+      // Validate all products, check aggregated stock, and calculate total
+      let totalAmount = 0;
+      const productCache = new Map<string, any>();
+
+      for (const item of items) {
+        let product = productCache.get(item.productId);
+        if (!product) {
+          product = await Product.findByPk(item.productId, { transaction });
+          if (!product) throw new AppError(`Product with ID ${item.productId} not found`, 404);
+          productCache.set(item.productId, product);
+        }
+        const discount = Number(item.discount) || 0;
+        totalAmount += (Number(item.quantity) * Number(item.price)) - discount;
+      }
+
+      // Check aggregated stock per product/variant (prevents overselling same product twice)
+      for (const [key, totalQty] of stockRequired) {
+        const [productId, variantName] = key.split('|');
+        const product = productCache.get(productId);
+        if (variantName) {
           const variant = await ProductVariant.findOne({
-            where: { productId: item.productId, value: item.variantName },
+            where: { productId, value: variantName },
             transaction,
           });
-          if (variant && variant.stock < item.quantity) {
+          if (variant && variant.stock < totalQty) {
             throw new AppError(
-              `Stok tidak cukup untuk produk ${product.name} varian ${item.variantName}. Tersedia: ${variant.stock}, Diminta: ${item.quantity}`,
+              `Stok tidak cukup untuk produk ${product.name} varian ${variantName}. Tersedia: ${variant.stock}, Diminta: ${totalQty}`,
               400
             );
           }
         } else {
-          if (product.stock < item.quantity) {
+          if (product.stock < totalQty) {
             throw new AppError(
-              `Stok tidak cukup untuk produk ${product.name}. Tersedia: ${product.stock}, Diminta: ${item.quantity}`,
+              `Stok tidak cukup untuk produk ${product.name}. Tersedia: ${product.stock}, Diminta: ${totalQty}`,
               400
             );
           }
         }
-
-        const discount = Number(item.discount) || 0;
-        const price = Number(item.price);
-        const quantity = Number(item.quantity);
-        const subtotal = (quantity * price) - discount;
-        totalAmount += subtotal;
       }
 
       // Create sale
@@ -725,37 +736,42 @@ export const saleController = {
         throw new AppError('Sale not found', 404);
       }
 
-      // Restore product stock
-      for (const item of sale.items!) {
-        const product = await Product.findByPk(item.productId, { transaction });
-        const stockBeforeDelete = product!.stock;
-        await product!.update(
-          { stock: product!.stock + item.quantity },
-          { transaction }
-        );
+      // Only restore stock if the sale was in an active state (stock was deducted).
+      // REJECTED and CANCELLED sales already had stock restored at the time of rejection/cancellation.
+      const stockWasDeducted = !['REJECTED', 'CANCELLED'].includes(sale.status as string);
 
-        // Also restore variant stock if applicable
-        if (item.variantName) {
-          const variant = await ProductVariant.findOne({
-            where: { productId: item.productId, value: item.variantName },
-            transaction,
-          });
-          if (variant) {
-            await variant.update({ stock: variant.stock + item.quantity }, { transaction });
+      if (stockWasDeducted) {
+        for (const item of sale.items!) {
+          const product = await Product.findByPk(item.productId, { transaction });
+          const stockBeforeDelete = product!.stock;
+          await product!.update(
+            { stock: product!.stock + item.quantity },
+            { transaction }
+          );
+
+          // Also restore variant stock if applicable
+          if (item.variantName) {
+            const variant = await ProductVariant.findOne({
+              where: { productId: item.productId, value: item.variantName },
+              transaction,
+            });
+            if (variant) {
+              await variant.update({ stock: variant.stock + item.quantity }, { transaction });
+            }
           }
-        }
 
-        // Record Stock Movement (IN) - Return stock
-        await StockMovement.create({
-            productId: item.productId,
-            type: MovementType.IN,
-            quantity: item.quantity,
-            stockBefore: stockBeforeDelete,
-            stockAfter: stockBeforeDelete + item.quantity,
-            reference: `SALE_DELETE:${sale.saleNumber || id}`,
-            notes: `Sale deleted${item.variantName ? ` (Varian: ${item.variantName})` : ''}`,
-            createdBy: req.user!.id
-        }, { transaction });
+          // Record Stock Movement (IN) - Return stock
+          await StockMovement.create({
+              productId: item.productId,
+              type: MovementType.IN,
+              quantity: item.quantity,
+              stockBefore: stockBeforeDelete,
+              stockAfter: stockBeforeDelete + item.quantity,
+              reference: `SALE_DELETE:${sale.saleNumber || id}`,
+              notes: `Sale deleted${item.variantName ? ` (Varian: ${item.variantName})` : ''}`,
+              createdBy: req.user!.id
+          }, { transaction });
+        }
       }
 
       // Log activity before deletion (since we have the data)
@@ -799,7 +815,7 @@ export const saleController = {
         throw new AppError('Sale not found', 404);
       }
 
-      if (['CANCELLED', 'COMPLETED', 'SETTLED'].includes(sale.status as string)) {
+      if (['CANCELLED', 'REJECTED', 'COMPLETED', 'SETTLED'].includes(sale.status as string)) {
         throw new AppError('Penjualan ini sudah selesai dan tidak dapat dibatalkan', 400);
       }
 
