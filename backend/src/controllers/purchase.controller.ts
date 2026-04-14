@@ -211,6 +211,7 @@ export const purchaseController = {
 
         // Update stock: main product stock + variant stock if applicable
         const product = await Product.findByPk(item.productId, { transaction });
+        const stockBeforePurchase = product!.stock;
         await product!.update(
           { stock: product!.stock + item.quantity },
           { transaction }
@@ -232,6 +233,8 @@ export const purchaseController = {
             productId: item.productId,
             type: MovementType.IN,
             quantity: item.quantity,
+            stockBefore: stockBeforePurchase,
+            stockAfter: stockBeforePurchase + item.quantity,
             reference: `PURCHASE:${purchase.purchaseNumber}`,
             notes: `Purchase created${item.variantName ? ` (Varian: ${item.variantName})` : ''}`,
             createdBy: req.user!.id
@@ -340,18 +343,32 @@ export const purchaseController = {
       // Restore product stock
       for (const item of purchase.items!) {
         const product = await Product.findByPk(item.productId, { transaction });
+        const stockBeforePurchaseDel = product!.stock;
         await product!.update(
           { stock: product!.stock - item.quantity },
           { transaction }
         );
 
+        // Also deduct variant stock if applicable
+        if (item.variantName) {
+          const variant = await ProductVariant.findOne({
+            where: { productId: item.productId, value: item.variantName },
+            transaction,
+          });
+          if (variant) {
+            await variant.update({ stock: variant.stock - item.quantity }, { transaction });
+          }
+        }
+
         // Record Stock Movement (OUT) - Reversal
         await StockMovement.create({
             productId: item.productId,
-            type: MovementType.OUT, // Taking back stock
+            type: MovementType.OUT,
             quantity: item.quantity,
+            stockBefore: stockBeforePurchaseDel,
+            stockAfter: stockBeforePurchaseDel - item.quantity,
             reference: `PURCHASE_DELETE:${purchase.purchaseNumber || id}`,
-            notes: `Purchase deleted`,
+            notes: `Purchase deleted${item.variantName ? ` (Varian: ${item.variantName})` : ''}`,
             createdBy: req.user!.id
         }, { transaction });
       }

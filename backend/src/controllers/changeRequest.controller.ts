@@ -332,13 +332,16 @@ async function handleStockChange(type: RequestType, _id: string | null, payload:
             }
         }
 
+        const stockBeforeApproval = product.stock;
         await StockMovement.create({
             productId,
             type: MovementType.ADJUSTMENT,
             quantity: finalQuantity,
+            stockBefore: stockBeforeApproval,
+            stockAfter: stockBeforeApproval + finalQuantity,
             reference: 'SYSTEM_APPROVAL',
             notes: (notes || '') + (variantName ? ` (Varian: ${variantName})` : ''),
-            createdBy: userId 
+            createdBy: userId
         }, { transaction });
 
         await product.update({ stock: product.stock + finalQuantity }, { transaction });
@@ -369,8 +372,9 @@ async function handleSettlementCancellation(_entityId: string | null, payload: a
     for (const item of sale.items) {
       const product = await Product.findByPk(item.productId, { transaction });
       if (product) {
+        const stockBeforeSettleCancel = product.stock;
         await product.update({ stock: product.stock + item.quantity }, { transaction });
-        
+
         if (item.variantName) {
             const variant = await ProductVariant.findOne({
                 where: { productId: item.productId, value: item.variantName },
@@ -385,6 +389,8 @@ async function handleSettlementCancellation(_entityId: string | null, payload: a
           productId: item.productId,
           type: MovementType.IN,
           quantity: item.quantity,
+          stockBefore: stockBeforeSettleCancel,
+          stockAfter: stockBeforeSettleCancel + item.quantity,
           reference: `CANCEL:${sale.saleNumber || settlementId}`,
           notes: `Pembatalan pelunasan disetujui. Alasan: ${data.reason || '-'}${item.variantName ? ` (Varian: ${item.variantName})` : ''}`,
           createdBy: _userId,
@@ -423,8 +429,9 @@ async function handleSaleCancellation(id: string | null, payload: any, transacti
     for (const item of sale.items) {
       const product = await Product.findByPk(item.productId, { transaction });
       if (product) {
+        const stockBeforeSaleCancel = product.stock;
         await product.update({ stock: product.stock + item.quantity }, { transaction });
-        
+
         if (item.variantName) {
             const variant = await ProductVariant.findOne({
                 where: { productId: item.productId, value: item.variantName },
@@ -439,6 +446,8 @@ async function handleSaleCancellation(id: string | null, payload: any, transacti
           productId: item.productId,
           type: MovementType.IN,
           quantity: item.quantity,
+          stockBefore: stockBeforeSaleCancel,
+          stockAfter: stockBeforeSaleCancel + item.quantity,
           reference: `CANCEL:${sale.saleNumber}`,
           notes: `Pembatalan penjualan disetujui. Alasan: ${data.reason || '-'}${item.variantName ? ` (Varian: ${item.variantName})` : ''}`,
           createdBy: _userId,

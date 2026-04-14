@@ -157,7 +157,7 @@ export const financialController = {
 
       // Fetch unsettled sales (piutang) within the period
       const piutangWhereClause: any = {
-        status: { [Op.notIn]: ['SETTLED', 'CANCELLED'] },
+        status: { [Op.notIn]: ['SETTLED', 'CANCELLED', 'REJECTED'] },
       };
       if (start && end) {
         piutangWhereClause.saleDate = { [Op.between]: [start, end] };
@@ -299,7 +299,7 @@ export const financialController = {
 
       // ─── OMSET KESELURUHAN: total semua penjualan dalam periode filter ───
       const omsetWhereClause: any = {
-        status: { [Op.notIn]: ['CANCELLED'] },
+        status: { [Op.notIn]: ['CANCELLED', 'REJECTED'] },
         isInitialBalance: false,
       };
       if (start && end) {
@@ -417,7 +417,7 @@ export const financialController = {
           [sequelize.fn('SUM', sequelize.col('totalAmount')), 'total'],
         ],
         where: {
-          status: { [Op.not]: 'CANCELLED' },
+          status: { [Op.notIn]: ['CANCELLED', 'REJECTED'] },
           isInitialBalance: false,
         },
         group: [
@@ -438,7 +438,7 @@ export const financialController = {
           [sequelize.fn('SUM', sequelize.col('totalAmount')), 'total'],
         ],
         where: {
-          status: { [Op.not]: 'CANCELLED' },
+          status: { [Op.notIn]: ['CANCELLED', 'REJECTED'] },
           isInitialBalance: false,
         },
         group: [sequelize.fn('YEAR', sequelize.col('saleDate'))],
@@ -449,7 +449,7 @@ export const financialController = {
       // 3. Grand Total
       const grandTotal = await Sale.sum('totalAmount', {
         where: {
-          status: { [Op.not]: 'CANCELLED' },
+          status: { [Op.notIn]: ['CANCELLED', 'REJECTED'] },
           isInitialBalance: false,
         },
       }) || 0;

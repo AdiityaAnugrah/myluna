@@ -136,6 +136,8 @@ export const stockController = {
           productId,
           type: MovementType.ADJUSTMENT,
           quantity: finalQuantity,
+          stockBefore: originalStock,
+          stockAfter: originalStock + finalQuantity,
           reference: 'MANUAL_ADJUSTMENT',
           notes: (notes || '') + (variantName ? ` (Varian: ${variantName})` : ''),
           createdBy: req.user!.id,

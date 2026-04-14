@@ -10,11 +10,12 @@ import { Op } from 'sequelize';
 export const saleController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
-      const { 
-        page = 1, 
-        limit = 10, 
-        status = '', 
+      const {
+        page = 1,
+        limit = 10,
+        status = '',
         paymentMethod = '',
+        platform = '',
         startDate = '',
         endDate = '',
         search = ''
@@ -36,6 +37,10 @@ export const saleController = {
 
       if (paymentMethod) {
         where.paymentMethod = paymentMethod;
+      }
+
+      if (platform) {
+        where.platform = platform;
       }
 
       if (startDate && endDate) {
@@ -193,11 +198,11 @@ export const saleController = {
             isInitialBalance: false,
           },
         }),
-        // Omset Keseluruhan (All non-cancelled non-initial sales)
+        // Omset Keseluruhan (All non-cancelled non-rejected non-initial sales)
         Sale.findAll({
           attributes: [[sequelize.fn('SUM', sequelize.col('totalAmount')), 'total']],
           where: {
-            status: { [Op.ne]: 'CANCELLED' },
+            status: { [Op.notIn]: ['CANCELLED', 'REJECTED'] },
             isInitialBalance: false,
           },
           raw: true,
@@ -206,7 +211,7 @@ export const saleController = {
         Sale.findAll({
           attributes: ['saleDate', 'totalAmount'],
           where: {
-            status: { [Op.ne]: 'CANCELLED' },
+            status: { [Op.notIn]: ['CANCELLED', 'REJECTED'] },
             isInitialBalance: false,
             saleDate: {
               [Op.gte]: thirtyDaysAgo,
@@ -420,6 +425,7 @@ export const saleController = {
 
         // Update stock: main product stock - quantity
         const product = await Product.findByPk(item.productId, { transaction });
+        const stockBeforeSale = product!.stock;
         await product!.update(
           { stock: product!.stock - item.quantity },
           { transaction }
@@ -441,6 +447,8 @@ export const saleController = {
             productId: item.productId,
             type: MovementType.OUT,
             quantity: item.quantity,
+            stockBefore: stockBeforeSale,
+            stockAfter: stockBeforeSale - item.quantity,
             reference: `SALE:${sale.saleNumber}`,
             notes: `Sale created${item.variantName ? ` (Varian: ${item.variantName})` : ''}`,
             createdBy: req.user!.id
@@ -544,15 +552,29 @@ export const saleController = {
           for (const item of sale.items) {
               const product = await Product.findByPk(item.productId, { transaction });
               if (product) {
+                  const stockBeforeReject = product.stock;
                   await product.update({ stock: product.stock + item.quantity }, { transaction });
+
+                  // Also restore variant stock if applicable
+                  if (item.variantName) {
+                      const variant = await ProductVariant.findOne({
+                          where: { productId: item.productId, value: item.variantName },
+                          transaction,
+                      });
+                      if (variant) {
+                          await variant.update({ stock: variant.stock + item.quantity }, { transaction });
+                      }
+                  }
 
                   // Record Stock Movement (IN) - Return stock
                   await StockMovement.create({
                       productId: item.productId,
                       type: MovementType.IN,
                       quantity: item.quantity,
+                      stockBefore: stockBeforeReject,
+                      stockAfter: stockBeforeReject + item.quantity,
                       reference: `SALE_REJECT:${sale.saleNumber}`,
-                      notes: `Sale rejected`,
+                      notes: `Sale rejected${item.variantName ? ` (Varian: ${item.variantName})` : ''}`,
                       createdBy: req.user!.id
                   }, { transaction });
               }
@@ -706,18 +728,32 @@ export const saleController = {
       // Restore product stock
       for (const item of sale.items!) {
         const product = await Product.findByPk(item.productId, { transaction });
+        const stockBeforeDelete = product!.stock;
         await product!.update(
           { stock: product!.stock + item.quantity },
           { transaction }
         );
+
+        // Also restore variant stock if applicable
+        if (item.variantName) {
+          const variant = await ProductVariant.findOne({
+            where: { productId: item.productId, value: item.variantName },
+            transaction,
+          });
+          if (variant) {
+            await variant.update({ stock: variant.stock + item.quantity }, { transaction });
+          }
+        }
 
         // Record Stock Movement (IN) - Return stock
         await StockMovement.create({
             productId: item.productId,
             type: MovementType.IN,
             quantity: item.quantity,
+            stockBefore: stockBeforeDelete,
+            stockAfter: stockBeforeDelete + item.quantity,
             reference: `SALE_DELETE:${sale.saleNumber || id}`,
-            notes: `Sale deleted`,
+            notes: `Sale deleted${item.variantName ? ` (Varian: ${item.variantName})` : ''}`,
             createdBy: req.user!.id
         }, { transaction });
       }

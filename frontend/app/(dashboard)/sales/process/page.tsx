@@ -70,6 +70,22 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
                     <span className="text-muted-foreground">Pelanggan:</span>
                     <span className="font-medium text-right">{sale.customerName || 'Umum'}</span>
                 </div>
+                {sale.items && sale.items.length > 0 && (
+                    <div className="pt-0.5 pb-0.5">
+                        <div className="text-[10px] text-muted-foreground mb-0.5">Produk:</div>
+                        <div className="flex flex-col gap-0.5">
+                            {sale.items.map((item: any, i: number) => (
+                                <div key={i} className="flex items-center gap-1 text-[11px]">
+                                    <span className="text-muted-foreground font-mono">{item.quantity}×</span>
+                                    <span className="font-medium truncate max-w-[150px]">{item.product?.name || '-'}</span>
+                                    {item.variantName && (
+                                        <span className="text-[9px] bg-muted px-1 rounded text-muted-foreground shrink-0">{item.variantName}</span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 <div className="flex justify-between text-[11px]">
                     <span className="text-muted-foreground">Ekspedisi:</span>
                     {sale.shippingService ? (
@@ -223,6 +239,7 @@ const SalesTable = ({
               <TableHead scope="col">No. Penjualan</TableHead>
               <TableHead scope="col">Tanggal</TableHead>
               <TableHead scope="col">Pelanggan</TableHead>
+              <TableHead scope="col">Produk Dipesan</TableHead>
               <TableHead scope="col">Ekspedisi</TableHead>
               <TableHead scope="col">Status</TableHead>
               {userRole !== 'TCP' && <TableHead className="text-right" scope="col">Total</TableHead>}
@@ -233,7 +250,7 @@ const SalesTable = ({
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={userRole === 'TCP' ? 7 : 8} className="text-center py-12">
+                <TableCell colSpan={userRole === 'TCP' ? 8 : 9} className="text-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
                   <p className="text-sm text-muted-foreground mt-2">Memuat data...</p>
                   <span className="sr-only" role="status" aria-live="polite">
@@ -243,7 +260,7 @@ const SalesTable = ({
               </TableRow>
             ) : sales.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={userRole === 'TCP' ? 7 : 8} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={userRole === 'TCP' ? 8 : 9} className="text-center py-12 text-muted-foreground">
                   {isHistory ? 'Belum ada riwayat penjualan.' : 'Tidak ada data penjualan yang perlu diproses.'}
                 </TableCell>
               </TableRow>
@@ -281,6 +298,27 @@ const SalesTable = ({
                         )}
                     </div>
                   </TableCell>
+                  {/* Produk Dipesan */}
+                  <TableCell>
+                    <div className="flex flex-col gap-1 max-w-[220px]">
+                      {sale.items && sale.items.length > 0 ? (
+                        sale.items.map((item: any, i: number) => (
+                          <div key={i} className="flex items-start gap-1.5">
+                            <span className="text-[10px] text-muted-foreground font-mono mt-0.5 shrink-0">{item.quantity}×</span>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-xs font-medium leading-tight truncate">{item.product?.name || '-'}</span>
+                              {item.variantName && (
+                                <span className="text-[10px] text-muted-foreground bg-muted px-1 rounded w-fit mt-0.5 leading-tight">{item.variantName}</span>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">-</span>
+                      )}
+                    </div>
+                  </TableCell>
+
                   <TableCell>
                     {sale.shippingService ? (
                         <Badge variant="outline">{sale.shippingService.replace(/_/g, ' ')}</Badge>
@@ -289,9 +327,9 @@ const SalesTable = ({
                     )}
                     {sale.shippingDocument && (
                          <div className="mt-1">
-                            <a 
-                                href={getPdfUrl(sale.shippingDocument)} 
-                                target="LunaPDFViewer" 
+                            <a
+                                href={getPdfUrl(sale.shippingDocument)}
+                                target="LunaPDFViewer"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center text-xs text-blue-600 hover:underline"
                                 aria-label={`Lihat dokumen pengiriman untuk ${sale.saleNumber}`}
