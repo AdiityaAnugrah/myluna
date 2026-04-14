@@ -53,10 +53,11 @@ export function SocketProvider({ children }: SocketProviderProps) {
       auth: {
         token: accessToken,
       },
+      transports: ['websocket'], // Force WebSocket only — avoid polling 400 errors via Nginx
       reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionAttempts: 3, // Reduced from 5 to prevent spam
-      timeout: 5000,
+      reconnectionDelay: 3000,
+      reconnectionAttempts: 5,
+      timeout: 10000,
     });
 
     let connectionTimeout: NodeJS.Timeout;
