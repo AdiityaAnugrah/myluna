@@ -1,6 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import { salesApi } from '@/lib/api/sales';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useSales, useDeleteSale } from '@/lib/hooks/useSales';
@@ -97,6 +107,93 @@ export default function SalesPage() {
   const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportStatuses, setExportStatuses] = useState<string[]>([
+    'WAITING_APPROVAL', 'APPROVED', 'PROCESSED', 'SETTLED',
+  ]);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const ALL_EXPORT_STATUSES = [
+    { value: 'WAITING_APPROVAL', label: 'Menunggu Proses' },
+    { value: 'APPROVED',         label: 'Disetujui' },
+    { value: 'PROCESSED',        label: 'Diproses' },
+    { value: 'SETTLED',          label: 'Disetorkan' },
+    { value: 'CANCELLED',        label: 'Dibatalkan' },
+    { value: 'REJECTED',         label: 'Ditolak' },
+  ];
+
+  const toggleExportStatus = (val: string) => {
+    setExportStatuses(prev =>
+      prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]
+    );
+  };
+
+  const handleExportConfirm = async () => {
+    if (!exportStatuses.length) return;
+    setIsExporting(true);
+    try {
+      // Fetch ALL matching data (no pagination limit) with current filters
+      const res = await salesApi.getAll({
+        limit: 9999,
+        page: 1,
+        startDate: startDate || undefined,
+        endDate: endDate ? `${endDate}T23:59:59` : undefined,
+        platform: platformFilter || undefined,
+        paymentMethod: paymentFilter || undefined,
+        search: search || undefined,
+      });
+
+      const allSales: any[] = res?.data?.sales || [];
+      const filtered = allSales.filter((s: any) => exportStatuses.includes(s.status));
+
+      if (!filtered.length) {
+        toast.error('Tidak ada data untuk status yang dipilih.');
+        return;
+      }
+
+      const statusLabel: Record<string, string> = {
+        WAITING_APPROVAL: 'Menunggu Proses',
+        APPROVED: 'Disetujui',
+        PROCESSED: 'Diproses',
+        SETTLED: 'Disetorkan',
+        CANCELLED: 'Dibatalkan',
+        REJECTED: 'Ditolak',
+      };
+
+      const exportData = filtered.map((sale: any) => ({
+        'No. Penjualan': sale.saleNumber,
+        'Tanggal': formatDateForExport(sale.saleDate),
+        'Pelanggan': sale.customerName || 'Pelanggan Umum',
+        'Platform': formatStatus(sale.platform),
+        'Pembayaran': formatStatus(sale.paymentMethod),
+        'Total': formatCurrencyForExport(sale.totalAmount),
+        'Status': statusLabel[sale.status] || sale.status,
+        'Catatan': sale.notes || '-',
+      }));
+
+      await exportToExcel(
+        exportData,
+        [
+          { header: 'No. Penjualan', key: 'No. Penjualan', width: 20 },
+          { header: 'Tanggal', key: 'Tanggal', width: 15 },
+          { header: 'Pelanggan', key: 'Pelanggan', width: 25 },
+          { header: 'Platform', key: 'Platform', width: 15 },
+          { header: 'Pembayaran', key: 'Pembayaran', width: 15 },
+          { header: 'Total', key: 'Total', width: 18 },
+          { header: 'Status', key: 'Status', width: 15 },
+          { header: 'Catatan', key: 'Catatan', width: 30 },
+        ],
+        `Penjualan_${new Date().toISOString().split('T')[0]}`,
+        'Daftar Penjualan'
+      );
+      setExportDialogOpen(false);
+    } catch {
+      toast.error('Gagal mengambil data untuk export.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [saleToDelete, setSaleToDelete] = useState<string | null>(null);
@@ -217,9 +314,9 @@ export default function SalesPage() {
           <p className="text-muted-foreground mt-1">Kelola semua transaksi penjualan.</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={handleExport} variant="outline" disabled={!sales.length}>
+          <Button onClick={() => setExportDialogOpen(true)} variant="outline">
             <Download className="mr-2 h-4 w-4" />
-            Export
+            Export Excel
           </Button>
           <Link href="/sales/new">
             <Button className="tour-sales-add">
@@ -554,6 +651,88 @@ export default function SalesPage() {
         variant="destructive"
       />
       <CancelSaleDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen} saleId={saleToCancel} />
+
+      {/* Export Dialog */}
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5 text-primary" />
+              Export Data Penjualan
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Pilih status penjualan yang ingin disertakan dalam file Excel.
+              Data akan difilter sesuai tanggal dan filter aktif saat ini.
+            </p>
+            <div className="space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Status yang Diikutkan</p>
+              <div className="grid grid-cols-2 gap-2.5">
+                {ALL_EXPORT_STATUSES.map((s) => (
+                  <div
+                    key={s.value}
+                    onClick={() => toggleExportStatus(s.value)}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                      exportStatuses.includes(s.value)
+                        ? 'bg-primary/10 border-primary/40 text-foreground'
+                        : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/60'
+                    }`}
+                  >
+                    <Checkbox
+                      id={`export-status-${s.value}`}
+                      checked={exportStatuses.includes(s.value)}
+                      onCheckedChange={() => toggleExportStatus(s.value)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <Label
+                      htmlFor={`export-status-${s.value}`}
+                      className="text-sm font-medium cursor-pointer select-none"
+                    >
+                      {s.label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => setExportStatuses(ALL_EXPORT_STATUSES.map(s => s.value))}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Pilih Semua
+                </button>
+                <span className="text-xs text-muted-foreground">·</span>
+                <button
+                  onClick={() => setExportStatuses([])}
+                  className="text-xs text-muted-foreground hover:underline"
+                >
+                  Batal Pilih Semua
+                </button>
+              </div>
+            </div>
+            {exportStatuses.length > 0 && (
+              <div className="text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                {exportStatuses.length === ALL_EXPORT_STATUSES.length
+                  ? 'Semua status akan diikutkan.'
+                  : `${exportStatuses.length} status dipilih: ${exportStatuses.map(v => ALL_EXPORT_STATUSES.find(s => s.value === v)?.label).join(', ')}.`
+                }
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setExportDialogOpen(false)} disabled={isExporting}>
+              Batal
+            </Button>
+            <Button onClick={handleExportConfirm} disabled={!exportStatuses.length || isExporting}>
+              {isExporting ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Mengekspor...</>
+              ) : (
+                <><Download className="mr-2 h-4 w-4" />Export Excel</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
