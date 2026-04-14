@@ -254,6 +254,7 @@ export const saleController = {
         APPROVED: 0,
         PROCESSED: 0,
         CANCELLED: 0,
+        REJECTED: 0,
         SETTLED: 0,
         COMPLETED: 0,
         WAITING_APPROVAL: 0,

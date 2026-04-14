@@ -71,14 +71,6 @@ export default function DashboardPage() {
     setMounted(true);
   }, []);
 
-  // DEBUG: Check user role
-  useEffect(() => {
-    console.log('Dashboard User Debug:', { 
-      user, 
-      role: user?.role, 
-      isAdmin: ['ADMIN', 'SUPER_ADMIN'].includes(user?.role || '') 
-    });
-  }, [user]);
 
   // Data Fetching
   const { 
@@ -207,9 +199,11 @@ export default function DashboardPage() {
     const approvedCount = stats.APPROVED || 0;
     const processedCount = stats.PROCESSED || 0;
     const cancelledCount = stats.CANCELLED || 0;
-    const total = stats.totalSales || 1; // avoid div/0
-    
-    const pct = (n: number) => Math.round((n / total) * 100);
+    const rejectedCount = (stats as any).REJECTED || 0;
+    // Use sum of displayed statuses as denominator so percentages add up to 100%
+    const displayedTotal = pendingCount + approvedCount + processedCount + cancelledCount + rejectedCount || 1;
+
+    const pct = (n: number) => Math.round((n / displayedTotal) * 100);
 
     const recentSales = allSales.slice(0, 10);
 
@@ -219,6 +213,7 @@ export default function DashboardPage() {
       APPROVED:         { label: 'Disetujui', color: 'text-blue-600',   bg: 'bg-blue-100 text-blue-800'   },
       PROCESSED:        { label: 'Diproses',  color: 'text-green-600',  bg: 'bg-green-100 text-green-800' },
       CANCELLED:        { label: 'Dibatalkan',color: 'text-red-600',    bg: 'bg-red-100 text-red-800'     },
+      REJECTED:         { label: 'Ditolak',   color: 'text-red-700',    bg: 'bg-red-100 text-red-900'     },
     };
 
     return (
@@ -334,6 +329,7 @@ export default function DashboardPage() {
                 { key: 'APPROVED',         count: approvedCount,               barColor: 'bg-blue-500'   },
                 { key: 'PROCESSED',        count: processedCount,              barColor: 'bg-green-500'  },
                 { key: 'CANCELLED',        count: cancelledCount,              barColor: 'bg-red-400'    },
+                { key: 'REJECTED',         count: rejectedCount,               barColor: 'bg-red-600'    },
               ].map(({ key, count, barColor }) => (
                 <div key={key} className="space-y-1.5">
                   <div className="flex items-center justify-between text-sm">
@@ -555,7 +551,7 @@ export default function DashboardPage() {
                 <p className="text-2xl font-bold text-amber-600">
                   {formatCurrency(stats.omsetKeseluruhan)}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">dari {salesData?.data?.sales?.filter((s:any)=>s.status!=='CANCELLED').length || 0} transaksi aktif</p>
+                <p className="text-xs text-gray-500 mt-1">dari {Math.max(0, ((salesStatsData as any)?.data?.totalSales || 0) - ((salesStatsData as any)?.data?.CANCELLED || 0) - ((salesStatsData as any)?.data?.REJECTED || 0))} transaksi aktif</p>
               </div>
             </div>
             <div className="mt-4 flex justify-end">
@@ -583,7 +579,7 @@ export default function DashboardPage() {
                 <TrendingUp className="h-5 w-5 text-primary" />
                 Tren Pendapatan
               </CardTitle>
-              <CardDescription>Visualisasi pendapatan 7 hari terakhir.</CardDescription>
+              <CardDescription>Visualisasi pendapatan 30 hari terakhir.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[250px] md:h-[350px] w-full mt-4">
@@ -681,8 +677,8 @@ export default function DashboardPage() {
                                     <span className="font-mono font-bold text-[12px]">{tx.saleNumber || tx.purchaseNumber}</span>
                                     {/* Status Badge */}
                                     {tx.type === 'SALE' ? (
-                                        tx.status === 'CANCELLED' ? (
-                                            <Badge variant="destructive" className="text-[9px] uppercase h-4 px-1">Batal</Badge>
+                                        ['CANCELLED', 'REJECTED'].includes(tx.status) ? (
+                                            <Badge variant="destructive" className="text-[9px] uppercase h-4 px-1">{tx.status === 'REJECTED' ? 'Ditolak' : 'Batal'}</Badge>
                                         ) : tx.settlement ? (
                                             <Badge className="bg-green-600 text-[9px] uppercase h-4 px-1">Lunas</Badge>
                                         ) : (
@@ -727,8 +723,8 @@ export default function DashboardPage() {
                         </td>
                         <td className="py-4 px-4 text-xs">
                       {tx.type === 'SALE' ? (
-                        tx.status === 'CANCELLED' ? (
-                          <Badge variant="destructive" className="h-5">Dibatalkan</Badge>
+                        ['CANCELLED', 'REJECTED'].includes(tx.status) ? (
+                          <Badge variant="destructive" className="h-5">{tx.status === 'REJECTED' ? 'Ditolak' : 'Dibatalkan'}</Badge>
                         ) : tx.settlement ? (
                           <Badge className="bg-green-600 h-5">Lunas</Badge>
                         ) : (
