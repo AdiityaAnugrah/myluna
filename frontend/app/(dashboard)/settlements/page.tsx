@@ -351,6 +351,11 @@ export default function SettlementsPage() {
                                     <div className="mb-2">
                                         <div className="font-bold text-[12px] truncate">{sale.customerName || '-'}</div>
                                         <div className="text-[10px] text-muted-foreground">{sale.customerPhone || '-'}</div>
+                                        {sale?.creator?.fullName && (
+                                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                                                PJ: <span className="font-medium text-foreground">{sale.creator.fullName}</span>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-2 mb-2 bg-muted/30 p-2 rounded">
@@ -422,13 +427,14 @@ export default function SettlementsPage() {
                         <TableHead className="text-right">Total (Kotor)</TableHead>
                         <TableHead className="text-right">Dana Bersih</TableHead>
                         <TableHead>Tgl Pelunasan</TableHead>
+                        <TableHead>Penanggung Jawab</TableHead>
                         <TableHead>Aksi</TableHead>
                     </TableRow>
                     </TableHeader>
                     <TableBody>
                     {filteredSettlements.length === 0 ? (
                         <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                             Tidak ada data
                         </TableCell>
                         </TableRow>
@@ -502,6 +508,9 @@ export default function SettlementsPage() {
                                 {isSettled && settlement
                                 ? new Date(settlement.settlementDate).toLocaleDateString('id-ID')
                                 : '-'}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                                {sale?.creator?.fullName || '-'}
                             </TableCell>
                             <TableCell>
                                 {!isSettled && (
