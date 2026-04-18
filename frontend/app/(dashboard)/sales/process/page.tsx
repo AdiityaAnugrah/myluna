@@ -58,7 +58,8 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
             <div className="flex justify-between items-start">
                 <div>
                     <div className="font-mono font-bold text-[12px] tracking-tight">{sale.saleNumber}</div>
-                    <div className="text-[10px] text-muted-foreground">{format(new Date(sale.saleDate), 'dd MMM yyyy, HH:mm')}</div>
+                    <div className="text-[10px] text-muted-foreground">{format(new Date(sale.saleDate), 'dd MMM yyyy')}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono">Dikirim: {format(new Date(sale.createdAt), 'HH:mm')} WIB</div>
                 </div>
                 <div className="scale-75 origin-top-right">
                     {getStatusBadge(sale.status, sale.isCancelPending)}
@@ -280,7 +281,14 @@ const SalesTable = ({
                   )}
                 >
                   <TableCell className="font-mono text-sm">NO. {(index + 1) + (currentPage - 1) * itemsPerPage}</TableCell>
-                  <TableCell>{format(new Date(sale.saleDate), 'dd MMM yyyy')}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-0.5">
+                      <span>{format(new Date(sale.saleDate), 'dd MMM yyyy')}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        Dikirim: {format(new Date(sale.createdAt), 'HH:mm')} WIB
+                      </span>
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-2">
