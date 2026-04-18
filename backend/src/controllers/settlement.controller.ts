@@ -42,11 +42,15 @@ export const settlementController = {
         ];
       }
 
-      // Data Isolation: If role is USER, only show their own data
+      // Data Isolation: If role is USER, only show data related to their own sales.
+      // Filter is based on sale.createdBy (who created the sale), NOT settlement.createdBy,
+      // so users can see the settlement status of ALL sales they are responsible for,
+      // even if the settlement was entered by an admin.
       if ((req as any).user?.roleName === 'USER') {
         const userId = (req as any).user.id;
-        settlementWhere.createdBy = userId;
         baseSaleWhere.createdBy = userId;
+        // For settled/all: filter is applied via baseSaleWhere on the sale relation (see below)
+        // settlementWhere.createdBy is intentionally NOT set here
       }
 
       const saleWhere: any = {
@@ -110,6 +114,7 @@ export const settlementController = {
           {
             model: Sale,
             as: 'sale',
+            required: true, // INNER JOIN — ensures baseSaleWhere filters always apply
             where: Object.keys(baseSaleWhere).length > 0 ? baseSaleWhere : undefined,
             include: [
               {
