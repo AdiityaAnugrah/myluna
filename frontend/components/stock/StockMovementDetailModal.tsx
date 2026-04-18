@@ -134,45 +134,56 @@ export function StockMovementDetailModal({ isOpen, onClose, movement }: StockMov
             </div>
 
             {/* Stok Sebelum & Sesudah */}
-            {movement.stockBefore !== null && movement.stockBefore !== undefined ? (
-              <div className="bg-muted/30 p-4 rounded-xl space-y-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Perubahan Stok</p>
-                <div className="flex items-center justify-between gap-3">
-                  {/* Sebelum */}
-                  <div className="flex-1 text-center bg-background border rounded-lg p-3">
-                    <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-1">Sebelum</p>
-                    <p className="text-2xl font-black text-foreground">{movement.stockBefore}</p>
-                  </div>
+            {(() => {
+              const hasAfter = movement.stockAfter !== null && movement.stockAfter !== undefined;
+              const hasBefore = movement.stockBefore !== null && movement.stockBefore !== undefined;
+              const derivedBefore = hasBefore ? movement.stockBefore : (hasAfter ? movement.stockAfter - movement.quantity : null);
+              const derivedAfter = hasAfter ? movement.stockAfter : (hasBefore ? movement.stockBefore + movement.quantity : null);
+              const isEstimated = !hasBefore || !hasAfter;
 
-                  {/* Arrow */}
-                  <div className={cn("flex flex-col items-center gap-0.5", typeDetails.textColor)}>
-                    {movement.type === 'IN' ? (
-                      <TrendingUp className="h-5 w-5" />
-                    ) : movement.type === 'OUT' ? (
-                      <TrendingDown className="h-5 w-5" />
-                    ) : (
-                      <Minus className="h-5 w-5" />
+              if (derivedBefore === null && derivedAfter === null) return null;
+
+              return (
+                <div className="bg-muted/30 p-4 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Perubahan Stok</p>
+                    {isEstimated && (
+                      <span className="text-[10px] text-muted-foreground italic">*estimasi</span>
                     )}
-                    <span className="text-xs font-bold">
-                      {movement.type === 'IN' ? '+' : movement.type === 'OUT' ? '-' : (movement.quantity > 0 ? '+' : '')}
-                      {Math.abs(movement.quantity)}
-                    </span>
                   </div>
+                  <div className="flex items-center justify-between gap-3">
+                    {/* Sebelum */}
+                    <div className="flex-1 text-center bg-background border rounded-lg p-3">
+                      <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-1">Sebelum</p>
+                      <p className="text-2xl font-black text-foreground">{derivedBefore ?? '-'}</p>
+                    </div>
 
-                  {/* Sesudah */}
-                  <div className={cn("flex-1 text-center border rounded-lg p-3", typeDetails.bgColor)}>
-                    <p className={cn("text-[10px] font-semibold uppercase tracking-wider mb-1", typeDetails.textColor)}>Sesudah</p>
-                    <p className={cn("text-2xl font-black", typeDetails.textColor)}>
-                      {movement.stockAfter ?? (movement.stockBefore + movement.quantity)}
-                    </p>
+                    {/* Arrow */}
+                    <div className={cn("flex flex-col items-center gap-0.5", typeDetails.textColor)}>
+                      {movement.type === 'IN' ? (
+                        <TrendingUp className="h-5 w-5" />
+                      ) : movement.type === 'OUT' ? (
+                        <TrendingDown className="h-5 w-5" />
+                      ) : (
+                        <Minus className="h-5 w-5" />
+                      )}
+                      <span className="text-xs font-bold">
+                        {movement.type === 'IN' ? '+' : movement.type === 'OUT' ? '-' : (movement.quantity > 0 ? '+' : '')}
+                        {Math.abs(movement.quantity)}
+                      </span>
+                    </div>
+
+                    {/* Sesudah */}
+                    <div className={cn("flex-1 text-center border rounded-lg p-3", typeDetails.bgColor)}>
+                      <p className={cn("text-[10px] font-semibold uppercase tracking-wider mb-1", typeDetails.textColor)}>Sesudah</p>
+                      <p className={cn("text-2xl font-black", typeDetails.textColor)}>
+                        {derivedAfter ?? '-'}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="bg-muted/20 p-3 rounded-xl border border-dashed text-center">
-                <p className="text-xs text-muted-foreground italic">Data stok sebelumnya tidak tersedia untuk transaksi lama.</p>
-              </div>
-            )}
+              );
+            })()}
 
             <div className="bg-orange-500/5 p-4 rounded-xl border border-orange-500/10">
               <div className="flex items-start gap-3">
