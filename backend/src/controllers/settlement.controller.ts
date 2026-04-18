@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { Settlement, Sale, User, ChangeRequest } from '../models';
+import { Settlement, Sale, SaleItem, Product, User, ChangeRequest } from '../models';
 import { successResponse } from '../utils/response';
 import { AppError } from '../utils/errors';
 import { sequelize } from '../config/database';
@@ -165,6 +165,17 @@ export const settlementController = {
                 model: User,
                 as: 'creator',
                 attributes: ['id', 'fullName', 'email'],
+              },
+              {
+                model: SaleItem,
+                as: 'items',
+                include: [
+                  {
+                    model: Product,
+                    as: 'product',
+                    attributes: ['id', 'sku', 'name', 'unit'],
+                  },
+                ],
               },
             ],
           },

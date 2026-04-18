@@ -493,6 +493,12 @@ export default function SalesPage() {
                   <span className="text-muted-foreground">Platform</span>
                   <Badge variant="outline" className="h-4 px-1 text-[9px]">{formatStatus(sale.platform)}</Badge>
                 </div>
+                {user?.role !== 'USER' && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Penanggung Jawab</span>
+                    <span className="font-medium truncate max-w-[160px]">{sale.creator?.fullName || '-'}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total</span>
                   <span className="font-bold">{formatCurrency(sale.totalAmount)}</span>
@@ -536,13 +542,14 @@ export default function SalesPage() {
               <TableHead>Pembayaran</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead>Status</TableHead>
+              {user?.role !== 'USER' && <TableHead>Penanggung Jawab</TableHead>}
               <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-16">
+                <TableCell colSpan={user?.role !== 'USER' ? 10 : 9} className="text-center py-16">
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     <p className="text-sm text-muted-foreground">Memuat data...</p>
@@ -551,7 +558,7 @@ export default function SalesPage() {
               </TableRow>
             ) : sales.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-16">
+                <TableCell colSpan={user?.role !== 'USER' ? 10 : 9} className="text-center py-16">
                   <div className="flex flex-col items-center gap-2 opacity-40">
                     <ShoppingCart className="h-12 w-12" />
                     <p className="text-sm">Tidak ada penjualan ditemukan</p>
@@ -576,6 +583,9 @@ export default function SalesPage() {
                   </TableCell>
                   <TableCell className="text-right font-semibold text-sm">{formatCurrency(sale.totalAmount)}</TableCell>
                   <TableCell>{getStatusBadge(sale.status, sale.isCancelPending)}</TableCell>
+                  {user?.role !== 'USER' && (
+                    <TableCell className="text-sm text-muted-foreground">{sale.creator?.fullName || '-'}</TableCell>
+                  )}
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Link href={`/sales/${sale.id}`}>

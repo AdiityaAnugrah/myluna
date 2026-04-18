@@ -172,6 +172,10 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
               <div className="mt-1">{getStatusBadge(sale.status, sale.isCancelPending)}</div>
             </div>
             <div>
+              <p className="text-sm text-gray-500">Penanggung Jawab</p>
+              <p className="font-semibold">{sale.creator?.fullName || '-'}</p>
+            </div>
+            <div>
               <p className="text-sm text-gray-500">Dibuat Pada</p>
               <p>{format(new Date(sale.createdAt), 'dd MMM yyyy HH:mm')}</p>
             </div>

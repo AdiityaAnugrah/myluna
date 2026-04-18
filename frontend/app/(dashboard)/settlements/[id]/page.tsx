@@ -1,18 +1,33 @@
 'use client';
 
 import { useSettlement } from '@/lib/hooks/useSettlements';
+import { useAuthStore } from '@/lib/stores/auth';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, FileText, Calendar, User, DollarSign, Receipt, StickyNote, ImageIcon } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  ArrowLeft, Loader2, FileText, Calendar, User, DollarSign,
+  Receipt, StickyNote, ImageIcon, ShoppingBag, Phone,
+  CheckCircle2, Package, CreditCard, Store, UserCheck,
+} from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { use } from 'react';
+import { formatStatus } from '@/lib/utils/format';
 
 export default function SettlementDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data, isLoading } = useSettlement(id);
+  const { user } = useAuthStore();
 
   const settlement = (data as any)?.data;
 
@@ -32,7 +47,10 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Memuat detail pelunasan...</p>
+        </div>
       </div>
     );
   }
@@ -49,6 +67,9 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
   }
 
   const sale = settlement.sale;
+  const potongan = sale
+    ? parseFloat(String(sale.totalAmount)) - parseFloat(String(settlement.netAmount))
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -56,10 +77,11 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
         items={[
           { label: 'Keuangan' },
           { label: 'Pelunasan', href: '/settlements' },
-          { label: `Detail` },
+          { label: settlement.invoiceNumber || sale?.saleNumber || 'Detail' },
         ]}
       />
 
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/settlements">
@@ -69,155 +91,268 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold">Detail Pelunasan</h1>
-            <p className="text-gray-600 mt-1">
+            <h1 className="text-3xl font-bold tracking-tight text-gradient">Detail Pelunasan</h1>
+            <p className="text-muted-foreground mt-1 font-mono text-sm">
               {settlement.invoiceNumber || sale?.saleNumber || '-'}
             </p>
           </div>
         </div>
-        <Badge variant="default" className="bg-green-600 text-white">
+        <Badge className="bg-green-600 text-white gap-1.5 px-3 py-1.5 text-sm">
+          <CheckCircle2 className="h-4 w-4" />
           Lunas
         </Badge>
       </div>
 
+      {/* Summary Strip */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 animate-in fade-in-0">
+        <div className="bg-card border rounded-xl p-4 flex items-center gap-3">
+          <div className="p-2 bg-muted rounded-lg"><DollarSign className="h-4 w-4 text-muted-foreground" /></div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Kotor</p>
+            <p className="text-sm font-black">{sale ? formatCurrency(sale.totalAmount) : '-'}</p>
+          </div>
+        </div>
+        <div className="bg-card border rounded-xl p-4 flex items-center gap-3">
+          <div className="p-2 bg-green-100 rounded-lg"><CheckCircle2 className="h-4 w-4 text-green-600" /></div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Dana Bersih</p>
+            <p className="text-sm font-black text-green-600">{formatCurrency(settlement.netAmount)}</p>
+          </div>
+        </div>
+        <div className="bg-card border rounded-xl p-4 flex items-center gap-3">
+          <div className="p-2 bg-orange-100 rounded-lg"><Receipt className="h-4 w-4 text-orange-600" /></div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Potongan</p>
+            <p className="text-sm font-black text-orange-600">{formatCurrency(potongan)}</p>
+          </div>
+        </div>
+        <div className="bg-card border rounded-xl p-4 flex items-center gap-3">
+          <div className="p-2 bg-blue-100 rounded-lg"><Package className="h-4 w-4 text-blue-600" /></div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Item</p>
+            <p className="text-sm font-black text-blue-600">{sale?.items?.length ?? '-'} item</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Settlement Info */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Receipt className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Receipt className="h-4 w-4 text-primary" />
               Informasi Pelunasan
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {settlement.invoiceNumber && (
-              <div>
+              <div className="flex items-start justify-between">
                 <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                  <FileText className="h-3.5 w-3.5" />
-                  No. Invoice
+                  <FileText className="h-3.5 w-3.5" /> No. Invoice
                 </p>
-                <p className="font-mono font-semibold mt-0.5">{settlement.invoiceNumber}</p>
+                <p className="font-mono font-semibold text-sm">{settlement.invoiceNumber}</p>
               </div>
             )}
-            <div>
+            <div className="flex items-start justify-between">
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <DollarSign className="h-3.5 w-3.5" />
-                Dana Bersih (Net)
+                <DollarSign className="h-3.5 w-3.5" /> Dana Bersih (Net)
               </p>
-              <p className="text-2xl font-bold text-green-600 mt-0.5">
-                {formatCurrency(settlement.netAmount)}
-              </p>
+              <p className="font-bold text-green-600">{formatCurrency(settlement.netAmount)}</p>
             </div>
-            <div>
+            <div className="flex items-start justify-between">
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5" />
-                Tanggal Pelunasan
+                <Calendar className="h-3.5 w-3.5" /> Tanggal Pelunasan
               </p>
-              <p className="font-medium mt-0.5">
-                {format(new Date(settlement.settlementDate), 'dd MMMM yyyy')}
-              </p>
+              <p className="font-medium text-sm">{format(new Date(settlement.settlementDate), 'dd MMMM yyyy')}</p>
             </div>
-            <div>
+            <div className="flex items-start justify-between">
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <User className="h-3.5 w-3.5" />
-                Dibuat oleh
+                <User className="h-3.5 w-3.5" /> Disetor oleh
               </p>
-              <p className="font-medium mt-0.5">
-                {settlement.creator?.fullName || '-'}
+              <p className="font-medium text-sm">{settlement.creator?.fullName || '-'}</p>
+            </div>
+            <div className="flex items-start justify-between">
+              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" /> Dibuat pada
               </p>
+              <p className="text-sm">{format(new Date(settlement.createdAt), 'dd MMM yyyy HH:mm')}</p>
             </div>
             {settlement.notes && (
-              <div>
-                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                  <StickyNote className="h-3.5 w-3.5" />
-                  Catatan
+              <div className="pt-2 border-t">
+                <p className="text-sm text-muted-foreground flex items-center gap-1.5 mb-1">
+                  <StickyNote className="h-3.5 w-3.5" /> Catatan
                 </p>
-                <p className="text-gray-700 mt-0.5">{settlement.notes}</p>
+                <p className="text-sm text-foreground bg-muted/30 rounded-lg p-2.5">{settlement.notes}</p>
               </div>
             )}
-            <div>
-              <p className="text-sm text-muted-foreground">Dibuat pada</p>
-              <p className="text-sm mt-0.5">
-                {format(new Date(settlement.createdAt), 'dd MMM yyyy HH:mm')}
-              </p>
-            </div>
           </CardContent>
         </Card>
 
         {/* Sale Info */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ShoppingBag className="h-4 w-4 text-primary" />
               Informasi Penjualan
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {sale ? (
               <>
-                <div>
+                <div className="flex items-start justify-between">
                   <p className="text-sm text-muted-foreground">No. Penjualan</p>
-                  <p className="font-mono font-semibold mt-0.5">{sale.saleNumber}</p>
+                  <Link href={`/sales/${sale.id}`} className="font-mono font-semibold text-sm text-primary hover:underline">
+                    {sale.saleNumber}
+                  </Link>
                 </div>
-                <div>
+                <div className="flex items-start justify-between">
                   <p className="text-sm text-muted-foreground">Pelanggan</p>
-                  <p className="font-semibold mt-0.5">{sale.customerName || 'Pelanggan Umum'}</p>
+                  <p className="font-semibold text-sm">{sale.customerName || 'Pelanggan Umum'}</p>
                 </div>
                 {sale.customerPhone && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Telepon</p>
-                    <p className="mt-0.5">{sale.customerPhone}</p>
+                  <div className="flex items-start justify-between">
+                    <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                      <Phone className="h-3.5 w-3.5" /> Telepon
+                    </p>
+                    <p className="text-sm">{sale.customerPhone}</p>
                   </div>
                 )}
-                <div>
-                  <p className="text-sm text-muted-foreground">Tanggal Penjualan</p>
-                  <p className="mt-0.5">
-                    {format(new Date(sale.saleDate), 'dd MMMM yyyy')}
+                <div className="flex items-start justify-between">
+                  <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" /> Tanggal Jual
                   </p>
+                  <p className="text-sm">{format(new Date(sale.saleDate), 'dd MMMM yyyy')}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total (Kotor)</p>
-                  <p className="text-xl font-bold mt-0.5">
-                    {formatCurrency(sale.totalAmount)}
+                <div className="flex items-start justify-between">
+                  <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <Store className="h-3.5 w-3.5" /> Platform
                   </p>
+                  <Badge variant="secondary" className="text-xs">{formatStatus(sale.platform)}</Badge>
+                </div>
+                <div className="flex items-start justify-between">
+                  <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <CreditCard className="h-3.5 w-3.5" /> Pembayaran
+                  </p>
+                  <Badge variant="outline" className="text-xs">{formatStatus(sale.paymentMethod)}</Badge>
                 </div>
                 {sale.creator && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Dibuat oleh</p>
-                    <p className="mt-0.5">{sale.creator.fullName}</p>
+                  <div className="flex items-start justify-between">
+                    <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                      <UserCheck className="h-3.5 w-3.5" /> Penanggung Jawab
+                    </p>
+                    <p className="text-sm font-medium">{sale.creator.fullName}</p>
+                  </div>
+                )}
+                {user?.role !== 'TCP' && (
+                  <div className="flex items-start justify-between pt-2 border-t">
+                    <p className="text-sm text-muted-foreground">Total (Kotor)</p>
+                    <p className="font-bold">{formatCurrency(sale.totalAmount)}</p>
                   </div>
                 )}
               </>
             ) : (
-              <p className="text-muted-foreground">Data penjualan tidak tersedia</p>
+              <p className="text-muted-foreground text-sm">Data penjualan tidak tersedia</p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Comparison Card */}
-      {sale && (
+      {/* Items Table */}
+      {sale?.items && sale.items.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Ringkasan Keuangan</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Package className="h-4 w-4 text-primary" />
+              Item Produk
+              <Badge variant="secondary" className="ml-auto">{sale.items.length} item</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead className="pl-6">#</TableHead>
+                  <TableHead>Produk</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  {user?.role !== 'TCP' && (
+                    <>
+                      <TableHead className="text-right">Harga</TableHead>
+                      <TableHead className="text-right">Diskon</TableHead>
+                      <TableHead className="text-right pr-6">Subtotal</TableHead>
+                    </>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sale.items.map((item: any, index: number) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="pl-6 text-xs text-muted-foreground">{index + 1}</TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium text-sm">{item.product?.name || '-'}</p>
+                        {item.variantName && (
+                          <p className="text-xs text-muted-foreground mt-0.5">Varian: {item.variantName}</p>
+                        )}
+                        {item.product?.sku && (
+                          <p className="text-xs text-muted-foreground font-mono">SKU: {item.product.sku}</p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {item.quantity} {item.product?.unit || 'pcs'}
+                    </TableCell>
+                    {user?.role !== 'TCP' && (
+                      <>
+                        <TableCell className="text-right text-sm">{formatCurrency(item.price)}</TableCell>
+                        <TableCell className="text-right text-sm text-orange-600">
+                          {parseFloat(item.discount || 0) > 0 ? `-${formatCurrency(item.discount)}` : '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold pr-6">{formatCurrency(item.subtotal)}</TableCell>
+                      </>
+                    )}
+                  </TableRow>
+                ))}
+                {user?.role !== 'TCP' && (
+                  <TableRow className="bg-muted/20 font-bold">
+                    <TableCell colSpan={user?.role !== 'TCP' ? 5 : 2} className="pl-6 text-right">
+                      Total
+                    </TableCell>
+                    <TableCell className="text-right pr-6 text-base">
+                      {formatCurrency(sale.totalAmount)}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Financial Summary */}
+      {sale && user?.role !== 'TCP' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Ringkasan Keuangan</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center p-4 bg-muted/30 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1">Total Kotor</p>
-                <p className="text-xl font-bold">{formatCurrency(sale.totalAmount)}</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-5 bg-muted/30 rounded-xl border">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Total Kotor</p>
+                <p className="text-2xl font-black">{formatCurrency(sale.totalAmount)}</p>
               </div>
-              <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
-                <p className="text-sm text-muted-foreground mb-1">Dana Bersih</p>
-                <p className="text-xl font-bold text-green-600">{formatCurrency(settlement.netAmount)}</p>
+              <div className="text-center p-5 bg-green-50 dark:bg-green-950/30 rounded-xl border border-green-200 dark:border-green-800">
+                <p className="text-xs font-bold uppercase tracking-wider text-green-700 dark:text-green-400 mb-2">Dana Bersih</p>
+                <p className="text-2xl font-black text-green-600">{formatCurrency(settlement.netAmount)}</p>
               </div>
-              <div className="text-center p-4 bg-orange-50 rounded-lg border border-orange-200">
-                <p className="text-sm text-muted-foreground mb-1">Potongan / Biaya</p>
-                <p className="text-xl font-bold text-orange-600">
-                  {formatCurrency(
-                    parseFloat(String(sale.totalAmount)) - parseFloat(String(settlement.netAmount))
-                  )}
-                </p>
+              <div className="text-center p-5 bg-orange-50 dark:bg-orange-950/30 rounded-xl border border-orange-200 dark:border-orange-800">
+                <p className="text-xs font-bold uppercase tracking-wider text-orange-700 dark:text-orange-400 mb-2">Potongan / Biaya</p>
+                <p className="text-2xl font-black text-orange-600">{formatCurrency(potongan)}</p>
+                {sale.totalAmount > 0 && (
+                  <p className="text-xs text-orange-500 mt-1">
+                    {((potongan / parseFloat(String(sale.totalAmount))) * 100).toFixed(1)}% dari total
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
@@ -228,13 +363,13 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
       {settlement.proofDocument && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ImageIcon className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ImageIcon className="h-4 w-4 text-primary" />
               Bukti Pelunasan
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="rounded-lg border overflow-hidden max-w-lg">
+            <div className="rounded-xl border overflow-hidden max-w-lg shadow-sm">
               <img
                 src={getProofDocumentUrl(settlement.proofDocument)}
                 alt="Bukti pelunasan"
