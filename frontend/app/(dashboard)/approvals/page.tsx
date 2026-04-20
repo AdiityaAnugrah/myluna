@@ -32,7 +32,6 @@ import { toast } from 'sonner';
 import { DiffViewer } from '@/components/approvals/DiffViewer';
 import { ChangeRequest } from '@/types';
 
-// Robustly parse payload that might be double-encoded as a string
 const parsePayload = (payload: any): any => {
   if (typeof payload !== 'string') return payload;
   try {
