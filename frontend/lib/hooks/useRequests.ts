@@ -14,11 +14,13 @@ export function useChangeRequests(options?: { enabled?: boolean }) {
     mutationFn: changeRequestsApi.approve,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['changeRequests'] });
-      // Invalidate other queries that might have changed
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['categories'] });
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
       queryClient.invalidateQueries({ queryKey: ['movements'] });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['omset-breakdown'] });
     },
   });
 
