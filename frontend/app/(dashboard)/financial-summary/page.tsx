@@ -93,7 +93,9 @@ export default function FinancialSummaryPage() {
   const summary = (data as any)?.data?.summary || {};
   const sales = useMemo(() => salesData?.data?.sales || [], [salesData]);
 
-  // Mapping nilai enum lama ke nama tampilan — tidak mengubah data di DB
+  // Mapping enum lama → nama tampilan baru
+  // Kalau nama platform di /platforms sudah diubah (misal "Toko Offline"),
+  // tambahkan juga di sini supaya keduanya tergabung dalam satu baris
   const PLATFORM_DISPLAY_NAMES: Record<string, string> = {
     OFFLINE_STORE: 'Toko Offline',
     TOKOPEDIA: 'Tokopedia',
@@ -103,22 +105,24 @@ export default function FinancialSummaryPage() {
     OTHER: 'Lainnya',
   };
   const getPlatformDisplayName = (raw: string) =>
-    PLATFORM_DISPLAY_NAMES[raw] ?? raw.replace(/_/g, ' ');
+    PLATFORM_DISPLAY_NAMES[raw] ?? raw;
 
   // Platform breakdown — exclude CANCELLED & REJECTED agar konsisten dengan omset
+  // Group by display name supaya enum lama (OFFLINE_STORE) dan nama baru (Toko Offline)
+  // tidak muncul sebagai dua baris terpisah
   const platformStats = useMemo(() => {
     const statsMap: Record<string, { revenue: number; count: number }> = {};
     sales
       .filter((sale: any) => !['CANCELLED', 'REJECTED'].includes(sale.status))
       .forEach((sale: any) => {
-        const p = sale.platform;
-        if (!statsMap[p]) statsMap[p] = { revenue: 0, count: 0 };
-        statsMap[p].revenue += parseFloat(sale.totalAmount);
-        statsMap[p].count += 1;
+        const displayName = getPlatformDisplayName(sale.platform);
+        if (!statsMap[displayName]) statsMap[displayName] = { revenue: 0, count: 0 };
+        statsMap[displayName].revenue += parseFloat(sale.totalAmount);
+        statsMap[displayName].count += 1;
       });
     return Object.entries(statsMap)
       .map(([name, data]) => ({
-        name: getPlatformDisplayName(name),
+        name,
         value: data.revenue,
         count: data.count,
       }))
