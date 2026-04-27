@@ -93,18 +93,20 @@ export default function FinancialSummaryPage() {
   const summary = (data as any)?.data?.summary || {};
   const sales = useMemo(() => salesData?.data?.sales || [], [salesData]);
 
-  // Platform breakdown
+  // Platform breakdown — exclude CANCELLED & REJECTED agar konsisten dengan omset
   const platformStats = useMemo(() => {
     const statsMap: Record<string, { revenue: number; count: number }> = {};
-    sales.forEach((sale: any) => {
-      const p = sale.platform;
-      if (!statsMap[p]) statsMap[p] = { revenue: 0, count: 0 };
-      statsMap[p].revenue += parseFloat(sale.totalAmount);
-      statsMap[p].count += 1;
-    });
+    sales
+      .filter((sale: any) => !['CANCELLED', 'REJECTED'].includes(sale.status))
+      .forEach((sale: any) => {
+        const p = sale.platform;
+        if (!statsMap[p]) statsMap[p] = { revenue: 0, count: 0 };
+        statsMap[p].revenue += parseFloat(sale.totalAmount);
+        statsMap[p].count += 1;
+      });
     return Object.entries(statsMap)
       .map(([name, data]) => ({
-        name: name.replace('_', ' '),
+        name: name.replace(/_/g, ' '),
         value: data.revenue,
         count: data.count,
       }))
