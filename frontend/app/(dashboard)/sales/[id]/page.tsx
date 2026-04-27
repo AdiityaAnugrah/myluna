@@ -16,11 +16,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, FileText, Truck } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { use } from 'react';
 import { formatStatus } from '@/lib/utils/format';
+import { getPdfUrl } from '@/lib/utils/sales';
 
 export default function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -151,6 +152,39 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
               <p className="text-sm text-gray-500">Platform</p>
               <Badge variant="secondary">{formatStatus(sale.platform)}</Badge>
             </div>
+            <div>
+              <p className="text-sm text-gray-500">Ekspedisi</p>
+              {sale.shippingService ? (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Truck className="h-4 w-4 text-blue-500" />
+                  <Badge variant="outline" className="text-blue-700 border-blue-300">
+                    {sale.shippingService.replace(/_/g, ' ')}
+                  </Badge>
+                </div>
+              ) : (
+                <p className="text-gray-400 italic text-sm">Tidak ada ekspedisi</p>
+              )}
+            </div>
+            {sale.shippingAddress && (
+              <div>
+                <p className="text-sm text-gray-500">Alamat Pengiriman</p>
+                <p className="text-sm whitespace-pre-wrap">{sale.shippingAddress}</p>
+              </div>
+            )}
+            {sale.shippingDocument && (
+              <div>
+                <p className="text-sm text-gray-500">Dokumen Pengiriman</p>
+                <a
+                  href={getPdfUrl(sale.shippingDocument)}
+                  target="LunaPDFViewer"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline mt-1"
+                >
+                  <FileText className="h-4 w-4" />
+                  Lihat PDF Resi
+                </a>
+              </div>
+            )}
             {user?.role !== 'TCP' && (
                 <div>
                   <p className="text-sm text-gray-500">Total Jumlah</p>
@@ -179,6 +213,12 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
               <p className="text-sm text-gray-500">Dibuat Pada</p>
               <p>{format(new Date(sale.createdAt), 'dd MMM yyyy HH:mm')}</p>
             </div>
+            {sale.processedAt && (
+              <div>
+                <p className="text-sm text-gray-500">Diproses Pada</p>
+                <p>{format(new Date(sale.processedAt), 'dd MMM yyyy HH:mm')}</p>
+              </div>
+            )}
             <div>
               <p className="text-sm text-gray-500">Catatan</p>
               <p className="text-gray-700">{sale.notes || '-'}</p>
