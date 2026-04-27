@@ -93,6 +93,18 @@ export default function FinancialSummaryPage() {
   const summary = (data as any)?.data?.summary || {};
   const sales = useMemo(() => salesData?.data?.sales || [], [salesData]);
 
+  // Mapping nilai enum lama ke nama tampilan — tidak mengubah data di DB
+  const PLATFORM_DISPLAY_NAMES: Record<string, string> = {
+    OFFLINE_STORE: 'Toko Offline',
+    TOKOPEDIA: 'Tokopedia',
+    SHOPEE: 'Shopee',
+    TIKTOK_SHOP: 'TikTok Shop',
+    LAZADA: 'Lazada',
+    OTHER: 'Lainnya',
+  };
+  const getPlatformDisplayName = (raw: string) =>
+    PLATFORM_DISPLAY_NAMES[raw] ?? raw.replace(/_/g, ' ');
+
   // Platform breakdown — exclude CANCELLED & REJECTED agar konsisten dengan omset
   const platformStats = useMemo(() => {
     const statsMap: Record<string, { revenue: number; count: number }> = {};
@@ -106,7 +118,7 @@ export default function FinancialSummaryPage() {
       });
     return Object.entries(statsMap)
       .map(([name, data]) => ({
-        name: name.replace(/_/g, ' '),
+        name: getPlatformDisplayName(name),
         value: data.revenue,
         count: data.count,
       }))
