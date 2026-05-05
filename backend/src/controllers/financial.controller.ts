@@ -60,21 +60,17 @@ export const financialController = {
       }
 
       // ─── CARRY-FORWARD: Sisa Piutang dari sebelum periode ini ───────────────
-      // Fetch unsettled sales BEFORE startDate — these are piutang terbawa dari bulan sebelumnya
+      // SQL SUM for scalability — no row limit
       let carryForwardPiutang = 0;
       if (start) {
-        const prevUnsettled = await Sale.findAll({
+        const prevUnsettledSum = await Sale.sum('totalAmount', {
           where: {
             status: { [Op.notIn]: ['SETTLED', 'CANCELLED', 'REJECTED'] },
             saleDate: { [Op.lt]: start },
-            isInitialBalance: false // Excluded from raw query, added mathematically below
+            isInitialBalance: false,
           },
-        });
-        carryForwardPiutang = prevUnsettled.reduce(
-          (sum: number, s: any) => sum + parseFloat(s.totalAmount),
-          0
-        );
-        carryForwardPiutang += initialBalanceAtStart;
+        }) || 0;
+        carryForwardPiutang = prevUnsettledSum + initialBalanceAtStart;
       }
 
       // Fetch INCOME: Settlements (money in from sales)
@@ -281,20 +277,15 @@ export const financialController = {
       const piutang = unsettledSales.reduce((sum: number, sale: any) =>
         sum + parseFloat(sale.totalAmount), 0);
 
-      // Sisa piutang akhir = Exact sum of all unsettled sales up to End Date + remaining initial balance
-      const allUnsettledUpToEndWhere: any = {
+      // Sisa piutang akhir — SQL SUM for scalability
+      const piutangEndWhere: any = {
         status: { [Op.notIn]: ['SETTLED', 'CANCELLED', 'REJECTED'] },
-        isInitialBalance: false
+        isInitialBalance: false,
       };
       if (end) {
-        allUnsettledUpToEndWhere.saleDate = { [Op.lte]: end };
+        piutangEndWhere.saleDate = { [Op.lte]: end };
       }
-      const allUnsettledUpToEnd = await Sale.findAll({ where: allUnsettledUpToEndWhere });
-      const exactPiutangAtEnd = allUnsettledUpToEnd.reduce(
-        (sum: number, s: any) => sum + parseFloat(s.totalAmount), 
-        0
-      );
-      
+      const exactPiutangAtEnd = await Sale.sum('totalAmount', { where: piutangEndWhere }) || 0;
       const sisaPiutangAkhir = exactPiutangAtEnd + initialBalanceAtEnd;
 
       // ─── OMSET KESELURUHAN: total semua penjualan dalam periode filter ───
@@ -321,16 +312,36 @@ export const financialController = {
       // We explicitly calculate displayCarryForward to show the mathematically reduced initial balance on the UI card
       const displayCarryForward = (carryForwardPiutang - initialBalanceAtStart) + initialBalanceAtEnd;
 
+      // ─── AR LEDGER FORMULA FIELDS ───────────────────────
+      // Total gross amount of all settlements in this period (pelunasan diterima)
+      const totalGrossSettled = settlements.reduce((sum: number, s: any) => {
+        const gross = s.sale ? parseFloat(s.sale.totalAmount) : parseFloat(s.netAmount);
+        return sum + gross;
+      }, 0);
+
+      // Total net amount received (after platform fees)
+      const totalPelunasanNet = settlements.reduce((sum: number, s: any) =>
+        sum + parseFloat(s.netAmount), 0
+      );
+
+      // Total other income received
+      const totalOtherIncome = otherIncomes.reduce((sum: number, oi: any) =>
+        sum + parseFloat(oi.amount), 0);
+
       const summary = {
         totalIncome,
         totalSelisih,
         danaBersih,
         piutang,
         carryForwardPiutang: displayCarryForward,
+        saldoAwalPiutang: carryForwardPiutang, // raw carry forward (used in table row 1)
         sisaPiutangAkhir,
         totalExpense,
         finalBalance: runningBalance,
         omsetKeseluruhan,
+        totalGrossSettled,       // for AR ledger formula
+        totalPelunasanNet,       // net received after fees
+        totalOtherIncome,        // other income total
         transactionCount: transactions.filter(t =>
           t.type === 'income' || t.type === 'other_income' || t.type === 'piutang'
         ).length,

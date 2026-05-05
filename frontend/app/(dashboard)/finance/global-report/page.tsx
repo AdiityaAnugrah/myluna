@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useFinancialSummary } from '@/lib/hooks/useFinancial';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import {
   TrendingUp,
@@ -11,7 +12,6 @@ import {
   Loader2,
   Calendar,
   Download,
-  X,
   BarChart3,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,19 @@ import {
 import * as XLSX from 'xlsx';
 import { SetInitialBalanceModal } from '@/components/SetInitialBalanceModal';
 import { OmsetBreakdownModal } from '@/components/OmsetBreakdownModal';
+
+type DisplayType = 'carry_forward' | 'settlement' | 'other_income' | 'piutang' | 'cancelled';
+
+interface DisplayRow {
+  no: number;
+  date: Date;
+  invoiceNumber: string | null;
+  description: string;
+  debit: number;
+  kredit: number;
+  balance: number | null;
+  displayType: DisplayType;
+}
 
 export default function GlobalReportPage() {
   const today = new Date();
@@ -55,89 +68,166 @@ export default function GlobalReportPage() {
   const transactions = (financialData as any)?.data?.transactions || [];
   const summary = (financialData as any)?.data?.summary || {};
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('id-ID', {
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('id-ID', {
       style: 'currency',
       currency: 'IDR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
-  };
+
+  // Merge triplet rows (income + expense + tipe_pelunasan) → 1 row per sale.
+  // Debit = gross, Kredit = platform fee only.
+  // Running saldo: only settled rows affect balance (carry_forward, settlement, other_income).
+  const displayRows = useMemo<DisplayRow[]>(() => {
+    const rows: DisplayRow[] = [];
+    const processedInvoices = new Set<string>();
+    let counter = 1;
+    let runningBalance = 0;
+
+    transactions.forEach((txn: any) => {
+      if (txn.type === 'carry_forward') {
+        runningBalance += txn.debit;
+        rows.push({
+          no: counter++,
+          date: new Date(txn.date),
+          invoiceNumber: null,
+          description: 'Piutang Terbawa dari Periode Sebelumnya',
+          debit: txn.debit,
+          kredit: 0,
+          balance: runningBalance,
+          displayType: 'carry_forward',
+        });
+      } else if (txn.type === 'income') {
+        const key = txn.invoiceNumber || `income_${txn.no}`;
+        if (!processedInvoices.has(key)) {
+          processedInvoices.add(key);
+          const expenseRow = transactions.find(
+            (t: any) => t.type === 'expense' && t.invoiceNumber === txn.invoiceNumber
+          );
+          const fee = expenseRow?.credit || 0;
+          // net = gross - fee = netAmount actually received
+          runningBalance += txn.debit - fee;
+          rows.push({
+            no: counter++,
+            date: new Date(txn.date),
+            invoiceNumber: txn.invoiceNumber,
+            description: txn.description.replace(/^Penjualan: /, ''),
+            debit: txn.debit,
+            kredit: fee,
+            balance: runningBalance,
+            displayType: 'settlement',
+          });
+        }
+      } else if (txn.type === 'other_income') {
+        runningBalance += txn.debit;
+        rows.push({
+          no: counter++,
+          date: new Date(txn.date),
+          invoiceNumber: txn.invoiceNumber,
+          description: txn.description.replace(/^Pendapatan Lain-lain: /, ''),
+          debit: txn.debit,
+          kredit: 0,
+          balance: runningBalance,
+          displayType: 'other_income',
+        });
+      } else if (txn.type === 'piutang') {
+        rows.push({
+          no: counter++,
+          date: new Date(txn.date),
+          invoiceNumber: txn.invoiceNumber,
+          description: txn.description.replace(/^Menunggu Pelunasan: /, ''),
+          debit: txn.debit,
+          kredit: 0,
+          balance: null, // pending, does not affect saldo
+          displayType: 'piutang',
+        });
+      } else if (txn.type === 'cancelled') {
+        rows.push({
+          no: counter++,
+          date: new Date(txn.date),
+          invoiceNumber: txn.invoiceNumber,
+          description: txn.description.replace(/^Dibatalkan: /, ''),
+          debit: 0,
+          kredit: 0,
+          balance: null,
+          displayType: 'cancelled',
+        });
+      }
+      // expense & tipe_pelunasan: merged, skipped here
+    });
+
+    return rows;
+  }, [transactions]);
+
+  const settledCount = displayRows.filter(
+    (r) => r.displayType === 'settlement' || r.displayType === 'other_income'
+  ).length;
+  const piutangCount = displayRows.filter((r) => r.displayType === 'piutang').length;
 
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
-
     const formatIDR = (val: number | null) => {
-      if (val === null || val === undefined || val === 0) return '-';
-      return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
+      if (val === null || val === undefined) return '-';
+      return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+      }).format(val);
     };
-
-    const typeLabel = (type: string) => {
-      switch (type) {
-        case 'income': return 'Pendapatan';
-        case 'other_income': return 'Pendapatan Lain';
-        case 'expense': return 'Pengeluaran';
-        case 'tipe_pelunasan': return 'Tipe Pelunasan';
-        case 'piutang': return 'Piutang';
-        case 'cancelled': return 'Dibatalkan';
-        case 'carry_forward': return 'Saldo Awal';
-        default: return type;
-      }
+    const printed = new Date().toLocaleDateString('id-ID', {
+      day: '2-digit', month: 'long', year: 'numeric',
+    });
+    const typeLabel: Record<DisplayType, string> = {
+      carry_forward: 'Saldo Awal',
+      settlement: 'Penjualan (Settled)',
+      other_income: 'Pendapatan Lain',
+      piutang: 'Piutang (Menunggu)',
+      cancelled: 'Dibatalkan',
     };
 
     const aoa: any[][] = [
-      // Company header
       ['LUNAREA FURNITURE'],
       ['Laporan Transaksi Keuangan'],
       [`Periode: ${startDate} s/d ${endDate}`],
-      [`Dicetak: ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`],
+      [`Dicetak: ${printed}`],
       [],
-      // Column headers
       ['No', 'Tanggal', 'Tipe', 'Keterangan', 'Debit (Masuk)', 'Kredit (Keluar)', 'Saldo', 'No Invoice'],
     ];
 
-    transactions.forEach((item: any) => {
-      const dateStr = new Date(item.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-      const debit = item.debit && item.debit !== 0 ? item.debit : null;
-      const credit = item.credit && item.credit !== 0 ? item.credit : null;
+    displayRows.forEach((row) => {
       aoa.push([
-        item.no,
-        dateStr,
-        typeLabel(item.type),
-        item.description,
-        debit ? formatIDR(debit) : '-',
-        credit ? formatIDR(credit) : '-',
-        item.balance !== null && item.balance !== undefined ? formatIDR(item.balance) : '-',
-        item.invoiceNumber || '-',
+        row.no,
+        new Date(row.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+        typeLabel[row.displayType],
+        row.description,
+        row.debit > 0 ? formatIDR(row.debit) : '-',
+        row.kredit > 0 ? formatIDR(row.kredit) : '-',
+        row.balance !== null ? formatIDR(row.balance) : '-',
+        row.invoiceNumber
+          ? row.invoiceNumber.split('-CANCELLED')[0].split('-REJECTED')[0]
+          : '-',
       ]);
     });
 
-    // Spacer + summary
+    aoa.push([], ['RINGKASAN PIUTANG (AR LEDGER)']);
+    aoa.push(['Saldo Awal Piutang', '', '', '', '', '', formatIDR(summary.saldoAwalPiutang || 0)]);
+    aoa.push(['+ Penjualan Baru (Omset)', '', '', '', '', '', formatIDR(summary.omsetKeseluruhan || 0)]);
+    aoa.push(['- Pelunasan Diterima (Gross)', '', '', '', '', '', `(${formatIDR(summary.totalGrossSettled || 0)})`]);
+    aoa.push(['= Sisa Piutang Akhir', '', '', '', '', '', formatIDR(summary.sisaPiutangAkhir || 0)]);
     aoa.push([]);
-    aoa.push(['', '', '', 'TOTAL', formatIDR(summary.totalIncome || 0), formatIDR(summary.totalExpense || 0), formatIDR(summary.danaBersih || 0), '']);
-    aoa.push([]);
-    aoa.push(['RINGKASAN PERIODE']);
-    aoa.push(['Total Pendapatan (Penjualan + Lain-lain)', '', '', '', formatIDR(summary.totalIncome || 0)]);
-    aoa.push(['Total Beban Platform', '', '', '', formatIDR(summary.totalSelisih || 0)]);
-    aoa.push(['Dana Bersih Diterima', '', '', '', formatIDR(summary.danaBersih || 0)]);
-    aoa.push(['Total Piutang (Belum Dilunasi)', '', '', '', formatIDR(summary.sisaPiutangAkhir || 0)]);
-    if (summary.carryForwardPiutang > 0) {
-      aoa.push(['Piutang Bulan Lalu', '', '', '', formatIDR(summary.carryForwardPiutang || 0)]);
-    }
+    aoa.push(['RINCIAN SETTLED']);
+    aoa.push(['Pendapatan Kotor (Settled)', '', '', '', '', '', formatIDR(summary.totalIncome || 0)]);
+    aoa.push(['Beban Platform', '', '', '', '', '', `(${formatIDR(summary.totalSelisih || 0)})`]);
+    aoa.push(['Dana Bersih Diterima', '', '', '', '', '', formatIDR(summary.danaBersih || 0)]);
+    aoa.push(['Piutang Baru (Belum Dilunasi)', '', '', '', '', '', formatIDR(summary.piutang || 0)]);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [
-      { wch: 5 },   // No
-      { wch: 16 },  // Tanggal
-      { wch: 16 },  // Tipe
-      { wch: 42 },  // Keterangan
-      { wch: 20 },  // Debit
-      { wch: 20 },  // Kredit
-      { wch: 20 },  // Saldo
-      { wch: 22 },  // Invoice
+      { wch: 5 }, { wch: 16 }, { wch: 20 }, { wch: 42 },
+      { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 22 },
     ];
     XLSX.utils.book_append_sheet(wb, ws, 'Detail Transaksi');
-
     XLSX.writeFile(wb, `Laporan_Transaksi_${startDate}_${endDate}.xlsx`);
   };
 
@@ -160,6 +250,7 @@ export default function GlobalReportPage() {
 
   return (
     <div className="space-y-6 pb-12">
+      {/* Header */}
       <div className="flex flex-col gap-4">
         <Breadcrumbs
           items={[{ label: 'Keuangan', href: '/financial-summary' }, { label: 'Laporan Global' }]}
@@ -190,42 +281,92 @@ export default function GlobalReportPage() {
             </div>
             <div className="flex gap-2">
               {user?.role === 'SUPER_ADMIN' && (
-                <Button variant="outline" size="sm" onClick={() => setIsInitialBalanceModalOpen(true)} className="border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsInitialBalanceModalOpen(true)}
+                  className="border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                >
                   <Calendar className="h-4 w-4 mr-1" /> Set Saldo Awal
                 </Button>
               )}
               <Button variant="outline" size="sm" onClick={handleReset}>Reset</Button>
-              <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={transactions.length === 0}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportExcel}
+                disabled={displayRows.length === 0}
+              >
                 <Download className="h-4 w-4 mr-1" /> Export Excel
               </Button>
             </div>
           </div>
         </div>
       </div>
-      
-      <SetInitialBalanceModal 
-        isOpen={isInitialBalanceModalOpen} 
-        onClose={() => setIsInitialBalanceModalOpen(false)} 
-      />
 
+      <SetInitialBalanceModal
+        isOpen={isInitialBalanceModalOpen}
+        onClose={() => setIsInitialBalanceModalOpen(false)}
+      />
       <OmsetBreakdownModal
         isOpen={isOmsetModalOpen}
         onClose={() => setIsOmsetModalOpen(false)}
       />
 
-      {/* Summary mini cards */}
+      {/* ─── RINGKASAN PIUTANG (AR LEDGER) ─── */}
+      <Card className="border-2 border-indigo-500/30 bg-gradient-to-r from-indigo-500/5 via-purple-500/5 to-pink-500/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-indigo-500" />
+            Ringkasan Piutang Periode Ini
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">Formula: Saldo Awal + Penjualan Baru − Pelunasan Diterima = Sisa Piutang</p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 items-center">
+            {/* Saldo Awal */}
+            <div className="bg-blue-500/10 rounded-lg p-3 text-center border border-blue-500/20">
+              <p className="text-[10px] text-blue-600 font-semibold uppercase tracking-wide">Saldo Awal</p>
+              <p className="text-lg font-bold text-blue-600">{formatCurrency(summary.saldoAwalPiutang || 0)}</p>
+              <p className="text-[10px] text-muted-foreground">piutang terbawa</p>
+            </div>
+            {/* + Omset Baru */}
+            <div className="bg-green-500/10 rounded-lg p-3 text-center border border-green-500/20">
+              <p className="text-[10px] text-green-600 font-semibold uppercase tracking-wide">+ Penjualan Baru</p>
+              <p className="text-lg font-bold text-green-600">{formatCurrency(summary.omsetKeseluruhan || 0)}</p>
+              <p className="text-[10px] text-muted-foreground">omset periode ini</p>
+            </div>
+            {/* - Pelunasan */}
+            <div className="bg-red-500/10 rounded-lg p-3 text-center border border-red-500/20">
+              <p className="text-[10px] text-red-600 font-semibold uppercase tracking-wide">− Pelunasan Diterima</p>
+              <p className="text-lg font-bold text-red-600">{formatCurrency(summary.totalGrossSettled || 0)}</p>
+              <p className="text-[10px] text-muted-foreground">gross settled</p>
+            </div>
+            {/* = */}
+            <div className="hidden md:flex items-center justify-center">
+              <span className="text-2xl font-bold text-muted-foreground">=</span>
+            </div>
+            {/* Sisa Piutang */}
+            <div className="bg-purple-500/10 rounded-lg p-3 text-center border-2 border-purple-500/30">
+              <p className="text-[10px] text-purple-600 font-semibold uppercase tracking-wide">Sisa Piutang</p>
+              <p className="text-xl font-bold text-purple-600">{formatCurrency(summary.sisaPiutangAkhir || 0)}</p>
+              <p className="text-[10px] text-muted-foreground">ke bulan depan</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {/* Omset Keseluruhan — always first & most prominent */}
-        <Card 
+        <Card
           className="col-span-2 md:col-span-1 border-orange-500/20 bg-orange-500/5 cursor-pointer hover:shadow-md hover:border-orange-500/40 transition-all group"
           onClick={() => setIsOmsetModalOpen(true)}
         >
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground font-semibold flex items-center gap-1 group-hover:text-orange-500 transition-colors">
+                <p className="text-xs text-muted-foreground font-semibold group-hover:text-orange-500 transition-colors">
                   Omset Penjualan
-                  <BarChart3 className="h-3 w-3 inline opacity-0 group-hover:opacity-100 transition-opacity" />
                 </p>
                 <p className="text-lg font-bold text-orange-500">{formatCurrency(summary.omsetKeseluruhan || 0)}</p>
                 <p className="text-[10px] text-orange-600/70 font-medium italic">Klik untuk rincian ⮕</p>
@@ -234,49 +375,53 @@ export default function GlobalReportPage() {
             </div>
           </CardContent>
         </Card>
+
         <Card className="border-blue-500/20 bg-blue-500/5">
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Piutang Bulan Lalu</p>
-                <p className="text-lg font-bold text-blue-500">{formatCurrency(summary.carryForwardPiutang || 0)}</p>
-                <p className="text-[10px] text-muted-foreground">dari Bulan Lalu</p>
+                <p className="text-xs text-muted-foreground">Saldo Awal Piutang</p>
+                <p className="text-lg font-bold text-blue-500">{formatCurrency(summary.saldoAwalPiutang || 0)}</p>
+                <p className="text-[10px] text-muted-foreground">terbawa dari sebelumnya</p>
               </div>
               <TrendingUp className="h-5 w-5 text-blue-500" />
             </div>
           </CardContent>
         </Card>
+
         <Card className="border-green-500/20 bg-green-500/5">
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Pendapatan Bulan Ini</p>
-                <p className="text-lg font-bold text-green-500">{formatCurrency(summary.totalIncome || 0)}</p>
-                <p className="text-[10px] text-muted-foreground">settled bulan ini</p>
+                <p className="text-xs text-muted-foreground">Pelunasan Diterima</p>
+                <p className="text-lg font-bold text-green-500">{formatCurrency(summary.totalGrossSettled || 0)}</p>
+                <p className="text-[10px] text-muted-foreground">gross settled periode ini</p>
               </div>
               <TrendingUp className="h-5 w-5 text-green-500" />
             </div>
           </CardContent>
         </Card>
+
         <Card className="border-amber-500/20 bg-amber-500/5">
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Piutang Bulan Ini</p>
+                <p className="text-xs text-muted-foreground">Piutang Baru</p>
                 <p className="text-lg font-bold text-amber-500">{formatCurrency(summary.piutang || 0)}</p>
-                <p className="text-[10px] text-muted-foreground">dari Bulan Ini</p>
+                <p className="text-[10px] text-muted-foreground">belum dilunasi</p>
               </div>
               <Calendar className="h-5 w-5 text-amber-500" />
             </div>
           </CardContent>
         </Card>
+
         <Card className="border-purple-500/20 bg-purple-500/5">
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Sisa Piutang</p>
+                <p className="text-xs text-muted-foreground">Sisa Piutang Akhir</p>
                 <p className="text-lg font-bold text-purple-500">{formatCurrency(summary.sisaPiutangAkhir || 0)}</p>
-                <p className="text-[10px] text-muted-foreground">terbawa ke Bulan depan</p>
+                <p className="text-[10px] text-muted-foreground">terbawa ke bulan depan</p>
               </div>
               <TrendingDown className="h-5 w-5 text-purple-500" />
             </div>
@@ -284,12 +429,60 @@ export default function GlobalReportPage() {
         </Card>
       </div>
 
-      {/* Detail Transaksi Keuangan */}
+      {/* Reconciliation Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="border-green-500/30">
+          <CardContent className="pt-5 pb-4">
+            <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">
+              Dana Bersih Diterima
+            </h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Pendapatan Kotor (Settled)</span>
+                <span className="font-medium text-green-600">{formatCurrency(summary.totalIncome || 0)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Beban Platform</span>
+                <span className="font-medium text-red-500">-{formatCurrency(summary.totalSelisih || 0)}</span>
+              </div>
+              <div className="border-t pt-2 flex justify-between items-center">
+                <span className="font-semibold">Dana Bersih</span>
+                <span className="font-bold text-green-600 text-lg">{formatCurrency(summary.danaBersih || 0)}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-purple-500/30">
+          <CardContent className="pt-5 pb-4">
+            <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">
+              Rekonsiliasi Piutang
+            </h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Piutang Terbawa (Bulan Lalu)</span>
+                <span className="font-medium text-blue-600">{formatCurrency(summary.carryForwardPiutang || 0)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">+ Piutang Baru Bulan Ini</span>
+                <span className="font-medium text-amber-600">+{formatCurrency(summary.piutang || 0)}</span>
+              </div>
+              <div className="border-t pt-2 flex justify-between items-center">
+                <span className="font-semibold">Sisa Piutang Terbawa</span>
+                <span className="font-bold text-purple-600 text-lg">{formatCurrency(summary.sisaPiutangAkhir || 0)}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Transaction Table */}
       <Card>
         <CardHeader>
           <CardTitle>Detail Transaksi Keuangan</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Total {summary.transactionCount || 0} transaksi (Pendapatan + Selisih)
+            {settledCount} transaksi settled
+            {piutangCount > 0 && ` · ${piutangCount} menunggu pelunasan`}
           </p>
         </CardHeader>
         <CardContent>
@@ -297,14 +490,14 @@ export default function GlobalReportPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">No</TableHead>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Tipe</TableHead>
+                  <TableHead className="w-10 text-center">No</TableHead>
+                  <TableHead className="whitespace-nowrap">Tanggal</TableHead>
                   <TableHead>Keterangan</TableHead>
                   <TableHead className="text-right">Debit (Masuk)</TableHead>
                   <TableHead className="text-right">Kredit (Keluar)</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
-                  <TableHead>No Invoice</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Invoice</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -315,117 +508,117 @@ export default function GlobalReportPage() {
                       <p className="text-muted-foreground mt-2">Memuat data...</p>
                     </TableCell>
                   </TableRow>
-                ) : transactions.length === 0 ? (
+                ) : displayRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground italic">
                       Tidak ada data transaksi untuk periode ini
                     </TableCell>
                   </TableRow>
                 ) : (
-                  transactions.map((item: any) => (
-                    <TableRow key={item.no} className={
-                      item.type === 'carry_forward' ? 'bg-blue-50/50 dark:bg-blue-950/20 font-semibold' :
-                      item.type === 'piutang' ? 'bg-amber-50/30 dark:bg-amber-950/10' :
-                      item.type === 'expense' ? 'bg-red-50/30 dark:bg-red-950/10' :
-                      item.type === 'tipe_pelunasan' ? 'bg-purple-50/30 dark:bg-purple-950/10' :
-                      item.type === 'other_income' ? 'bg-blue-50/30 dark:bg-blue-950/10' :
-                      item.type === 'platform_fee' ? 'bg-purple-50/20 dark:bg-purple-950/10' :
-                      item.type === 'cancelled' ? 'bg-gray-50/50 dark:bg-gray-900/20 opacity-60' :
-                      'bg-green-50/30 dark:bg-green-950/10'
-                    }>
-                      <TableCell className="font-medium text-center">{item.no}</TableCell>
-                      <TableCell>
-                        {new Date(item.date).toLocaleDateString('id-ID', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric'
+                  displayRows.map((row) => (
+                    <TableRow
+                      key={`${row.displayType}_${row.no}`}
+                      className={
+                        row.displayType === 'carry_forward'
+                          ? 'bg-blue-50/60 dark:bg-blue-950/20 font-semibold'
+                          : row.displayType === 'piutang'
+                          ? 'bg-amber-50/40 dark:bg-amber-950/10'
+                          : row.displayType === 'cancelled'
+                          ? 'opacity-40 bg-gray-50/50 dark:bg-gray-900/20'
+                          : row.displayType === 'other_income'
+                          ? 'bg-blue-50/20 dark:bg-blue-950/10'
+                          : ''
+                      }
+                    >
+                      <TableCell className="text-center text-sm font-medium">{row.no}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {new Date(row.date).toLocaleDateString('id-ID', {
+                          day: '2-digit', month: 'short', year: 'numeric',
                         })}
                       </TableCell>
-                      <TableCell>
-                        {item.type === 'carry_forward' ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                            <TrendingUp className="mr-1 h-3 w-3" />
-                            Saldo Awal
-                          </span>
-                        ) : item.type === 'income' ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                            <TrendingUp className="mr-1 h-3 w-3" />
-                            Pendapatan
-                          </span>
-                        ) : item.type === 'other_income' ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                            <TrendingUp className="mr-1 h-3 w-3" />
-                            Lain-lain
-                          </span>
-                        ) : item.type === 'platform_fee' ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
-                            <TrendingDown className="mr-1 h-3 w-3" />
-                            Beban Platform
-                          </span>
-                        ) : item.type === 'tipe_pelunasan' ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                            <TrendingUp className="mr-1 h-3 w-3" />
-                            Tipe Pelunasan
-                          </span>
-                        ) : item.type === 'piutang' ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                            <Calendar className="mr-1 h-3 w-3" />
-                            Menunggu
-                          </span>
-                        ) : item.type === 'cancelled' ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 line-through">
-                            <X className="mr-1 h-3 w-3" />
-                            Dibatalkan
+                      <TableCell
+                        className="max-w-xs text-sm"
+                        style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}
+                      >
+                        {row.displayType === 'cancelled' ? (
+                          <span className="line-through text-muted-foreground">{row.description}</span>
+                        ) : (
+                          row.description
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-sm">
+                        {row.debit > 0 ? (
+                          <span className={row.displayType === 'carry_forward' ? 'text-blue-600' : 'text-green-600'}>
+                            {formatCurrency(row.debit)}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
-                            <TrendingDown className="mr-1 h-3 w-3" />
-                            Pengeluaran
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-sm">
+                        {row.kredit > 0 ? (
+                          <span className="text-red-500">{formatCurrency(row.kredit)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-sm">
+                        {row.balance !== null ? (
+                          <span className="text-purple-600">{formatCurrency(row.balance)}</span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs italic">
+                            {row.displayType === 'piutang' ? 'belum settle' : '-'}
                           </span>
                         )}
                       </TableCell>
-                      <TableCell
-                        className="max-w-xs"
-                        style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}
-                      >
-                        {item.description}
+                      <TableCell>
+                        {row.displayType === 'carry_forward' ? (
+                          <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">Saldo Awal</Badge>
+                        ) : row.displayType === 'settlement' ? (
+                          <Badge variant="outline" className="text-green-600 border-green-300 text-xs">Settled</Badge>
+                        ) : row.displayType === 'other_income' ? (
+                          <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">Lain-lain</Badge>
+                        ) : row.displayType === 'piutang' ? (
+                          <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">Menunggu</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-gray-400 border-gray-300 text-xs">Dibatalkan</Badge>
+                        )}
                       </TableCell>
-                      <TableCell
-                        className={`text-right font-semibold ${
-                          item.type === 'piutang' ? 'text-amber-600' :
-                          item.type === 'other_income' ? 'text-blue-600' :
-                          item.type === 'tipe_pelunasan' ? 'text-purple-600' :
-                          item.type === 'cancelled' ? 'text-red-500 line-through opacity-70' :
-                          'text-green-600'
-                        }`}
-                      >
-                        {item.debit !== 0 ? formatCurrency(item.debit) : '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-red-600">
-                        {item.credit !== 0 ? formatCurrency(item.credit) : '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-purple-600">
-                        {item.balance !== null ? formatCurrency(item.balance) : '-'}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {item.invoiceNumber || '-'}
+                      <TableCell className="font-mono text-xs text-muted-foreground max-w-[130px] truncate">
+                        {row.invoiceNumber
+                          ? row.invoiceNumber.split('-CANCELLED')[0].split('-REJECTED')[0]
+                          : '-'}
                       </TableCell>
                     </TableRow>
                   ))
                 )}
               </TableBody>
-              {transactions.length > 0 && (
+              {displayRows.length > 0 && (
                 <tfoot>
                   <tr className="bg-muted/60 border-t-2 border-border font-bold">
-                    <td colSpan={4} className="px-4 py-3 text-sm text-right">TOTAL</td>
+                    <td colSpan={3} className="px-4 py-3 text-sm text-right text-muted-foreground">
+                      TOTAL SETTLED
+                    </td>
                     <td className="px-4 py-3 text-right text-green-700 dark:text-green-400 text-sm">
-                      {formatCurrency(transactions.filter((t: any) => t.debit > 0).reduce((s: number, t: any) => s + t.debit, 0))}
+                      {formatCurrency(summary.totalIncome || 0)}
                     </td>
                     <td className="px-4 py-3 text-right text-red-600 dark:text-red-400 text-sm">
-                      {formatCurrency(transactions.filter((t: any) => t.credit > 0).reduce((s: number, t: any) => s + t.credit, 0))}
+                      {formatCurrency(summary.totalSelisih || 0)}
                     </td>
                     <td className="px-4 py-3 text-right text-purple-700 dark:text-purple-400 text-sm">
-                      {formatCurrency(summary.finalBalance || 0)}
+                      {formatCurrency(summary.danaBersih || 0)}
+                    </td>
+                    <td colSpan={2} className="px-4 py-3" />
+                  </tr>
+                  <tr className="bg-indigo-50/50 dark:bg-indigo-950/20 border-t border-indigo-200/50">
+                    <td colSpan={7} className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                        <span className="font-semibold text-indigo-600">Ringkasan Piutang:</span>
+                        <span className="text-blue-600">Saldo Awal {formatCurrency(summary.saldoAwalPiutang || 0)}</span>
+                        <span className="text-green-600">+ Omset {formatCurrency(summary.omsetKeseluruhan || 0)}</span>
+                        <span className="text-red-600">− Pelunasan {formatCurrency(summary.totalGrossSettled || 0)}</span>
+                        <span className="font-bold text-purple-600">= Sisa Piutang {formatCurrency(summary.sisaPiutangAkhir || 0)}</span>
+                      </div>
                     </td>
                     <td className="px-4 py-3" />
                   </tr>

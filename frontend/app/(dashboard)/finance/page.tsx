@@ -141,12 +141,58 @@ export default function FinancePage() {
         </div>
       </div>
 
+      {/* ─── RINGKASAN PIUTANG (AR LEDGER) ─── */}
+      {selectedPlatform === 'ALL' && (
+        <Card className="animate-in [animation-delay:150ms] border-2 border-indigo-500/30 bg-gradient-to-r from-indigo-500/5 via-purple-500/5 to-pink-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-indigo-500" />
+              Ringkasan Piutang Periode Ini
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">Saldo Awal + Penjualan Baru − Pelunasan Diterima = Sisa Piutang</p>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 items-center">
+                <div className="bg-blue-500/10 rounded-lg p-3 text-center border border-blue-500/20">
+                  <p className="text-[10px] text-blue-600 font-semibold uppercase tracking-wide">Saldo Awal</p>
+                  <p className="text-lg font-bold text-blue-600">{formatCurrency(financialSummary.saldoAwalPiutang || 0)}</p>
+                  <p className="text-[10px] text-muted-foreground">piutang terbawa</p>
+                </div>
+                <div className="bg-green-500/10 rounded-lg p-3 text-center border border-green-500/20">
+                  <p className="text-[10px] text-green-600 font-semibold uppercase tracking-wide">+ Penjualan Baru</p>
+                  <p className="text-lg font-bold text-green-600">{formatCurrency(financialSummary.omsetKeseluruhan || 0)}</p>
+                  <p className="text-[10px] text-muted-foreground">omset periode ini</p>
+                </div>
+                <div className="bg-red-500/10 rounded-lg p-3 text-center border border-red-500/20">
+                  <p className="text-[10px] text-red-600 font-semibold uppercase tracking-wide">− Pelunasan Diterima</p>
+                  <p className="text-lg font-bold text-red-600">{formatCurrency(financialSummary.totalGrossSettled || 0)}</p>
+                  <p className="text-[10px] text-muted-foreground">gross settled</p>
+                </div>
+                <div className="hidden md:flex items-center justify-center">
+                  <span className="text-2xl font-bold text-muted-foreground">=</span>
+                </div>
+                <div className="bg-purple-500/10 rounded-lg p-3 text-center border-2 border-purple-500/30">
+                  <p className="text-[10px] text-purple-600 font-semibold uppercase tracking-wide">Sisa Piutang</p>
+                  <p className="text-xl font-bold text-purple-600">{formatCurrency(financialSummary.sisaPiutangAkhir || 0)}</p>
+                  <p className="text-[10px] text-muted-foreground">ke bulan depan</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Revenue Card */}
         <Card className="animate-in [animation-delay:200ms] border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              {selectedPlatform === 'ALL' ? 'Total Pendapatan' : `Pendapatan ${selectedPlatform}`}
+              {selectedPlatform === 'ALL' ? 'Pelunasan Diterima (Gross)' : `Pendapatan ${selectedPlatform}`}
             </CardTitle>
             <div className="p-2 bg-success/10 rounded-lg">
               <DollarSign className="h-4 w-4 text-success" />
@@ -158,7 +204,7 @@ export default function FinancePage() {
             ) : (
               <div className="flex flex-col">
                 <div className="text-2xl font-bold text-success">
-                  {formatCurrency(totalIncomeDisplay)}
+                  {formatCurrency(selectedPlatform === 'ALL' ? (financialSummary.totalGrossSettled || 0) : totalRevenueSales)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 flex items-center">
                   <ArrowUpRight className="h-4 w-4 mr-1 text-success/60" />
@@ -169,10 +215,10 @@ export default function FinancePage() {
           </CardContent>
         </Card>
 
-        {/* Expense / Kredit Keluar Summary */}
+        {/* Expense / Beban Platform */}
         <Card className="animate-in [animation-delay:300ms] border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Kredit (Keluar)</CardTitle>
+            <CardTitle className="text-sm font-medium">Beban Platform</CardTitle>
             <div className="p-2 bg-destructive/10 rounded-lg">
               <ArrowDownRight className="h-4 w-4 text-destructive" />
             </div>
@@ -186,7 +232,7 @@ export default function FinancePage() {
                   {formatCurrency(totalExpenseDisplay)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Beban platform + pencatatan lain-lain
+                  Selisih harga gross − net dari settlement
                 </p>
               </div>
             )}

@@ -461,62 +461,63 @@ export const settlementController = {
     }
   },
 
-  // Get dashboard statistics
+  // Get dashboard statistics — uses SQL aggregation for scalability (no row limit)
   async getStats(req: Request, res: Response, next: NextFunction) {
     try {
       const { startDate, endDate } = req.query;
 
-      const dateFilter: any = {};
+      // Build date condition for raw SQL
+      let dateCondition = '';
+      const replacements: any = {};
       if (startDate && endDate) {
-        dateFilter.saleDate = {
-          [Op.between]: [new Date(startDate as string), new Date(`${endDate}T23:59:59`)],
-        };
+        dateCondition = ' AND s.saleDate BETWEEN :startDate AND :endDate';
+        replacements.startDate = new Date(startDate as string);
+        replacements.endDate = new Date(`${endDate}T23:59:59`);
       }
 
-      // Fetch ALL sales that are PROCESSED or SETTLED in the period
-      const processedSales = await Sale.findAll({
-        where: {
-          status: {
-            [Op.in]: ['PROCESSED', 'SETTLED'],
-          },
-          isInitialBalance: false,
-          ...dateFilter,
-        },
-        include: [
-          {
-            model: Settlement,
-            as: 'settlement',
-            required: false, // Include pending ones too
-          },
-        ],
-      });
+      // Single query: aggregate settled stats (sales that HAVE a settlement)
+      const [settledResult]: any = await sequelize.query(`
+        SELECT 
+          COALESCE(SUM(s.totalAmount), 0) AS totalGross,
+          COALESCE(SUM(st.netAmount), 0) AS totalNet,
+          COUNT(*) AS settledCount
+        FROM Sales s
+        INNER JOIN Settlements st ON st.saleId = s.id
+        WHERE s.status IN ('PROCESSED', 'SETTLED')
+          AND COALESCE(s.isInitialBalance, 0) = 0
+          ${dateCondition}
+      `, { replacements, type: 'SELECT' });
 
-      let totalGrossSettled = 0;
-      let totalNetSettled = 0;
-      let settledCount = 0;
-      let pendingCount = 0;
+      // Single query: aggregate pending stats (sales WITHOUT a settlement)
+      const [pendingResult]: any = await sequelize.query(`
+        SELECT 
+          COALESCE(SUM(s.totalAmount), 0) AS totalPendingAmount,
+          COUNT(*) AS pendingCount
+        FROM Sales s
+        LEFT JOIN Settlements st ON st.saleId = s.id
+        WHERE s.status IN ('PROCESSED', 'SETTLED')
+          AND COALESCE(s.isInitialBalance, 0) = 0
+          AND st.id IS NULL
+          ${dateCondition}
+      `, { replacements, type: 'SELECT' });
 
-      for (const sale of processedSales) {
-        if (sale.settlement) {
-          totalGrossSettled += Number(sale.totalAmount);
-          totalNetSettled += Number(sale.settlement.netAmount);
-          settledCount++;
-        } else {
-          pendingCount++;
-        }
-      }
-
-      const difference = totalGrossSettled - totalNetSettled;
+      const totalGross = parseFloat(settledResult?.totalGross || '0');
+      const totalNet = parseFloat(settledResult?.totalNet || '0');
+      const settledCount = parseInt(settledResult?.settledCount || '0', 10);
+      const totalPendingAmount = parseFloat(pendingResult?.totalPendingAmount || '0');
+      const pendingCount = parseInt(pendingResult?.pendingCount || '0', 10);
+      const difference = totalGross - totalNet;
 
       successResponse(
         res,
         {
-          totalGross: totalGrossSettled, // Only show settled gross to match net
-          totalNet: totalNetSettled,
+          totalGross,
+          totalNet,
           difference,
-          grossCount: settledCount, // Only show settled count to match gross
+          grossCount: settledCount,
           settledCount,
           pendingCount,
+          totalPendingAmount,
         },
         'Settlement statistics retrieved successfully',
         200

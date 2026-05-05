@@ -507,7 +507,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Settlement Stats */}
+      {/* Settlement Stats - Simplified */}
       {user?.role !== 'TCP' && (settlementStatsData as any)?.data && (
         <Card className="border-none shadow-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 animate-in [animation-delay:450ms]">
           <CardHeader>
@@ -515,49 +515,42 @@ export default function DashboardPage() {
               <Coins className="h-5 w-5 text-blue-600" />
               Statistik Pelunasan
             </CardTitle>
-            <CardDescription>Perbandingan penjualan kotor vs dana bersih diterima</CardDescription>
+            <CardDescription>3 angka utama yang perlu kamu tahu</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Total Penjualan (Kotor)</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(parseFloat((settlementStatsData as any).data.totalGross || '0'))}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border-l-4 border-l-orange-500 border border-orange-200 dark:border-orange-800">
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Omset Penjualan</p>
+                <p className="text-2xl font-bold text-orange-600">
+                  {formatCurrency(stats.omsetKeseluruhan)}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {(settlementStatsData as any).data.grossCount} penjualan
+                  dari {Math.max(0, ((salesStatsData as any)?.data?.totalSales || 0) - ((salesStatsData as any)?.data?.CANCELLED || 0) - ((salesStatsData as any)?.data?.REJECTED || 0))} transaksi aktif
                 </p>
               </div>
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-green-200 dark:border-green-800">
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border-l-4 border-l-blue-500 border border-blue-200 dark:border-blue-800">
                 <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Dana Bersih Diterima</p>
-                <p className="text-2xl font-bold text-green-600">
+                <p className="text-2xl font-bold text-blue-600">
                   {formatCurrency(parseFloat((settlementStatsData as any).data.totalNet || '0'))}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
                   {(settlementStatsData as any).data.settledCount} sudah lunas
                 </p>
               </div>
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-orange-200 dark:border-orange-800">
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Selisih (Fee &amp; Ongkir)</p>
-                <p className="text-2xl font-bold text-orange-600">
-                  {formatCurrency(parseFloat((settlementStatsData as any).data.difference || '0'))}
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border-l-4 border-l-purple-500 border border-purple-200 dark:border-purple-800">
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Belum Dilunasi</p>
+                <p className="text-2xl font-bold text-purple-600">
+                  {formatCurrency(parseFloat((settlementStatsData as any).data.totalPendingAmount || '0'))}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {(settlementStatsData as any).data.pendingCount} belum lunas
+                  {(settlementStatsData as any).data.pendingCount} transaksi pending
                 </p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Omset Keseluruhan</p>
-                <p className="text-2xl font-bold text-amber-600">
-                  {formatCurrency(stats.omsetKeseluruhan)}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">dari {Math.max(0, ((salesStatsData as any)?.data?.totalSales || 0) - ((salesStatsData as any)?.data?.CANCELLED || 0) - ((salesStatsData as any)?.data?.REJECTED || 0))} transaksi aktif</p>
               </div>
             </div>
             <div className="mt-4 flex justify-end">
-              <Link href="/settlements">
+              <Link href="/financial-summary">
                 <Button variant="outline" size="sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                  Lihat Semua Pelunasan →
+                  Lihat Ringkasan Lengkap →
                 </Button>
               </Link>
             </div>

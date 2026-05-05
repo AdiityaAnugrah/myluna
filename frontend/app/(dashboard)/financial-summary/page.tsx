@@ -167,16 +167,18 @@ export default function FinancialSummaryPage() {
       [`Periode: ${startDate} s/d ${endDate}`],
       [`Dicetak: ${printed}`],
       [],
-      ['ITEM', 'NILAI'],
-      ['Total Pendapatan (Penjualan + Lain-lain)', formatIDR(summary.totalIncome || 0)],
-      ['Total Beban Platform (Selisih)', formatIDR(summary.totalSelisih || 0)],
+      ['RINGKASAN PIUTANG (AR LEDGER)', ''],
+      ['Saldo Awal Piutang', formatIDR(summary.saldoAwalPiutang || 0)],
+      ['+ Penjualan Baru (Omset)', formatIDR(summary.omsetKeseluruhan || 0)],
+      ['- Pelunasan Diterima (Gross)', `(${formatIDR(summary.totalGrossSettled || 0)})`],
+      ['= Sisa Piutang Akhir', formatIDR(summary.sisaPiutangAkhir || 0)],
+      [],
+      ['RINCIAN SETTLED', ''],
+      ['Pendapatan Kotor (Settled)', formatIDR(summary.totalIncome || 0)],
+      ['Beban Platform', formatIDR(summary.totalSelisih || 0)],
       ['Dana Bersih Diterima', formatIDR(summary.danaBersih || 0)],
-      ['Total Piutang (Belum Dilunasi)', formatIDR(summary.sisaPiutangAkhir || 0)],
+      ['Piutang Baru (Belum Dilunasi)', formatIDR(summary.piutang || 0)],
     ];
-    if ((summary.carryForwardPiutang || 0) > 0) {
-      summaryAoa.push(['Sisa Piutang Terbawa (Bulan Lalu)', formatIDR(summary.carryForwardPiutang || 0)]);
-    }
-    summaryAoa.push(['Saldo Akhir', formatIDR(summary.finalBalance || 0)]);
 
     const ws1 = XLSX.utils.aoa_to_sheet(summaryAoa);
     ws1['!cols'] = [{ wch: 42 }, { wch: 24 }];
@@ -255,10 +257,53 @@ export default function FinancialSummaryPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Omset Keseluruhan */}
-        <Card className="md:col-span-2 lg:col-span-1">
+      {/* ─── RINGKASAN PIUTANG (AR LEDGER) ─── */}
+      <Card className="border-2 border-indigo-500/30 bg-gradient-to-r from-indigo-500/5 via-purple-500/5 to-pink-500/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-indigo-500" />
+            Ringkasan Piutang Periode Ini
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">Saldo Awal + Penjualan Baru − Pelunasan Diterima = Sisa Piutang</p>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 items-center">
+              <div className="bg-blue-500/10 rounded-lg p-3 text-center border border-blue-500/20">
+                <p className="text-[10px] text-blue-600 font-semibold uppercase tracking-wide">Saldo Awal</p>
+                <p className="text-lg font-bold text-blue-600">{formatCurrency(summary.saldoAwalPiutang || 0)}</p>
+                <p className="text-[10px] text-muted-foreground">piutang terbawa</p>
+              </div>
+              <div className="bg-green-500/10 rounded-lg p-3 text-center border border-green-500/20">
+                <p className="text-[10px] text-green-600 font-semibold uppercase tracking-wide">+ Penjualan Baru</p>
+                <p className="text-lg font-bold text-green-600">{formatCurrency(summary.omsetKeseluruhan || 0)}</p>
+                <p className="text-[10px] text-muted-foreground">omset periode ini</p>
+              </div>
+              <div className="bg-red-500/10 rounded-lg p-3 text-center border border-red-500/20">
+                <p className="text-[10px] text-red-600 font-semibold uppercase tracking-wide">− Pelunasan Diterima</p>
+                <p className="text-lg font-bold text-red-600">{formatCurrency(summary.totalGrossSettled || 0)}</p>
+                <p className="text-[10px] text-muted-foreground">gross settled</p>
+              </div>
+              <div className="hidden md:flex items-center justify-center">
+                <span className="text-2xl font-bold text-muted-foreground">=</span>
+              </div>
+              <div className="bg-purple-500/10 rounded-lg p-3 text-center border-2 border-purple-500/30">
+                <p className="text-[10px] text-purple-600 font-semibold uppercase tracking-wide">Sisa Piutang</p>
+                <p className="text-xl font-bold text-purple-600">{formatCurrency(summary.sisaPiutangAkhir || 0)}</p>
+                <p className="text-[10px] text-muted-foreground">ke bulan depan</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ─── 3 KEY METRICS ─── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="border-l-4 border-l-orange-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Omset Penjualan</CardTitle>
             <BarChart3 className="h-4 w-4 text-orange-500" />
@@ -267,66 +312,37 @@ export default function FinancialSummaryPage() {
             {isLoading ? <Skeleton className="h-8 w-32" /> : (
               <>
                 <div className="text-2xl font-bold text-orange-500">{formatCurrency(summary.omsetKeseluruhan || 0)}</div>
-                <p className="text-xs text-orange-600/70 mt-1 font-medium italic">Berdasarkan periode filter</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Pendapatan</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-32" /> : (
-              <>
-                <div className="text-2xl font-bold text-green-500">{formatCurrency(summary.totalIncome || 0)}</div>
-                <p className="text-xs text-muted-foreground mt-1">Penjualan settle + pendapatan lain-lain</p>
+                <p className="text-xs text-muted-foreground mt-1">Total penjualan dalam periode ini</p>
               </>
             )}
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Kredit (Keluar)</CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-32" /> : (
-              <>
-                <div className="text-2xl font-bold text-red-500">{formatCurrency(summary.totalExpense || 0)}</div>
-                <p className="text-xs text-muted-foreground mt-1">Beban platform + pencatatan lain-lain</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Dana Bersih</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Dana Bersih Diterima</CardTitle>
             <DollarSign className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
             {isLoading ? <Skeleton className="h-8 w-32" /> : (
               <>
                 <div className="text-2xl font-bold text-blue-500">{formatCurrency(summary.danaBersih || 0)}</div>
-                <p className="text-xs text-muted-foreground mt-1">Net settlement + pendapatan lain-lain</p>
+                <p className="text-xs text-muted-foreground mt-1">Uang yg benar-benar masuk ke rekening</p>
               </>
             )}
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-purple-500 bg-purple-500/5">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Piutang</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Sisa Piutang Akhir</CardTitle>
             <Wallet className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
             {isLoading ? <Skeleton className="h-8 w-32" /> : (
               <>
                 <div className="text-2xl font-bold text-purple-500">{formatCurrency(summary.sisaPiutangAkhir || 0)}</div>
-                <p className="text-xs text-muted-foreground mt-1">Total penjualan yang belum dilunasi</p>
+                <p className="text-xs text-muted-foreground mt-1">Total piutang yg terbawa ke bulan depan</p>
               </>
             )}
           </CardContent>
