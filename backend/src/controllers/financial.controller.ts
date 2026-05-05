@@ -23,8 +23,9 @@ export const financialController = {
         start = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
         end = new Date(ey, em - 1, ed, 23, 59, 59, 999);
 
+        // settlementDate is DATEONLY — compare with date strings, not Date objects
         whereClause.settlementDate = {
-          [Op.between]: [start, end],
+          [Op.between]: [startDate as string, endDate as string],
         };
       }
 
