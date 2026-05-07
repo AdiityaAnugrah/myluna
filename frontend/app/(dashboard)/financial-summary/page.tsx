@@ -174,7 +174,7 @@ export default function FinancialSummaryPage() {
       ['= Sisa Piutang Akhir', formatIDR(summary.sisaPiutangAkhir || 0)],
       [],
       ['RINCIAN SETTLED', ''],
-      ['Pendapatan Kotor (Settled)', formatIDR(summary.totalIncome || 0)],
+      ['Pendapatan Kotor (Settled)', formatIDR(summary.totalGrossSettled || 0)],
       ['Beban Platform', formatIDR(summary.totalSelisih || 0)],
       ['Dana Bersih Diterima', formatIDR(summary.danaBersih || 0)],
       ['Piutang Baru (Belum Dilunasi)', formatIDR(summary.piutang || 0)],
