@@ -170,8 +170,8 @@ export default function FinancialSummaryPage() {
       ['RINGKASAN PIUTANG (AR LEDGER)', ''],
       ['Saldo Awal Piutang', formatIDR(summary.saldoAwalPiutang || 0)],
       ['+ Penjualan Baru (Omset)', formatIDR(summary.omsetKeseluruhan || 0)],
-      ['- Pelunasan Diterima (Gross)', `(${formatIDR(summary.totalGrossSettled || 0)})`],
-      ['= Sisa Piutang Akhir', formatIDR(summary.sisaPiutangAkhir || 0)],
+      ['- Pelunasan Diterima (incl. historis)', `(${formatIDR(summary.totalPelunasanNet || 0)})`],
+      ['= Sisa Piutang Akhir', formatIDR(summary.saldoAkhirAR || 0)],
       [],
       ['RINCIAN SETTLED', ''],
       ['Pendapatan Kotor (Settled)', formatIDR(summary.totalGrossSettled || 0)],
@@ -285,15 +285,15 @@ export default function FinancialSummaryPage() {
               </div>
               <div className="bg-red-500/10 rounded-lg p-3 text-center border border-red-500/20">
                 <p className="text-[10px] text-red-600 font-semibold uppercase tracking-wide">− Pelunasan Diterima</p>
-                <p className="text-lg font-bold text-red-600">{formatCurrency(summary.totalGrossSettled || 0)}</p>
-                <p className="text-[10px] text-muted-foreground">gross settled</p>
+                <p className="text-lg font-bold text-red-600">{formatCurrency(summary.totalPelunasanNet || 0)}</p>
+                <p className="text-[10px] text-muted-foreground">incl. historis</p>
               </div>
               <div className="hidden md:flex items-center justify-center">
                 <span className="text-2xl font-bold text-muted-foreground">=</span>
               </div>
               <div className="bg-purple-500/10 rounded-lg p-3 text-center border-2 border-purple-500/30">
                 <p className="text-[10px] text-purple-600 font-semibold uppercase tracking-wide">Sisa Piutang</p>
-                <p className="text-xl font-bold text-purple-600">{formatCurrency(summary.sisaPiutangAkhir || 0)}</p>
+                <p className="text-xl font-bold text-purple-600">{formatCurrency(summary.saldoAkhirAR || 0)}</p>
                 <p className="text-[10px] text-muted-foreground">ke bulan depan</p>
               </div>
             </div>
