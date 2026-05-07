@@ -430,6 +430,64 @@ export const financialController = {
     }
   },
 
+  async importSettlements(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { rows } = req.body as {
+        rows: Array<{
+          saleNumber: string;
+          settlementDate: string;
+          netAmount: number;
+          invoiceNumber?: string;
+        }>;
+      };
+
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ success: false, message: 'Data rows kosong' });
+      }
+
+      const results: { saleNumber: string; status: 'ok' | 'error'; reason?: string }[] = [];
+
+      for (const row of rows) {
+        try {
+          const sale = await Sale.findOne({
+            where: { saleNumber: row.saleNumber, isInitialBalance: false },
+          });
+
+          if (!sale) {
+            results.push({ saleNumber: row.saleNumber, status: 'error', reason: 'Penjualan tidak ditemukan' });
+            continue;
+          }
+
+          const existing = await Settlement.findOne({ where: { saleId: sale.id } });
+          if (existing) {
+            results.push({ saleNumber: row.saleNumber, status: 'error', reason: 'Settlement sudah ada' });
+            continue;
+          }
+
+          await Settlement.create({
+            saleId: sale.id,
+            invoiceNumber: row.invoiceNumber || null,
+            netAmount: String(row.netAmount),
+            settlementDate: new Date(row.settlementDate),
+            notes: 'Import dari Excel',
+            createdBy: req.user!.id,
+          });
+
+          await sale.update({ status: 'SETTLED' as any });
+          results.push({ saleNumber: row.saleNumber, status: 'ok' });
+        } catch (err: any) {
+          results.push({ saleNumber: row.saleNumber, status: 'error', reason: err.message });
+        }
+      }
+
+      const successCount = results.filter(r => r.status === 'ok').length;
+      const failCount = results.filter(r => r.status === 'error').length;
+      return successResponse(res, { results, successCount, failCount }, `Import selesai: ${successCount} berhasil, ${failCount} gagal`, 200);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   async getOmsetBreakdown(_req: Request, res: Response, next: NextFunction) {
     try {
       // 1. Monthly Breakdown

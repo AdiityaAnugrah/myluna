@@ -15,4 +15,7 @@ router.get('/omset-breakdown', rbac(['SUPER_ADMIN', 'ADMIN']), financialControll
 // Only SUPER_ADMIN can set initial balance
 router.post('/initial-receivable', rbac(['SUPER_ADMIN']), financialController.setInitialBalance);
 
+// SUPER_ADMIN can bulk import historical settlements from Excel
+router.post('/import-settlements', rbac(['SUPER_ADMIN']), financialController.importSettlements);
+
 export default router;

@@ -12,6 +12,7 @@ import {
   Loader2,
   Calendar,
   Download,
+  Upload,
   BarChart3,
   Wallet,
   Activity,
@@ -29,6 +30,7 @@ import {
 import * as XLSX from 'xlsx';
 import { SetInitialBalanceModal } from '@/components/SetInitialBalanceModal';
 import { OmsetBreakdownModal } from '@/components/OmsetBreakdownModal';
+import { ImportSettlementsModal } from '@/components/ImportSettlementsModal';
 
 type DisplayType = 'carry_forward' | 'sale_settled' | 'sale_pending' | 'settlement' | 'settlement_fee' | 'other_income' | 'cancelled';
 
@@ -64,6 +66,7 @@ export default function GlobalReportPage() {
   const [endDate, setEndDate] = useState<string>(lastDay);
   const [isInitialBalanceModalOpen, setIsInitialBalanceModalOpen] = useState(false);
   const [isOmsetModalOpen, setIsOmsetModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const { user } = useAuth();
 
@@ -323,6 +326,16 @@ export default function GlobalReportPage() {
                 </Button>
               )}
               <Button variant="outline" size="sm" onClick={handleReset}>Reset</Button>
+              {user?.role === 'SUPER_ADMIN' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30"
+                >
+                  <Upload className="h-4 w-4 mr-1" /> Import Settlement
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -351,6 +364,10 @@ export default function GlobalReportPage() {
       <OmsetBreakdownModal
         isOpen={isOmsetModalOpen}
         onClose={() => setIsOmsetModalOpen(false)}
+      />
+      <ImportSettlementsModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
       />
 
       {/* ─── REKAP PIUTANG ─── */}
