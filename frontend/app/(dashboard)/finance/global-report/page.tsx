@@ -37,6 +37,7 @@ interface DisplayRow {
   date: Date;
   invoiceNumber: string | null;
   description: string;
+  saleDate: Date | null;
   debit: number;
   kredit: number;
   netAmount: number;
@@ -90,6 +91,7 @@ export default function GlobalReportPage() {
 
     transactions.forEach((txn: any) => {
       const grp: number = txn.group ?? 2;
+      const saleDateParsed = txn.saleDate ? new Date(txn.saleDate) : null;
       if (txn.type === 'carry_forward') {
         runningBalance += txn.debit;
         rows.push({
@@ -97,6 +99,7 @@ export default function GlobalReportPage() {
           date: new Date(txn.date),
           invoiceNumber: null,
           description: 'Piutang Terbawa dari Periode Sebelumnya',
+          saleDate: null,
           debit: txn.debit,
           kredit: 0,
           netAmount: 0,
@@ -112,6 +115,7 @@ export default function GlobalReportPage() {
           date: new Date(txn.date),
           invoiceNumber: txn.invoiceNumber,
           description: txn.description,
+          saleDate: null,
           debit: txn.debit,
           kredit: 0,
           netAmount: 0,
@@ -127,6 +131,7 @@ export default function GlobalReportPage() {
           date: new Date(txn.date),
           invoiceNumber: txn.invoiceNumber,
           description: txn.description,
+          saleDate: saleDateParsed,
           debit: 0,
           kredit: txn.credit,
           netAmount: txn.netAmount || 0,
@@ -142,6 +147,7 @@ export default function GlobalReportPage() {
           date: new Date(txn.date),
           invoiceNumber: txn.invoiceNumber,
           description: txn.description,
+          saleDate: saleDateParsed,
           debit: txn.debit,
           kredit: 0,
           netAmount: 0,
@@ -156,6 +162,7 @@ export default function GlobalReportPage() {
           date: new Date(txn.date),
           invoiceNumber: txn.invoiceNumber,
           description: txn.description,
+          saleDate: null,
           debit: txn.debit,
           kredit: 0,
           netAmount: 0,
@@ -170,6 +177,7 @@ export default function GlobalReportPage() {
           date: new Date(txn.date),
           invoiceNumber: txn.invoiceNumber,
           description: txn.description,
+          saleDate: null,
           debit: 0,
           kredit: 0,
           netAmount: 0,
@@ -530,7 +538,14 @@ export default function GlobalReportPage() {
                             {row.displayType === 'cancelled' ? (
                               <span className="line-through text-muted-foreground">{row.description}</span>
                             ) : (
-                              row.description
+                              <span>
+                                {row.description}
+                                {(row.displayType === 'settlement' || row.displayType === 'settlement_fee') && row.saleDate && (
+                                  <span className="block text-[10px] text-muted-foreground mt-0.5">
+                                    pelunasan penjualan tgl {new Date(row.saleDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                  </span>
+                                )}
+                              </span>
                             )}
                           </TableCell>
                           <TableCell className="text-right font-semibold text-sm">

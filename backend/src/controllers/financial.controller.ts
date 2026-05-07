@@ -204,11 +204,13 @@ export const financialController = {
         const netAmount = parseFloat(settlement.netAmount);
         const fee = grossAmount - netAmount;
         const isPrev = prevPeriodIds.has(settlement.id);
+        const saleDateRaw = sale?.saleDate ? new Date(sale.saleDate) : null;
         allTransactions.push({
           date: new Date(settlement.settlementDate),
           group: isPrev ? 1 : 2,
           type: 'settlement',
           description: itemNames,
+          saleDate: saleDateRaw,
           debit: 0,
           credit: netAmount,
           netAmount,
@@ -221,6 +223,7 @@ export const financialController = {
             group: isPrev ? 1 : 2,
             type: 'settlement_fee',
             description: itemNames,
+            saleDate: saleDateRaw,
             debit: -fee,
             credit: 0,
             netAmount: 0,
@@ -284,6 +287,7 @@ export const financialController = {
           type: txn.type,
           group: txn.group ?? 2,
           description: txn.description,
+          saleDate: txn.saleDate ?? null,
           debit: txn.debit,
           credit: txn.credit,
           netAmount: txn.netAmount,
