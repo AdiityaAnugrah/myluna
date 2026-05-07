@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'sonner';
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -9,9 +8,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAuth } from '@/lib/hooks/useAuth';
 import { useQueryClient } from '@tanstack/react-query';
 import { History, Pencil, Trash2 } from 'lucide-react';
+import apiClient from '@/lib/api/client';
 
 interface Props {
   isOpen: boolean;
@@ -27,10 +26,7 @@ interface HistoricalRecord {
   notes: string | null;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL;
-
 export function HistoricalSettlementModal({ isOpen, onClose }: Props) {
-  const { accessToken } = useAuth();
   const queryClient = useQueryClient();
 
   const [tab, setTab] = useState<'form' | 'list'>('form');
@@ -46,13 +42,10 @@ export function HistoricalSettlementModal({ isOpen, onClose }: Props) {
   const [loadingList, setLoadingList] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const headers = { Authorization: `Bearer ${accessToken}` };
-
   const fetchList = async () => {
-    if (!accessToken) return;
     setLoadingList(true);
     try {
-      const res = await axios.get(`${API}/finance/historical-settlements`, { withCredentials: true, headers });
+      const res = await apiClient.get('/finance/historical-settlements');
       setRecords(res.data.data || []);
     } catch {
       toast.error('Gagal memuat riwayat');
@@ -62,8 +55,8 @@ export function HistoricalSettlementModal({ isOpen, onClose }: Props) {
   };
 
   useEffect(() => {
-    if (isOpen && tab === 'list' && accessToken) fetchList();
-  }, [isOpen, tab, accessToken]);
+    if (isOpen && tab === 'list') fetchList();
+  }, [isOpen, tab]);
 
   const resetForm = () => {
     setEditId(null);
@@ -88,7 +81,7 @@ export function HistoricalSettlementModal({ isOpen, onClose }: Props) {
     if (!confirm('Hapus pelunasan piutang historis ini?')) return;
     setDeletingId(id);
     try {
-      await axios.delete(`${API}/finance/historical-settlement/${id}`, { withCredentials: true, headers });
+      await apiClient.delete(`/finance/historical-settlement/${id}`);
       toast.success('Berhasil dihapus');
       queryClient.invalidateQueries({ queryKey: ['financialSummary'] });
       fetchList();
@@ -107,17 +100,15 @@ export function HistoricalSettlementModal({ isOpen, onClose }: Props) {
     setLoading(true);
     try {
       if (editId) {
-        await axios.put(
-          `${API}/finance/historical-settlement/${editId}`,
-          { amount: parseFloat(amount), settlementDate, bankName, buyerName, notes },
-          { withCredentials: true, headers }
+        await apiClient.put(
+          `/finance/historical-settlement/${editId}`,
+          { amount: parseFloat(amount), settlementDate, bankName, buyerName, notes }
         );
         toast.success('Berhasil diperbarui');
       } else {
-        await axios.post(
-          `${API}/finance/historical-settlement`,
-          { amount: parseFloat(amount), settlementDate, bankName, buyerName, notes },
-          { withCredentials: true, headers }
+        await apiClient.post(
+          '/finance/historical-settlement',
+          { amount: parseFloat(amount), settlementDate, bankName, buyerName, notes }
         );
         toast.success('Pelunasan piutang historis berhasil dicatat');
       }
