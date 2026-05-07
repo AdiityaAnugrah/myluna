@@ -430,6 +430,39 @@ export const financialController = {
     }
   },
 
+  async importOtherIncomes(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { rows } = req.body as {
+        rows: Array<{
+          transactionDate: string;
+          bankName: string;
+          buyerName: string;
+          amount: number;
+          notes?: string;
+        }>;
+      };
+
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ success: false, message: 'Data rows kosong' });
+      }
+
+      const created = await OtherIncome.bulkCreate(
+        rows.map(r => ({
+          transactionDate: new Date(r.transactionDate),
+          bankName: r.bankName,
+          buyerName: r.buyerName,
+          amount: String(r.amount),
+          notes: r.notes || 'Import dari Excel',
+          createdBy: req.user!.id,
+        }))
+      );
+
+      return successResponse(res, { count: created.length }, `${created.length} pendapatan lain-lain berhasil diimport`, 200);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   async importSettlements(req: Request, res: Response, next: NextFunction) {
     try {
       const { rows } = req.body as {

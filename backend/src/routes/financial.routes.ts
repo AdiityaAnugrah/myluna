@@ -17,5 +17,6 @@ router.post('/initial-receivable', rbac(['SUPER_ADMIN']), financialController.se
 
 // SUPER_ADMIN can bulk import historical settlements from Excel
 router.post('/import-settlements', rbac(['SUPER_ADMIN']), financialController.importSettlements);
+router.post('/import-other-incomes', rbac(['SUPER_ADMIN']), financialController.importOtherIncomes);
 
 export default router;
