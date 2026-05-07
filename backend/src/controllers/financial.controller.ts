@@ -489,6 +489,52 @@ export const financialController = {
     }
   },
 
+  async listHistoricalSettlements(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const records = await HistoricalSettlement.findAll({ order: [['settlementDate', 'ASC']] });
+      return successResponse(res, records, 'OK', 200);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async updateHistoricalSettlement(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { amount, settlementDate, bankName, buyerName, notes } = req.body;
+      const record = await HistoricalSettlement.findByPk(id);
+      if (!record) return res.status(404).json({ success: false, message: 'Tidak ditemukan' });
+
+      const parsedAmount = amount !== undefined ? parseFloat(amount) : undefined;
+      if (parsedAmount !== undefined && (isNaN(parsedAmount) || parsedAmount <= 0)) {
+        return res.status(400).json({ success: false, message: 'Amount harus angka positif' });
+      }
+
+      await record.update({
+        ...(parsedAmount !== undefined && { amount: String(parsedAmount) }),
+        ...(settlementDate && { settlementDate: new Date(settlementDate) }),
+        ...(bankName !== undefined && { bankName: bankName || null }),
+        ...(buyerName !== undefined && { buyerName: buyerName || null }),
+        ...(notes !== undefined && { notes: notes || null }),
+      });
+      return successResponse(res, record, 'Berhasil diperbarui', 200);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async deleteHistoricalSettlement(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const record = await HistoricalSettlement.findByPk(id);
+      if (!record) return res.status(404).json({ success: false, message: 'Tidak ditemukan' });
+      await record.destroy();
+      return successResponse(res, null, 'Berhasil dihapus', 200);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   async importOtherIncomes(req: Request, res: Response, next: NextFunction) {
     try {
       const { rows } = req.body as {

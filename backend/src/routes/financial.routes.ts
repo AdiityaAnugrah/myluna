@@ -19,5 +19,8 @@ router.post('/initial-receivable', rbac(['SUPER_ADMIN']), financialController.se
 router.post('/import-settlements', rbac(['SUPER_ADMIN']), financialController.importSettlements);
 router.post('/import-other-incomes', rbac(['SUPER_ADMIN']), financialController.importOtherIncomes);
 router.post('/historical-settlement', rbac(['SUPER_ADMIN']), financialController.createHistoricalSettlement);
+router.get('/historical-settlements', rbac(['SUPER_ADMIN']), financialController.listHistoricalSettlements);
+router.put('/historical-settlement/:id', rbac(['SUPER_ADMIN']), financialController.updateHistoricalSettlement);
+router.delete('/historical-settlement/:id', rbac(['SUPER_ADMIN']), financialController.deleteHistoricalSettlement);
 
 export default router;
