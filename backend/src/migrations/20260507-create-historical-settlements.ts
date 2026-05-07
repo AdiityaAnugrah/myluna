@@ -34,7 +34,6 @@ module.exports = {
       created_by: {
         type: DataTypes.UUID,
         allowNull: false,
-        references: { model: 'users', key: 'id' },
       },
       created_at: {
         type: DataTypes.DATE,
