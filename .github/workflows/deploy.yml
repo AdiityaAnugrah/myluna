@@ -20,7 +20,7 @@ jobs:
             # Load nvm & set PATH so pm2/node/npm are found
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            export PATH=$PATH:/usr/local/bin:/usr/bin
+            export PATH=$PATH:/root/.nvm/versions/node/v22.13.0/bin:/usr/local/bin:/usr/bin
 
             echo "=== Pull latest code ==="
             cd /mine/myluna.web.id
