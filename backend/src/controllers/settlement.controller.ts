@@ -479,10 +479,10 @@ export const settlementController = {
       const [settledResult]: any = await sequelize.query(`
         SELECT 
           COALESCE(SUM(s.totalAmount), 0) AS totalGross,
-          COALESCE(SUM(st.netAmount), 0) AS totalNet,
+          COALESCE(SUM(st.net_amount), 0) AS totalNet,
           COUNT(*) AS settledCount
         FROM Sales s
-        INNER JOIN Settlements st ON st.saleId = s.id
+        INNER JOIN Settlements st ON st.sale_id = s.id
         WHERE s.status IN ('PROCESSED', 'SETTLED')
           AND COALESCE(s.isInitialBalance, 0) = 0
           ${dateCondition}
@@ -494,7 +494,7 @@ export const settlementController = {
           COALESCE(SUM(s.totalAmount), 0) AS totalPendingAmount,
           COUNT(*) AS pendingCount
         FROM Sales s
-        LEFT JOIN Settlements st ON st.saleId = s.id
+        LEFT JOIN Settlements st ON st.sale_id = s.id
         WHERE s.status IN ('PROCESSED', 'SETTLED')
           AND COALESCE(s.isInitialBalance, 0) = 0
           AND st.id IS NULL
