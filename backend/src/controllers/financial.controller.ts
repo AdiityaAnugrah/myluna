@@ -74,14 +74,21 @@ export const financialController = {
         carryForwardPiutang = prevUnsettledSum + initialBalanceAtStart;
       }
 
-      // Fetch INCOME: Settlements (money in from sales)
+      // ─── Fetch settlements in period (by sale's saleDate) → KREDIT rows ──────
+      // Grouped by sale month: settlement for March sale counted in March even if received in April
+      const settlementSaleWhere: any = {
+        status: { [Op.not]: 'CANCELLED' },
+        isInitialBalance: false,
+      };
+      if (start && end) {
+        settlementSaleWhere.saleDate = { [Op.between]: [start, end] };
+      }
       const settlements = await Settlement.findAll({
-        where: whereClause,
         include: [
           {
             model: Sale,
             as: 'sale',
-            where: { status: { [Op.not]: 'CANCELLED' } },
+            where: settlementSaleWhere,
             include: [
               {
                 model: SaleItem,
@@ -93,74 +100,16 @@ export const financialController = {
         ],
       });
 
-      // Combine into unified transaction list
-      const allTransactions: any[] = [];
-
-      // ─── Baris pertama: Saldo Awal (carry-forward piutang) ──────────────────
-      if (carryForwardPiutang > 0) {
-        allTransactions.push({
-          date: start!,
-          type: 'carry_forward',
-          status: 'settled', // affects running balance
-          description: 'Saldo Awal – Sisa Piutang Terbawa dari Periode Sebelumnya',
-          debit: carryForwardPiutang,
-          credit: 0,
-          invoiceNumber: null,
-        });
-      }
-
-      // Add settlements as INCOME (DEBIT)
-      settlements.forEach((settlement: any) => {
-        const sale = settlement.sale;
-        const items = sale?.items || [];
-        const itemNames = items.map((i: any) => i.product?.name || 'Unknown').join(', ');
-
-        const grossAmount = sale ? parseFloat(sale.totalAmount) : parseFloat(settlement.netAmount);
-        const netAmount = parseFloat(settlement.netAmount);
-        const selisih = grossAmount - netAmount;
-
-        allTransactions.push({
-          date: new Date(settlement.settlementDate),
-          type: 'income',
-          status: 'settled',
-          description: `Penjualan: ${itemNames}`,
-          debit: grossAmount,
-          credit: 0,
-          invoiceNumber: settlement.invoiceNumber,
-        });
-
-        if (selisih > 0) {
-          allTransactions.push({
-            date: new Date(settlement.settlementDate),
-            type: 'expense',
-            status: 'settled',
-            description: `Beban Platform: ${itemNames}`,
-            debit: 0,
-            credit: selisih,
-            invoiceNumber: settlement.invoiceNumber,
-          });
-        }
-
-        allTransactions.push({
-          date: new Date(settlement.settlementDate),
-          type: 'tipe_pelunasan',
-          status: 'settled', // MUST be 'settled' so credit reduces running balance to 0
-          description: `Tipe Pelunasan: ${itemNames}${settlement.bankName ? ` (${settlement.bankName})` : ''}`,
-          debit: 0,
-          credit: netAmount,
-          invoiceNumber: settlement.invoiceNumber,
-        });
-      });
-
-      // Fetch unsettled sales (piutang) within the period
-      const piutangWhereClause: any = {
-        status: { [Op.notIn]: ['SETTLED', 'CANCELLED', 'REJECTED'] },
+      // ─── Fetch all non-cancelled sales in period (by saleDate) → DEBIT rows ─
+      const salesInPeriodWhere: any = {
+        status: { [Op.notIn]: ['CANCELLED', 'REJECTED'] },
+        isInitialBalance: false,
       };
       if (start && end) {
-        piutangWhereClause.saleDate = { [Op.between]: [start, end] };
+        salesInPeriodWhere.saleDate = { [Op.between]: [start, end] };
       }
-      const unsettledSales = await Sale.findAll({
-        where: piutangWhereClause,
+      const salesInPeriod = await Sale.findAll({
+        where: salesInPeriodWhere,
         include: [{
           model: SaleItem,
           as: 'items',
@@ -168,20 +117,7 @@ export const financialController = {
         }],
       });
 
-      unsettledSales.forEach((sale: any) => {
-        const itemNames = (sale.items || []).map((i: any) => i.product?.name || 'Unknown').join(', ');
-        allTransactions.push({
-          date: new Date(sale.saleDate),
-          type: 'piutang',
-          status: 'pending',
-          description: `Menunggu Pelunasan: ${itemNames}`,
-          debit: parseFloat(sale.totalAmount),
-          credit: 0,
-          invoiceNumber: sale.saleNumber || '-',
-        });
-      });
-
-      // Fetch CANCELLED sales
+      // ─── Fetch cancelled sales (display only, no balance effect) ────────────
       const cancelledWhereClause: any = { status: 'CANCELLED' };
       if (start && end) {
         cancelledWhereClause.saleDate = { [Op.between]: [start, end] };
@@ -195,90 +131,158 @@ export const financialController = {
         }],
       });
 
-      cancelledSales.forEach((sale: any) => {
-        const itemNames = (sale.items || []).map((i: any) => i.product?.name || 'Unknown').join(', ');
-        allTransactions.push({
-          date: new Date(sale.saleDate),
-          type: 'cancelled',
-          status: 'cancelled',
-          description: `Dibatalkan: ${itemNames}`,
-          debit: -parseFloat(sale.totalAmount),
-          credit: 0,
-          invoiceNumber: sale.saleNumber || '-',
-        });
-      });
-
-      // Fetch OtherIncome
+      // ─── Fetch OtherIncome ─────────────────────────────────────────────────
       const otherIncomeWhere: any = {};
       if (start && end) {
         otherIncomeWhere.transactionDate = { [Op.between]: [start, end] };
       }
       const otherIncomes = await OtherIncome.findAll({ where: otherIncomeWhere });
 
+      // ─── Build unified transaction list ────────────────────────────────────
+      const allTransactions: any[] = [];
+
+      // Row 1: Saldo Awal (carry-forward piutang) — opening DEBIT balance
+      if (carryForwardPiutang > 0) {
+        allTransactions.push({
+          date: start!,
+          type: 'carry_forward',
+          description: 'Saldo Awal – Piutang Terbawa dari Periode Sebelumnya',
+          debit: carryForwardPiutang,
+          credit: 0,
+          netAmount: 0,
+          platformFee: 0,
+          invoiceNumber: null,
+        });
+      }
+
+      // All sales in period → DEBIT rows (gross = new receivable created)
+      salesInPeriod.forEach((sale: any) => {
+        const itemNames = (sale.items || []).map((i: any) => i.product?.name || 'Unknown').join(', ');
+        allTransactions.push({
+          date: new Date(sale.saleDate),
+          type: sale.status === 'SETTLED' ? 'sale_settled' : 'sale_pending',
+          description: itemNames,
+          debit: parseFloat(sale.totalAmount),
+          credit: 0,
+          netAmount: 0,
+          platformFee: 0,
+          invoiceNumber: sale.saleNumber || '-',
+        });
+      });
+
+      // All settlements → TWO rows each (matching Excel model):
+      //   Row 1 (settlement):     Kredit = netAmount received
+      //   Row 2 (settlement_fee): Debit  = -(platform fee), negative
+      settlements.forEach((settlement: any) => {
+        const sale = settlement.sale;
+        const items = sale?.items || [];
+        const itemNames = items.map((i: any) => i.product?.name || 'Unknown').join(', ');
+        const grossAmount = sale ? parseFloat(sale.totalAmount) : parseFloat(settlement.netAmount);
+        const netAmount = parseFloat(settlement.netAmount);
+        const fee = grossAmount - netAmount;
+        allTransactions.push({
+          date: new Date(settlement.settlementDate),
+          type: 'settlement',
+          description: itemNames,
+          debit: 0,
+          credit: netAmount,
+          netAmount,
+          platformFee: fee,
+          invoiceNumber: settlement.invoiceNumber,
+        });
+        if (fee > 0) {
+          allTransactions.push({
+            date: new Date(settlement.settlementDate),
+            type: 'settlement_fee',
+            description: itemNames,
+            debit: -fee,
+            credit: 0,
+            netAmount: 0,
+            platformFee: fee,
+            invoiceNumber: settlement.invoiceNumber,
+          });
+        }
+      });
+
+      // Cancelled sales — display only, no balance effect
+      cancelledSales.forEach((sale: any) => {
+        const itemNames = (sale.items || []).map((i: any) => i.product?.name || 'Unknown').join(', ');
+        allTransactions.push({
+          date: new Date(sale.saleDate),
+          type: 'cancelled',
+          description: itemNames,
+          debit: 0,
+          credit: 0,
+          netAmount: 0,
+          platformFee: 0,
+          invoiceNumber: sale.saleNumber || '-',
+        });
+      });
+
+      // Other income — DEBIT rows
       otherIncomes.forEach((oi: any) => {
-        const amount = parseFloat(oi.amount);
         allTransactions.push({
           date: new Date(oi.transactionDate),
           type: 'other_income',
-          status: 'settled',
-          description: `Pendapatan Lain-lain: ${oi.buyerName} via ${oi.bankName}`,
-          debit: amount,
+          description: `${oi.buyerName} via ${oi.bankName}`,
+          debit: parseFloat(oi.amount),
           credit: 0,
-          invoiceNumber: null,
-        });
-        allTransactions.push({
-          date: new Date(oi.transactionDate),
-          type: 'tipe_pelunasan',
-          status: 'settled', // MUST be 'settled' so credit reduces running balance to 0
-          description: `Tipe Pelunasan: ${oi.notes ? oi.notes : oi.bankName}`,
-          debit: 0,
-          credit: amount,
+          netAmount: 0,
+          platformFee: 0,
           invoiceNumber: null,
         });
       });
 
-      // Sort by date (oldest first), carry_forward always first
+      // Sort: carry_forward first, then by date (oldest first)
       allTransactions.sort((a, b) => {
         if (a.type === 'carry_forward') return -1;
         if (b.type === 'carry_forward') return 1;
         return a.date.getTime() - b.date.getTime();
       });
 
-      // Calculate running balance (only settled transactions affect balance)
-      // runningBalance starts at 0 — carry_forward row (if any) is the first settled entry
+      // AR running balance: debit increases, credit decreases (debit can be negative for fees)
       let runningBalance = 0;
       const transactions = allTransactions.map((txn, index) => {
-        if (txn.status === 'settled') {
+        const affectsBalance = txn.type !== 'cancelled';
+        if (affectsBalance) {
           runningBalance += txn.debit - txn.credit;
         }
         return {
           no: index + 1,
           date: txn.date,
           type: txn.type,
-          status: txn.status,
           description: txn.description,
           debit: txn.debit,
           credit: txn.credit,
-          balance: txn.status === 'settled' ? runningBalance : null,
+          netAmount: txn.netAmount,
+          platformFee: txn.platformFee,
+          balance: affectsBalance ? runningBalance : null,
           invoiceNumber: txn.invoiceNumber,
         };
       });
 
-      // Summary totals
-      const totalIncome = transactions
-        .filter(t => t.type === 'income' || t.type === 'other_income')
-        .reduce((sum, t) => sum + t.debit, 0);
-
+      // ─── Summary totals ────────────────────────────────────────────────────
       const totalSelisih = settlements.reduce((sum: number, s: any) => {
         const gross = s.sale ? parseFloat(s.sale.totalAmount) : parseFloat(s.netAmount);
         return sum + (gross - parseFloat(s.netAmount));
       }, 0);
 
-      // Piutang periode ini
-      const piutang = unsettledSales.reduce((sum: number, sale: any) =>
-        sum + parseFloat(sale.totalAmount), 0);
+      const totalGrossSettled = settlements.reduce((sum: number, s: any) => {
+        const gross = s.sale ? parseFloat(s.sale.totalAmount) : parseFloat(s.netAmount);
+        return sum + gross;
+      }, 0);
 
-      // Sisa piutang akhir — SQL SUM for scalability
+      const totalOtherIncome = otherIncomes.reduce((sum: number, oi: any) =>
+        sum + parseFloat(oi.amount), 0);
+
+      const danaBersih = totalGrossSettled - totalSelisih + totalOtherIncome;
+
+      // Piutang (unsettled) in current period
+      const piutang = salesInPeriod
+        .filter((s: any) => s.status !== 'SETTLED')
+        .reduce((sum: number, s: any) => sum + parseFloat(s.totalAmount), 0);
+
+      // Sisa piutang akhir — SQL SUM
       const piutangEndWhere: any = {
         status: { [Op.notIn]: ['SETTLED', 'CANCELLED', 'REJECTED'] },
         isInitialBalance: false,
@@ -289,62 +293,33 @@ export const financialController = {
       const exactPiutangAtEnd = await Sale.sum('totalAmount', { where: piutangEndWhere }) || 0;
       const sisaPiutangAkhir = exactPiutangAtEnd + initialBalanceAtEnd;
 
-      // ─── OMSET KESELURUHAN: total semua penjualan dalam periode filter ───
-      const omsetWhereClause: any = {
-        status: { [Op.notIn]: ['CANCELLED', 'REJECTED'] },
-        isInitialBalance: false,
-      };
-      if (start && end) {
-        omsetWhereClause.saleDate = { [Op.between]: [start, end] };
-      }
-      const omsetKeseluruhan = await Sale.sum('totalAmount', {
-        where: omsetWhereClause,
-      }) || 0;
+      // Omset = total all non-cancelled sales in period (= Total Debit dari penjualan)
+      const omsetKeseluruhan = salesInPeriod.reduce((sum: number, s: any) =>
+        sum + parseFloat(s.totalAmount), 0);
 
-      const danaBersih = settlements.reduce((sum: number, s: any) =>
-        sum + parseFloat(s.netAmount), 0
-      ) + otherIncomes.reduce((sum: number, oi: any) =>
-        sum + parseFloat(oi.amount), 0);
-
-      const totalExpense = transactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + t.credit, 0);
-
-      // We explicitly calculate displayCarryForward to show the mathematically reduced initial balance on the UI card
       const displayCarryForward = (carryForwardPiutang - initialBalanceAtStart) + initialBalanceAtEnd;
 
-      // ─── AR LEDGER FORMULA FIELDS ───────────────────────
-      // Total gross amount of all settlements in this period (pelunasan diterima)
-      const totalGrossSettled = settlements.reduce((sum: number, s: any) => {
-        const gross = s.sale ? parseFloat(s.sale.totalAmount) : parseFloat(s.netAmount);
-        return sum + gross;
-      }, 0);
-
-      // Total net amount received (after platform fees)
       const totalPelunasanNet = settlements.reduce((sum: number, s: any) =>
-        sum + parseFloat(s.netAmount), 0
-      );
+        sum + parseFloat(s.netAmount), 0);
 
-      // Total other income received
-      const totalOtherIncome = otherIncomes.reduce((sum: number, oi: any) =>
-        sum + parseFloat(oi.amount), 0);
+      // Net debit = omset (positive) + fees (negative) — matches Excel "Total Debit"
+      const netOmset = omsetKeseluruhan - totalSelisih;
 
       const summary = {
-        totalIncome,
         totalSelisih,
         danaBersih,
         piutang,
         carryForwardPiutang: displayCarryForward,
-        saldoAwalPiutang: carryForwardPiutang, // raw carry forward (used in table row 1)
+        saldoAwalPiutang: carryForwardPiutang,
         sisaPiutangAkhir,
-        totalExpense,
-        finalBalance: runningBalance,
         omsetKeseluruhan,
-        totalGrossSettled,       // for AR ledger formula
-        totalPelunasanNet,       // net received after fees
-        totalOtherIncome,        // other income total
+        netOmset,
+        totalGrossSettled,
+        totalPelunasanNet,
+        totalOtherIncome,
+        saldoAkhirAR: carryForwardPiutang + omsetKeseluruhan - totalGrossSettled,
         transactionCount: transactions.filter(t =>
-          t.type === 'income' || t.type === 'other_income' || t.type === 'piutang'
+          t.type === 'sale_settled' || t.type === 'sale_pending' || t.type === 'settlement' || t.type === 'other_income'
         ).length,
       };
 
