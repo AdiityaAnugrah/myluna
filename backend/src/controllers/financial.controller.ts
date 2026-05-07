@@ -282,6 +282,7 @@ export const financialController = {
           no: index + 1,
           date: txn.date,
           type: txn.type,
+          group: txn.group ?? 2,
           description: txn.description,
           debit: txn.debit,
           credit: txn.credit,

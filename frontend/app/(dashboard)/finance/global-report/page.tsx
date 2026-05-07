@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useFinancialSummary } from '@/lib/hooks/useFinancial';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,7 +43,9 @@ interface DisplayRow {
   platformFee: number;
   balance: number | null;
   displayType: DisplayType;
+  group: number;
 }
+
 
 export default function GlobalReportPage() {
   const today = new Date();
@@ -87,6 +89,7 @@ export default function GlobalReportPage() {
     let runningBalance = 0;
 
     transactions.forEach((txn: any) => {
+      const grp: number = txn.group ?? 2;
       if (txn.type === 'carry_forward') {
         runningBalance += txn.debit;
         rows.push({
@@ -100,6 +103,7 @@ export default function GlobalReportPage() {
           platformFee: 0,
           balance: runningBalance,
           displayType: 'carry_forward',
+          group: 0,
         });
       } else if (txn.type === 'sale_settled' || txn.type === 'sale_pending') {
         runningBalance += txn.debit;
@@ -114,6 +118,7 @@ export default function GlobalReportPage() {
           platformFee: 0,
           balance: runningBalance,
           displayType: txn.type === 'sale_settled' ? 'sale_settled' : 'sale_pending',
+          group: grp,
         });
       } else if (txn.type === 'settlement') {
         runningBalance -= txn.credit;
@@ -128,23 +133,24 @@ export default function GlobalReportPage() {
           platformFee: txn.platformFee || 0,
           balance: runningBalance,
           displayType: 'settlement',
+          group: grp,
         });
       } else if (txn.type === 'settlement_fee') {
-        runningBalance += txn.debit; // debit is negative fee
+        runningBalance += txn.debit;
         rows.push({
           no: counter++,
           date: new Date(txn.date),
           invoiceNumber: txn.invoiceNumber,
           description: txn.description,
-          debit: txn.debit, // negative value
+          debit: txn.debit,
           kredit: 0,
           netAmount: 0,
           platformFee: txn.platformFee || 0,
           balance: runningBalance,
           displayType: 'settlement_fee',
+          group: grp,
         });
       } else if (txn.type === 'other_income') {
-        // other_income tidak pengaruhi saldo AR (hanya lewat, bukan piutang)
         rows.push({
           no: counter++,
           date: new Date(txn.date),
@@ -156,6 +162,7 @@ export default function GlobalReportPage() {
           platformFee: 0,
           balance: null,
           displayType: 'other_income',
+          group: grp,
         });
       } else if (txn.type === 'cancelled') {
         rows.push({
@@ -169,6 +176,7 @@ export default function GlobalReportPage() {
           platformFee: 0,
           balance: null,
           displayType: 'cancelled',
+          group: grp,
         });
       }
     });
@@ -469,88 +477,113 @@ export default function GlobalReportPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  displayRows.map((row) => (
-                    <TableRow
-                      key={`${row.displayType}_${row.no}`}
-                      className={
-                        row.displayType === 'carry_forward'
-                          ? 'bg-blue-50/60 dark:bg-blue-950/20 font-semibold'
-                          : row.displayType === 'sale_pending'
-                          ? 'bg-amber-50/40 dark:bg-amber-950/10'
-                          : row.displayType === 'cancelled'
-                          ? 'opacity-40 bg-gray-50/50 dark:bg-gray-900/20'
-                          : row.displayType === 'other_income'
-                          ? 'bg-blue-50/20 dark:bg-blue-950/10'
-                          : ''
-                      }
-                    >
-                      <TableCell className="text-center text-sm font-medium">{row.no}</TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">
-                        {new Date(row.date).toLocaleDateString('id-ID', {
-                          day: '2-digit', month: 'short', year: 'numeric',
-                        })}
-                      </TableCell>
-                      <TableCell
-                        className="max-w-xs text-sm"
-                        style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}
-                      >
-                        {row.displayType === 'cancelled' ? (
-                          <span className="line-through text-muted-foreground">{row.description}</span>
-                        ) : (
-                          row.description
+                  displayRows.map((row, idx) => {
+                    const prevRow = idx > 0 ? displayRows[idx - 1] : null;
+                    const isGroupChange = prevRow !== null && prevRow.group !== row.group;
+                    const sectionLabel =
+                      row.group === 1
+                        ? '▼ Pelunasan Piutang Bulan Lalu (ngurangi carry-forward dulu)'
+                        : row.group === 2 && isGroupChange
+                        ? '▼ Transaksi Periode Ini'
+                        : null;
+                    return (
+                      <React.Fragment key={`frag_${row.no}`}>
+                        {isGroupChange && sectionLabel && (
+                          <TableRow>
+                            <TableCell
+                              colSpan={8}
+                              className={
+                                row.group === 1
+                                  ? 'bg-orange-100 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 text-xs font-bold py-1.5 px-4 border-y border-orange-200 dark:border-orange-800'
+                                  : 'bg-indigo-100 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 text-xs font-bold py-1.5 px-4 border-y border-indigo-200 dark:border-indigo-800'
+                              }
+                            >
+                              {sectionLabel}
+                            </TableCell>
+                          </TableRow>
                         )}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-sm">
-                        {row.debit > 0 ? (
-                          <span className={row.displayType === 'carry_forward' ? 'text-blue-600' : 'text-green-600'}>
-                            {formatCurrency(row.debit)}
-                          </span>
-                        ) : row.debit < 0 ? (
-                          <span className="text-orange-500">-{formatCurrency(Math.abs(row.debit))}</span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-sm">
-                        {row.kredit > 0 ? (
-                          <span className="text-red-500">{formatCurrency(row.kredit)}</span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-sm">
-                        {row.balance !== null ? (
-                          <span className="text-purple-600">{formatCurrency(row.balance)}</span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs italic">
-                            {'-'}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {row.displayType === 'carry_forward' ? (
-                          <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">Saldo Awal</Badge>
-                        ) : row.displayType === 'sale_settled' ? (
-                          <Badge variant="outline" className="text-green-700 border-green-400 text-xs">Penjualan ✓</Badge>
-                        ) : row.displayType === 'sale_pending' ? (
-                          <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">Piutang</Badge>
-                        ) : row.displayType === 'settlement' ? (
-                          <Badge variant="outline" className="text-green-600 border-green-300 text-xs">Pelunasan</Badge>
-                        ) : row.displayType === 'settlement_fee' ? (
-                          <Badge variant="outline" className="text-orange-500 border-orange-300 text-xs">Biaya Platform</Badge>
-                        ) : row.displayType === 'other_income' ? (
-                          <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">Lain-lain</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-gray-400 border-gray-300 text-xs">Dibatalkan</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground max-w-[130px] truncate">
-                        {row.invoiceNumber
-                          ? row.invoiceNumber.split('-CANCELLED')[0].split('-REJECTED')[0]
-                          : '-'}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                        <TableRow
+                          className={
+                            row.displayType === 'carry_forward'
+                              ? 'bg-blue-50/60 dark:bg-blue-950/20 font-semibold'
+                              : row.group === 1
+                              ? 'bg-orange-50/50 dark:bg-orange-950/10'
+                              : row.displayType === 'sale_pending'
+                              ? 'bg-amber-50/40 dark:bg-amber-950/10'
+                              : row.displayType === 'cancelled'
+                              ? 'opacity-40 bg-gray-50/50 dark:bg-gray-900/20'
+                              : row.displayType === 'other_income'
+                              ? 'bg-blue-50/20 dark:bg-blue-950/10'
+                              : ''
+                          }
+                        >
+                          <TableCell className="text-center text-sm font-medium">{row.no}</TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">
+                            {new Date(row.date).toLocaleDateString('id-ID', {
+                              day: '2-digit', month: 'short', year: 'numeric',
+                            })}
+                          </TableCell>
+                          <TableCell
+                            className="max-w-xs text-sm"
+                            style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}
+                          >
+                            {row.displayType === 'cancelled' ? (
+                              <span className="line-through text-muted-foreground">{row.description}</span>
+                            ) : (
+                              row.description
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-sm">
+                            {row.debit > 0 ? (
+                              <span className={row.displayType === 'carry_forward' ? 'text-blue-600' : 'text-green-600'}>
+                                {formatCurrency(row.debit)}
+                              </span>
+                            ) : row.debit < 0 ? (
+                              <span className="text-orange-500">-{formatCurrency(Math.abs(row.debit))}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-sm">
+                            {row.kredit > 0 ? (
+                              <span className="text-red-500">{formatCurrency(row.kredit)}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-sm">
+                            {row.balance !== null ? (
+                              <span className="text-purple-600">{formatCurrency(row.balance)}</span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs italic">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {row.displayType === 'carry_forward' ? (
+                              <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">Saldo Awal</Badge>
+                            ) : row.displayType === 'sale_settled' ? (
+                              <Badge variant="outline" className="text-green-700 border-green-400 text-xs">Penjualan ✓</Badge>
+                            ) : row.displayType === 'sale_pending' ? (
+                              <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">Piutang</Badge>
+                            ) : row.displayType === 'settlement' ? (
+                              <Badge variant="outline" className="text-green-600 border-green-300 text-xs">Pelunasan</Badge>
+                            ) : row.displayType === 'settlement_fee' ? (
+                              <Badge variant="outline" className="text-orange-500 border-orange-300 text-xs">Biaya Platform</Badge>
+                            ) : row.displayType === 'other_income' ? (
+                              <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">Lain-lain</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-gray-400 border-gray-300 text-xs">Dibatalkan</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground max-w-[130px] truncate">
+                            {row.invoiceNumber
+                              ? row.invoiceNumber.split('-CANCELLED')[0].split('-REJECTED')[0]
+                              : '-'}
+                          </TableCell>
+                        </TableRow>
+                      </React.Fragment>
+                    );
+                  })
                 )}
               </TableBody>
               {displayRows.length > 0 && (
