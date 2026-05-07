@@ -542,7 +542,7 @@ export default function GlobalReportPage() {
                                 {row.description}
                                 {(row.displayType === 'settlement' || row.displayType === 'settlement_fee') && row.saleDate && (
                                   <span className="block text-[10px] text-muted-foreground mt-0.5">
-                                    pelunasan penjualan tgl {new Date(row.saleDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    pelunasan penjualan yang di tgl {new Date(row.saleDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
                                   </span>
                                 )}
                               </span>
