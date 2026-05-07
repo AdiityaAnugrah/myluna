@@ -34,6 +34,7 @@ export const financialController = {
       const initialBalanceSale = await Sale.findOne({ where: { isInitialBalance: true } });
       let initialBalanceAtStart = 0;
       let initialBalanceAtEnd = 0;
+      let histInPeriod = 0;
 
       if (initialBalanceSale) {
         const initialBalanceOriginal = Number(initialBalanceSale.totalAmount);
@@ -45,6 +46,8 @@ export const financialController = {
         const histUntilEnd = end
           ? await HistoricalSettlement.sum('amount', { where: { settlementDate: { [Op.lte]: end } } }) || 0
           : await HistoricalSettlement.sum('amount') || 0;
+
+        histInPeriod = histUntilEnd - histBeforeStart;
 
         initialBalanceAtStart = Math.max(0, initialBalanceOriginal - histBeforeStart);
         initialBalanceAtEnd = Math.max(0, initialBalanceOriginal - histUntilEnd);
@@ -367,9 +370,9 @@ export const financialController = {
         omsetKeseluruhan,
         netOmset,
         totalGrossSettled,
-        totalPelunasanNet,
+        totalPelunasanNet: totalPelunasanNet + histInPeriod,
         totalOtherIncome,
-        saldoAkhirAR: carryForwardPiutang + omsetKeseluruhan - totalGrossSettled,
+        saldoAkhirAR: carryForwardPiutang + omsetKeseluruhan - totalGrossSettled - histInPeriod,
         transactionCount: transactions.filter(t =>
           t.type === 'sale_settled' || t.type === 'sale_pending' || t.type === 'settlement' || t.type === 'other_income'
         ).length,
