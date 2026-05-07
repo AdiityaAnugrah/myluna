@@ -30,6 +30,7 @@ jobs:
             cd /mine/myluna.web.id/backend
             npm install --production=false
             npm run build
+            npm run migrate
             pm2 restart app_background_lunarea --update-env
 
             echo "=== Build Frontend ==="
