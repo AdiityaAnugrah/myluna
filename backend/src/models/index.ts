@@ -20,6 +20,7 @@ import Settlement from './Settlement';
 import Expense from './Expense';
 import ShippingService from './ShippingService';
 import OtherIncome from './OtherIncome';
+import HistoricalSettlement from './HistoricalSettlement';
 import VariantOption from './VariantOption';
 
 // Define associations
@@ -137,5 +138,6 @@ export {
   Expense,
   ShippingService,
   OtherIncome,
+  HistoricalSettlement,
   VariantOption,
 };

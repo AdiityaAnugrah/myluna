@@ -16,6 +16,7 @@ import {
   BarChart3,
   Wallet,
   Activity,
+  History as HistoryIcon,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -31,8 +32,9 @@ import * as XLSX from 'xlsx';
 import { SetInitialBalanceModal } from '@/components/SetInitialBalanceModal';
 import { OmsetBreakdownModal } from '@/components/OmsetBreakdownModal';
 import { ImportSettlementsModal } from '@/components/ImportSettlementsModal';
+import { HistoricalSettlementModal } from '@/components/HistoricalSettlementModal';
 
-type DisplayType = 'carry_forward' | 'sale_settled' | 'sale_pending' | 'settlement' | 'settlement_fee' | 'other_income' | 'cancelled';
+type DisplayType = 'carry_forward' | 'sale_settled' | 'sale_pending' | 'settlement' | 'settlement_fee' | 'historical_settlement' | 'other_income' | 'cancelled';
 
 interface DisplayRow {
   no: number;
@@ -67,6 +69,7 @@ export default function GlobalReportPage() {
   const [isInitialBalanceModalOpen, setIsInitialBalanceModalOpen] = useState(false);
   const [isOmsetModalOpen, setIsOmsetModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isHistoricalModalOpen, setIsHistoricalModalOpen] = useState(false);
 
   const { user } = useAuth();
 
@@ -159,6 +162,22 @@ export default function GlobalReportPage() {
           displayType: 'settlement_fee',
           group: grp,
         });
+      } else if (txn.type === 'historical_settlement') {
+        runningBalance -= txn.credit;
+        rows.push({
+          no: counter++,
+          date: new Date(txn.date),
+          invoiceNumber: null,
+          description: txn.description,
+          saleDate: null,
+          debit: 0,
+          kredit: txn.credit,
+          netAmount: txn.credit,
+          platformFee: 0,
+          balance: runningBalance,
+          displayType: 'historical_settlement',
+          group: 1,
+        });
       } else if (txn.type === 'other_income') {
         rows.push({
           no: counter++,
@@ -217,6 +236,7 @@ export default function GlobalReportPage() {
       sale_pending: 'Piutang (Menunggu)',
       settlement: 'Pelunasan (Net)',
       settlement_fee: 'Biaya Platform',
+      historical_settlement: 'Pelunasan Piutang Historis',
       other_income: 'Pendapatan Lain',
       cancelled: 'Dibatalkan',
     };
@@ -327,14 +347,24 @@ export default function GlobalReportPage() {
               )}
               <Button variant="outline" size="sm" onClick={handleReset}>Reset</Button>
               {user?.role === 'SUPER_ADMIN' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsImportModalOpen(true)}
-                  className="border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30"
-                >
-                  <Upload className="h-4 w-4 mr-1" /> Import Settlement
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsHistoricalModalOpen(true)}
+                    className="border-purple-500 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
+                  >
+                    <HistoryIcon className="h-4 w-4 mr-1" /> Lunasi Piutang Historis
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsImportModalOpen(true)}
+                    className="border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30"
+                  >
+                    <Upload className="h-4 w-4 mr-1" /> Import Settlement
+                  </Button>
+                </>
               )}
               <Button
                 variant="outline"
@@ -368,6 +398,10 @@ export default function GlobalReportPage() {
       <ImportSettlementsModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
+      />
+      <HistoricalSettlementModal
+        isOpen={isHistoricalModalOpen}
+        onClose={() => setIsHistoricalModalOpen(false)}
       />
 
       {/* ─── REKAP PIUTANG ─── */}
@@ -601,6 +635,8 @@ export default function GlobalReportPage() {
                               <Badge variant="outline" className="text-green-600 border-green-300 text-xs">Pelunasan</Badge>
                             ) : row.displayType === 'settlement_fee' ? (
                               <Badge variant="outline" className="text-orange-500 border-orange-300 text-xs">Biaya Platform</Badge>
+                            ) : row.displayType === 'historical_settlement' ? (
+                              <Badge variant="outline" className="text-purple-600 border-purple-300 text-xs">Piutang Historis</Badge>
                             ) : row.displayType === 'other_income' ? (
                               <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">Lain-lain</Badge>
                             ) : (

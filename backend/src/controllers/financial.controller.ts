@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Settlement, Sale, SaleItem, Product, User } from '../models';
 import { PaymentMethod, SalePlatform } from '../models/Sale';
 import OtherIncome from '../models/OtherIncome';
+import HistoricalSettlement from '../models/HistoricalSettlement';
 import { successResponse } from '../utils/response';
 import { Op } from 'sequelize';
 import { sequelize } from '../config/database';
@@ -30,35 +31,31 @@ export const financialController = {
       }
 
       // ─── DYNAMIC SALDO AWAL (Piutang Lama) ───────────────
-      // Calculate remaining initial balance by subtracting ALL system settlements until the report date
-      const initialBalanceSale = await Sale.findOne({
-        where: { isInitialBalance: true }
-      });
+      const initialBalanceSale = await Sale.findOne({ where: { isInitialBalance: true } });
       let initialBalanceAtStart = 0;
       let initialBalanceAtEnd = 0;
 
       if (initialBalanceSale) {
         const initialBalanceOriginal = Number(initialBalanceSale.totalAmount);
-        let settledBeforeStart = 0;
-        let settledUntilEnd = 0;
 
-        if (start) {
-          settledBeforeStart = await Settlement.sum('netAmount', {
-            where: { settlementDate: { [Op.lt]: start } }
-          }) || 0;
-        }
+        // Historical settlements reduce the initial balance (pelunasan piutang historis tanpa sale record)
+        const histBeforeStart = start
+          ? await HistoricalSettlement.sum('amount', { where: { settlementDate: { [Op.lt]: start } } }) || 0
+          : 0;
+        const histUntilEnd = end
+          ? await HistoricalSettlement.sum('amount', { where: { settlementDate: { [Op.lte]: end } } }) || 0
+          : await HistoricalSettlement.sum('amount') || 0;
 
-        if (end) {
-          settledUntilEnd = await Settlement.sum('netAmount', {
-            where: { settlementDate: { [Op.lte]: end } }
-          }) || 0;
-        } else {
-          settledUntilEnd = await Settlement.sum('netAmount') || 0;
-        }
-
-        initialBalanceAtStart = Math.max(0, initialBalanceOriginal - settledBeforeStart);
-        initialBalanceAtEnd = Math.max(0, initialBalanceOriginal - settledUntilEnd);
+        initialBalanceAtStart = Math.max(0, initialBalanceOriginal - histBeforeStart);
+        initialBalanceAtEnd = Math.max(0, initialBalanceOriginal - histUntilEnd);
       }
+
+      // ─── Fetch historical settlements in period → group 1 KREDIT rows ────────
+      const historicalSettlements = start && end
+        ? await HistoricalSettlement.findAll({
+            where: { settlementDate: { [Op.between]: [startDate as string, endDate as string] } },
+          })
+        : await HistoricalSettlement.findAll();
 
       // ─── CARRY-FORWARD: Sisa Piutang dari sebelum periode ini ───────────────
       // SQL SUM for scalability — no row limit
@@ -264,6 +261,25 @@ export const financialController = {
         });
       });
 
+      // Historical settlements → group 1 KREDIT rows (reduces carry-forward piutang historis)
+      historicalSettlements.forEach((hs: any) => {
+        const amount = parseFloat(hs.amount);
+        const label = [hs.buyerName, hs.bankName ? `via ${hs.bankName}` : null, hs.notes]
+          .filter(Boolean).join(' ');
+        allTransactions.push({
+          date: new Date(hs.settlementDate),
+          group: 1,
+          type: 'historical_settlement',
+          description: label || 'Pelunasan Piutang Historis',
+          saleDate: null,
+          debit: 0,
+          credit: amount,
+          netAmount: amount,
+          platformFee: 0,
+          invoiceNumber: null,
+        });
+      });
+
       // Sort: group 0=carry_forward → group 1=prev period settlements (reduces carry-forward first)
       //        → group 2=current period (sales + settlements + other), by date within each group
       allTransactions.sort((a, b) => {
@@ -425,6 +441,49 @@ export const financialController = {
       });
 
       return successResponse(res, initialBalanceSale, 'Saldo awal piutang berhasil diatur', 201);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async createHistoricalSettlement(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { amount, settlementDate, bankName, buyerName, notes } = req.body;
+      const parsedAmount = parseFloat(amount);
+
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ success: false, message: 'Amount harus angka positif' });
+      }
+      if (!settlementDate) {
+        return res.status(400).json({ success: false, message: 'Tanggal cair wajib diisi' });
+      }
+
+      // Check initial balance exists
+      const initialBalanceSale = await Sale.findOne({ where: { isInitialBalance: true } });
+      if (!initialBalanceSale) {
+        return res.status(400).json({ success: false, message: 'Saldo awal piutang belum diatur. Set dulu via "Set Saldo Awal".' });
+      }
+
+      // Check remaining initial balance
+      const totalHistSettled = await HistoricalSettlement.sum('amount') || 0;
+      const remaining = Number(initialBalanceSale.totalAmount) - totalHistSettled;
+      if (parsedAmount > remaining) {
+        return res.status(400).json({
+          success: false,
+          message: `Jumlah melebihi sisa piutang historis (Rp ${remaining.toLocaleString('id-ID')})`,
+        });
+      }
+
+      const record = await HistoricalSettlement.create({
+        amount: String(parsedAmount),
+        settlementDate: new Date(settlementDate),
+        bankName: bankName || null,
+        buyerName: buyerName || null,
+        notes: notes || null,
+        createdBy: req.user!.id,
+      });
+
+      return successResponse(res, record, 'Pelunasan piutang historis berhasil dicatat', 201);
     } catch (error) {
       return next(error);
     }
