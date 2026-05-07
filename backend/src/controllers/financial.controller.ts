@@ -74,31 +74,49 @@ export const financialController = {
         carryForwardPiutang = prevUnsettledSum + initialBalanceAtStart;
       }
 
-      // ─── Fetch settlements in period (by sale's saleDate) → KREDIT rows ──────
-      // Grouped by sale month: settlement for March sale counted in March even if received in April
-      const settlementSaleWhere: any = {
-        status: { [Op.not]: 'CANCELLED' },
-        isInitialBalance: false,
-      };
-      if (start && end) {
-        settlementSaleWhere.saleDate = { [Op.between]: [start, end] };
-      }
-      const settlements = await Settlement.findAll({
+      // ─── Fetch settlements → KREDIT rows (two groups) ────────────────────────
+      // Group 1: settlements for CURRENT period's sales (by sale.saleDate in period)
+      //          → March sale settled in April still counts in March
+      // Group 2: settlements RECEIVED in period for PREVIOUS sales (by settlementDate)
+      //          → February sale settled in March reduces the carry-forward
+      const settlementInclude = (saleWhere: any) => ({
+        model: Sale,
+        as: 'sale',
+        where: saleWhere,
         include: [
           {
-            model: Sale,
-            as: 'sale',
-            where: settlementSaleWhere,
-            include: [
-              {
-                model: SaleItem,
-                as: 'items',
-                include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
-              },
-            ],
+            model: SaleItem,
+            as: 'items',
+            include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
           },
         ],
       });
+
+      const currentSaleWhere: any = { status: { [Op.not]: 'CANCELLED' }, isInitialBalance: false };
+      if (start && end) currentSaleWhere.saleDate = { [Op.between]: [start, end] };
+      const currentPeriodSettlements = await Settlement.findAll({
+        include: [settlementInclude(currentSaleWhere)],
+      });
+
+      // Previous sales settled within this period (reduces carry-forward)
+      let prevPeriodSettlements: any[] = [];
+      if (start) {
+        const prevSaleWhere: any = {
+          status: { [Op.not]: 'CANCELLED' },
+          isInitialBalance: false,
+          saleDate: { [Op.lt]: start },
+        };
+        const prevSettleWhere: any = {};
+        if (start && end) {
+          prevSettleWhere.settlementDate = { [Op.between]: [startDate as string, endDate as string] };
+        }
+        prevPeriodSettlements = await Settlement.findAll({
+          where: prevSettleWhere,
+          include: [settlementInclude(prevSaleWhere)],
+        });
+      }
+
+      const settlements = [...currentPeriodSettlements, ...prevPeriodSettlements];
 
       // ─── Fetch all non-cancelled sales in period (by saleDate) → DEBIT rows ─
       const salesInPeriodWhere: any = {
@@ -241,9 +259,10 @@ export const financialController = {
       });
 
       // AR running balance: debit increases, credit decreases (debit can be negative for fees)
+      // other_income does NOT affect AR balance — it's separate cash, not piutang
       let runningBalance = 0;
       const transactions = allTransactions.map((txn, index) => {
-        const affectsBalance = txn.type !== 'cancelled';
+        const affectsBalance = txn.type !== 'cancelled' && txn.type !== 'other_income';
         if (affectsBalance) {
           runningBalance += txn.debit - txn.credit;
         }

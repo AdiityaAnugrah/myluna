@@ -144,7 +144,7 @@ export default function GlobalReportPage() {
           displayType: 'settlement_fee',
         });
       } else if (txn.type === 'other_income') {
-        runningBalance += txn.debit;
+        // other_income tidak pengaruhi saldo AR (hanya lewat, bukan piutang)
         rows.push({
           no: counter++,
           date: new Date(txn.date),
@@ -154,7 +154,7 @@ export default function GlobalReportPage() {
           kredit: 0,
           netAmount: 0,
           platformFee: 0,
-          balance: runningBalance,
+          balance: null,
           displayType: 'other_income',
         });
       } else if (txn.type === 'cancelled') {
