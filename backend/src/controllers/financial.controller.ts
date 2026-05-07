@@ -163,6 +163,7 @@ export const financialController = {
       if (carryForwardPiutang > 0) {
         allTransactions.push({
           date: start!,
+          group: 0,
           type: 'carry_forward',
           description: 'Saldo Awal – Piutang Terbawa dari Periode Sebelumnya',
           debit: carryForwardPiutang,
@@ -178,6 +179,7 @@ export const financialController = {
         const itemNames = (sale.items || []).map((i: any) => i.product?.name || 'Unknown').join(', ');
         allTransactions.push({
           date: new Date(sale.saleDate),
+          group: 2,
           type: sale.status === 'SETTLED' ? 'sale_settled' : 'sale_pending',
           description: itemNames,
           debit: parseFloat(sale.totalAmount),
@@ -191,6 +193,9 @@ export const financialController = {
       // All settlements → TWO rows each (matching Excel model):
       //   Row 1 (settlement):     Kredit = netAmount received
       //   Row 2 (settlement_fee): Debit  = -(platform fee), negative
+      // prevPeriod settlements get group=1 so they sort BEFORE current period sales (group=2)
+      const prevPeriodIds = new Set(prevPeriodSettlements.map((s: any) => s.id));
+
       settlements.forEach((settlement: any) => {
         const sale = settlement.sale;
         const items = sale?.items || [];
@@ -198,8 +203,10 @@ export const financialController = {
         const grossAmount = sale ? parseFloat(sale.totalAmount) : parseFloat(settlement.netAmount);
         const netAmount = parseFloat(settlement.netAmount);
         const fee = grossAmount - netAmount;
+        const isPrev = prevPeriodIds.has(settlement.id);
         allTransactions.push({
           date: new Date(settlement.settlementDate),
+          group: isPrev ? 1 : 2,
           type: 'settlement',
           description: itemNames,
           debit: 0,
@@ -211,6 +218,7 @@ export const financialController = {
         if (fee > 0) {
           allTransactions.push({
             date: new Date(settlement.settlementDate),
+            group: isPrev ? 1 : 2,
             type: 'settlement_fee',
             description: itemNames,
             debit: -fee,
@@ -227,6 +235,7 @@ export const financialController = {
         const itemNames = (sale.items || []).map((i: any) => i.product?.name || 'Unknown').join(', ');
         allTransactions.push({
           date: new Date(sale.saleDate),
+          group: 2,
           type: 'cancelled',
           description: itemNames,
           debit: 0,
@@ -241,6 +250,7 @@ export const financialController = {
       otherIncomes.forEach((oi: any) => {
         allTransactions.push({
           date: new Date(oi.transactionDate),
+          group: 2,
           type: 'other_income',
           description: `${oi.buyerName} via ${oi.bankName}`,
           debit: parseFloat(oi.amount),
@@ -251,10 +261,12 @@ export const financialController = {
         });
       });
 
-      // Sort: carry_forward first, then by date (oldest first)
+      // Sort: group 0=carry_forward → group 1=prev period settlements (reduces carry-forward first)
+      //        → group 2=current period (sales + settlements + other), by date within each group
       allTransactions.sort((a, b) => {
-        if (a.type === 'carry_forward') return -1;
-        if (b.type === 'carry_forward') return 1;
+        const ga = a.group ?? 2;
+        const gb = b.group ?? 2;
+        if (ga !== gb) return ga - gb;
         return a.date.getTime() - b.date.getTime();
       });
 
