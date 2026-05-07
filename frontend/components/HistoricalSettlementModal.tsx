@@ -49,6 +49,7 @@ export function HistoricalSettlementModal({ isOpen, onClose }: Props) {
   const headers = { Authorization: `Bearer ${accessToken}` };
 
   const fetchList = async () => {
+    if (!accessToken) return;
     setLoadingList(true);
     try {
       const res = await axios.get(`${API}/finance/historical-settlements`, { withCredentials: true, headers });
@@ -61,8 +62,8 @@ export function HistoricalSettlementModal({ isOpen, onClose }: Props) {
   };
 
   useEffect(() => {
-    if (isOpen && tab === 'list') fetchList();
-  }, [isOpen, tab]);
+    if (isOpen && tab === 'list' && accessToken) fetchList();
+  }, [isOpen, tab, accessToken]);
 
   const resetForm = () => {
     setEditId(null);
