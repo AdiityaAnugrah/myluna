@@ -61,16 +61,41 @@ export const financialController = {
         : await HistoricalSettlement.findAll();
 
       // ─── CARRY-FORWARD: Sisa Piutang dari sebelum periode ini ───────────────
-      // SQL SUM for scalability — no row limit
+      // Logika: Total sales sebelum periode - Total settled sebelum periode
       let carryForwardPiutang = 0;
       if (start) {
-        const prevUnsettledSum = await Sale.sum('totalAmount', {
+        // Total sales sebelum periode ini (exclude cancelled/rejected)
+        const totalSalesBeforePeriod = await Sale.sum('totalAmount', {
           where: {
-            status: { [Op.notIn]: ['SETTLED', 'CANCELLED', 'REJECTED'] },
+            status: { [Op.notIn]: ['CANCELLED', 'REJECTED'] },
             saleDate: { [Op.lt]: start },
             isInitialBalance: false,
           },
         }) || 0;
+
+        // Total yang sudah settled sebelum periode ini (gross amount)
+        const settledBeforePeriod = await Settlement.findAll({
+          where: {
+            settlementDate: { [Op.lt]: start }
+          },
+          include: [{
+            model: Sale,
+            as: 'sale',
+            where: {
+              saleDate: { [Op.lt]: start },
+              isInitialBalance: false,
+              status: { [Op.not]: 'CANCELLED' }
+            }
+          }]
+        });
+
+        const totalSettledBeforePeriod = settledBeforePeriod.reduce((sum, settlement: any) => {
+          const gross = settlement.sale ? parseFloat(settlement.sale.totalAmount) : 0;
+          return sum + gross;
+        }, 0);
+
+        // Carry forward = Sales - Settled (gross)
+        const prevUnsettledSum = totalSalesBeforePeriod - totalSettledBeforePeriod;
         carryForwardPiutang = prevUnsettledSum + initialBalanceAtStart;
       }
 
@@ -190,9 +215,9 @@ export const financialController = {
         });
       });
 
-      // All settlements → TWO rows each (matching Excel model):
-      //   Row 1 (settlement):     Kredit = netAmount received
-      //   Row 2 (settlement_fee): Debit  = -(platform fee), negative
+      // All settlements → TWO rows each (proper accounting):
+      //   Row 1 (settlement):     Kredit = netAmount received (cash in bank)
+      //   Row 2 (settlement_fee): Kredit = platform fee (reduces AR, not cash)
       // prevPeriod settlements get group=1 so they sort BEFORE current period sales (group=2)
       const prevPeriodIds = new Set(prevPeriodSettlements.map((s: any) => s.id));
 
@@ -224,8 +249,8 @@ export const financialController = {
             type: 'settlement_fee',
             description: itemNames,
             saleDate: saleDateRaw,
-            debit: -fee,
-            credit: 0,
+            debit: 0,
+            credit: fee,
             netAmount: 0,
             platformFee: fee,
             invoiceNumber: settlement.invoiceNumber,
@@ -292,7 +317,7 @@ export const financialController = {
         return a.date.getTime() - b.date.getTime();
       });
 
-      // AR running balance: debit increases, credit decreases (debit can be negative for fees)
+      // AR running balance: debit increases, credit decreases
       // other_income does NOT affect AR balance — it's separate cash, not piutang
       let runningBalance = 0;
       const transactions = allTransactions.map((txn, index) => {

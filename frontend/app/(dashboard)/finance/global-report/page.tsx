@@ -51,6 +51,39 @@ interface DisplayRow {
   group: number;
 }
 
+interface Transaction {
+  type: string;
+  date: string;
+  invoiceNumber?: string;
+  description: string;
+  saleDate?: string;
+  debit: number;
+  credit: number;
+  netAmount?: number;
+  platformFee?: number;
+  group?: number;
+}
+
+interface FinancialData {
+  data?: {
+    transactions?: Transaction[];
+    summary?: FinancialSummary;
+  };
+}
+
+interface FinancialSummary {
+  saldoAwalPiutang?: number;
+  omsetKeseluruhan?: number;
+  netOmset?: number;
+  totalPelunasanNet?: number;
+  totalGrossSettled?: number;
+  sisaPiutangAkhir?: number;
+  saldoAkhirAR?: number;
+  totalSelisih?: number;
+  danaBersih?: number;
+  piutang?: number;
+}
+
 
 export default function GlobalReportPage() {
   const today = new Date();
@@ -78,8 +111,8 @@ export default function GlobalReportPage() {
     { enabled: user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' }
   );
 
-  const transactions = (financialData as any)?.data?.transactions || [];
-  const summary = (financialData as any)?.data?.summary || {};
+  const transactions: Transaction[] = (financialData as FinancialData)?.data?.transactions || [];
+  const summary: FinancialSummary = (financialData as FinancialData)?.data?.summary || {};
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('id-ID', {
@@ -95,7 +128,7 @@ export default function GlobalReportPage() {
     let counter = 1;
     let runningBalance = 0;
 
-    transactions.forEach((txn: any) => {
+    transactions.forEach((txn: Transaction) => {
       const grp: number = txn.group ?? 2;
       const saleDateParsed = txn.saleDate ? new Date(txn.saleDate) : null;
       if (txn.type === 'carry_forward') {
@@ -103,8 +136,8 @@ export default function GlobalReportPage() {
         rows.push({
           no: counter++,
           date: new Date(txn.date),
-          invoiceNumber: null,
-          description: 'Piutang Terbawa dari Periode Sebelumnya',
+          invoiceNumber: txn.invoiceNumber || null,
+          description: txn.description,
           saleDate: null,
           debit: txn.debit,
           kredit: 0,
@@ -119,7 +152,7 @@ export default function GlobalReportPage() {
         rows.push({
           no: counter++,
           date: new Date(txn.date),
-          invoiceNumber: txn.invoiceNumber,
+          invoiceNumber: txn.invoiceNumber || null,
           description: txn.description,
           saleDate: null,
           debit: txn.debit,
@@ -135,7 +168,7 @@ export default function GlobalReportPage() {
         rows.push({
           no: counter++,
           date: new Date(txn.date),
-          invoiceNumber: txn.invoiceNumber,
+          invoiceNumber: txn.invoiceNumber || null,
           description: txn.description,
           saleDate: saleDateParsed,
           debit: 0,
@@ -147,15 +180,15 @@ export default function GlobalReportPage() {
           group: grp,
         });
       } else if (txn.type === 'settlement_fee') {
-        runningBalance += txn.debit;
+        runningBalance -= txn.credit;
         rows.push({
           no: counter++,
           date: new Date(txn.date),
-          invoiceNumber: txn.invoiceNumber,
+          invoiceNumber: txn.invoiceNumber || null,
           description: txn.description,
           saleDate: saleDateParsed,
-          debit: txn.debit,
-          kredit: 0,
+          debit: 0,
+          kredit: txn.credit,
           netAmount: 0,
           platformFee: txn.platformFee || 0,
           balance: runningBalance,
@@ -182,7 +215,7 @@ export default function GlobalReportPage() {
         rows.push({
           no: counter++,
           date: new Date(txn.date),
-          invoiceNumber: txn.invoiceNumber,
+          invoiceNumber: txn.invoiceNumber || null,
           description: txn.description,
           saleDate: null,
           debit: txn.debit,
@@ -197,7 +230,7 @@ export default function GlobalReportPage() {
         rows.push({
           no: counter++,
           date: new Date(txn.date),
-          invoiceNumber: txn.invoiceNumber,
+          invoiceNumber: txn.invoiceNumber || null,
           description: txn.description,
           saleDate: null,
           debit: 0,
@@ -241,7 +274,7 @@ export default function GlobalReportPage() {
       cancelled: 'Dibatalkan',
     };
 
-    const aoa: any[][] = [
+    const aoa: (string | number)[][] = [
       ['LUNAREA FURNITURE'],
       ['Laporan Transaksi Keuangan'],
       [`Periode: ${startDate} s/d ${endDate}`],
@@ -411,7 +444,9 @@ export default function GlobalReportPage() {
             <BarChart3 className="h-5 w-5 text-indigo-500" />
             Rekap Piutang Periode Ini
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Piutang Bulan Lalu + Total Debit − Total Kredit = Piutang Bulan Depan</p>
+          <p className="text-xs text-muted-foreground">
+            Cara Baca: <strong>Piutang Bulan Lalu</strong> + <strong>Penjualan Baru</strong> (dikurangi biaya) - <strong>Uang yang Sudah Cair</strong> = <strong>Piutang Bulan Depan</strong>
+          </p>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 items-center">
@@ -421,14 +456,14 @@ export default function GlobalReportPage() {
               <p className="text-[10px] text-muted-foreground">belum cair dari sebelumnya</p>
             </div>
             <div className="bg-green-500/10 rounded-lg p-3 text-center border border-green-500/20">
-              <p className="text-[10px] text-green-600 font-semibold uppercase tracking-wide">+ Total Debit</p>
+              <p className="text-[10px] text-green-600 font-semibold uppercase tracking-wide">+ Penjualan Baru</p>
               <p className="text-lg font-bold text-green-600">{formatCurrency(summary.netOmset || 0)}</p>
               <p className="text-[10px] text-muted-foreground">penjualan − biaya platform</p>
             </div>
             <div className="bg-red-500/10 rounded-lg p-3 text-center border border-red-500/20">
-              <p className="text-[10px] text-red-600 font-semibold uppercase tracking-wide">− Total Kredit</p>
+              <p className="text-[10px] text-red-600 font-semibold uppercase tracking-wide">− Uang Sudah Cair</p>
               <p className="text-lg font-bold text-red-600">{formatCurrency(summary.totalPelunasanNet || 0)}</p>
-              <p className="text-[10px] text-muted-foreground">uang yang sudah cair</p>
+              <p className="text-[10px] text-muted-foreground">uang yang sudah masuk rekening</p>
             </div>
             <div className="hidden md:flex items-center justify-center">
               <span className="text-2xl font-bold text-muted-foreground">=</span>
@@ -476,7 +511,7 @@ export default function GlobalReportPage() {
               <div>
                 <p className="text-xs text-muted-foreground">Potongan Platform</p>
                 <p className="text-lg font-bold text-orange-500">{formatCurrency(summary.totalSelisih || 0)}</p>
-                <p className="text-[10px] text-muted-foreground">biaya Shopee / Tokopedia dll</p>
+                <p className="text-[10px] text-muted-foreground">biaya Shopee / TikTok dll</p>
               </div>
               <TrendingDown className="h-5 w-5 text-orange-500" />
             </div>
@@ -497,6 +532,42 @@ export default function GlobalReportPage() {
         </Card>
       </div>
 
+      {/* Legend / Panduan Membaca */}
+      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Activity className="h-5 w-5 text-blue-600" />
+            Panduan Membaca Tabel
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="space-y-2">
+              <p className="font-semibold text-blue-700 dark:text-blue-300">Piutang Bertambah (Kolom Hijau)</p>
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                <li>• <strong>Angka Positif:</strong> Ada penjualan baru → piutang naik</li>
+                <li>• Contoh: Penjualan Rp 500.000 → piutang bertambah Rp 500.000</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <p className="font-semibold text-red-700 dark:text-red-300">Uang Masuk Rekening (Kolom Merah)</p>
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                <li>• <strong>Pelunasan:</strong> Uang masuk rekening → piutang berkurang</li>
+                <li>• <strong>Biaya Platform (oranye):</strong> Potongan Shopee/TikTok → piutang berkurang</li>
+                <li>• Contoh: Pelunasan Rp 382.150 + Biaya Rp 117.850 = Total piutang berkurang Rp 500.000</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <p className="font-semibold text-purple-700 dark:text-purple-300">Sisa Piutang (Kolom Ungu)</p>
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                <li>• Total uang yang <strong>belum cair</strong> dari marketplace</li>
+                <li>• Tanda &quot;n/a&quot; = tidak mempengaruhi piutang (pendapatan lain)</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Transaction Table */}
       <Card>
         <CardHeader>
@@ -514,9 +585,24 @@ export default function GlobalReportPage() {
                   <TableHead className="w-10 text-center">No</TableHead>
                   <TableHead className="whitespace-nowrap">Tanggal</TableHead>
                   <TableHead>Keterangan</TableHead>
-                  <TableHead className="text-right">Debit (Masuk)</TableHead>
-                  <TableHead className="text-right">Kredit (Keluar)</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
+                  <TableHead className="text-right">
+                    <div className="flex flex-col items-end">
+                      <span className="font-semibold">Piutang Bertambah</span>
+                      <span className="text-xs text-muted-foreground font-normal">(Debit)</span>
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <div className="flex flex-col items-end">
+                      <span className="font-semibold">Uang Masuk Rekening</span>
+                      <span className="text-xs text-muted-foreground font-normal">(Kredit)</span>
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <div className="flex flex-col items-end">
+                      <span className="font-semibold">Sisa Piutang</span>
+                      <span className="text-xs text-muted-foreground font-normal">(Belum Cair)</span>
+                    </div>
+                  </TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Invoice</TableHead>
                 </TableRow>
@@ -541,9 +627,9 @@ export default function GlobalReportPage() {
                     const isGroupChange = prevRow !== null && prevRow.group !== row.group;
                     const sectionLabel =
                       row.group === 1
-                        ? '▼ Pelunasan Piutang Bulan Lalu (ngurangi carry-forward dulu)'
+                        ? 'PELUNASAN DARI BULAN LALU (Mengurangi Saldo Awal Piutang)'
                         : row.group === 2 && isGroupChange
-                        ? '▼ Transaksi Periode Ini'
+                        ? 'TRANSAKSI BULAN INI (Penjualan & Pelunasan Baru)'
                         : null;
                     return (
                       <React.Fragment key={`frag_${row.no}`}>
@@ -553,8 +639,8 @@ export default function GlobalReportPage() {
                               colSpan={8}
                               className={
                                 row.group === 1
-                                  ? 'bg-orange-100 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 text-xs font-bold py-1.5 px-4 border-y border-orange-200 dark:border-orange-800'
-                                  : 'bg-indigo-100 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 text-xs font-bold py-1.5 px-4 border-y border-indigo-200 dark:border-indigo-800'
+                                  ? 'bg-orange-100 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 text-sm font-bold py-2 px-4 border-y-2 border-orange-300 dark:border-orange-700'
+                                  : 'bg-indigo-100 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 text-sm font-bold py-2 px-4 border-y-2 border-indigo-300 dark:border-indigo-700'
                               }
                             >
                               {sectionLabel}
@@ -593,7 +679,7 @@ export default function GlobalReportPage() {
                                 {row.description}
                                 {(row.displayType === 'settlement' || row.displayType === 'settlement_fee') && row.saleDate && (
                                   <span className="block text-[10px] text-muted-foreground mt-0.5">
-                                    pelunasan penjualan yang di tgl {new Date(row.saleDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    Pelunasan dari penjualan tgl {new Date(row.saleDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
                                   </span>
                                 )}
                               </span>
@@ -604,15 +690,20 @@ export default function GlobalReportPage() {
                               <span className={row.displayType === 'carry_forward' ? 'text-blue-600' : 'text-green-600'}>
                                 {formatCurrency(row.debit)}
                               </span>
-                            ) : row.debit < 0 ? (
-                              <span className="text-orange-500">-{formatCurrency(Math.abs(row.debit))}</span>
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
                           </TableCell>
                           <TableCell className="text-right font-semibold text-sm">
                             {row.kredit > 0 ? (
-                              <span className="text-red-500">{formatCurrency(row.kredit)}</span>
+                              row.displayType === 'settlement_fee' ? (
+                                <div className="flex flex-col items-end">
+                                  <span className="text-orange-500 font-bold">{formatCurrency(row.kredit)}</span>
+                                  <span className="text-[10px] text-orange-600 italic">biaya platform</span>
+                                </div>
+                              ) : (
+                                <span className="text-red-500">{formatCurrency(row.kredit)}</span>
+                              )
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
@@ -621,26 +712,44 @@ export default function GlobalReportPage() {
                             {row.balance !== null ? (
                               <span className="text-purple-600">{formatCurrency(row.balance)}</span>
                             ) : (
-                              <span className="text-muted-foreground text-xs italic">-</span>
+                              <span className="text-muted-foreground text-xs italic" title="Tidak mempengaruhi saldo piutang">
+                                n/a
+                              </span>
                             )}
                           </TableCell>
                           <TableCell>
                             {row.displayType === 'carry_forward' ? (
-                              <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">Saldo Awal</Badge>
+                              <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">
+                                Saldo Awal
+                              </Badge>
                             ) : row.displayType === 'sale_settled' ? (
-                              <Badge variant="outline" className="text-green-700 border-green-400 text-xs">Penjualan ✓</Badge>
+                              <Badge variant="outline" className="text-green-700 border-green-400 text-xs">
+                                Penjualan
+                              </Badge>
                             ) : row.displayType === 'sale_pending' ? (
-                              <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">Piutang</Badge>
+                              <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs" title="Menunggu pelunasan dari marketplace">
+                                Belum Cair
+                              </Badge>
                             ) : row.displayType === 'settlement' ? (
-                              <Badge variant="outline" className="text-green-600 border-green-300 text-xs">Pelunasan</Badge>
+                              <Badge variant="outline" className="text-green-600 border-green-300 text-xs" title="Uang sudah masuk rekening">
+                                Uang Masuk
+                              </Badge>
                             ) : row.displayType === 'settlement_fee' ? (
-                              <Badge variant="outline" className="text-orange-500 border-orange-300 text-xs">Biaya Platform</Badge>
+                              <Badge variant="outline" className="text-orange-500 border-orange-300 text-xs" title="Potongan dari marketplace (Shopee, Tokopedia, dll)">
+                                Potongan
+                              </Badge>
                             ) : row.displayType === 'historical_settlement' ? (
-                              <Badge variant="outline" className="text-purple-600 border-purple-300 text-xs">Piutang Historis</Badge>
+                              <Badge variant="outline" className="text-purple-600 border-purple-300 text-xs" title="Pelunasan piutang dari periode sebelum sistem digunakan">
+                                Piutang Lama
+                              </Badge>
                             ) : row.displayType === 'other_income' ? (
-                              <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">Lain-lain</Badge>
+                              <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs" title="Pendapatan di luar penjualan (tidak mempengaruhi piutang)">
+                                Pendapatan Lain
+                              </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-gray-400 border-gray-300 text-xs">Dibatalkan</Badge>
+                              <Badge variant="outline" className="text-gray-400 border-gray-300 text-xs">
+                                Dibatalkan
+                              </Badge>
                             )}
                           </TableCell>
                           <TableCell className="font-mono text-xs text-muted-foreground max-w-[130px] truncate">
@@ -658,27 +767,36 @@ export default function GlobalReportPage() {
                 <tfoot>
                   <tr className="bg-muted/60 border-t-2 border-border font-bold">
                     <td colSpan={3} className="px-4 py-3 text-sm text-right text-muted-foreground">
-                      TOTAL PERIODE
+                      TOTAL PERIODE INI
                     </td>
                     <td className="px-4 py-3 text-right text-green-700 dark:text-green-400 text-sm">
-                      {formatCurrency(summary.netOmset || 0)}
+                      <div className="flex flex-col items-end">
+                        <span>{formatCurrency(summary.netOmset || 0)}</span>
+                        <span className="text-[10px] font-normal text-muted-foreground">penjualan - biaya</span>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right text-red-600 dark:text-red-400 text-sm">
-                      {formatCurrency(summary.totalPelunasanNet || 0)}
+                      <div className="flex flex-col items-end">
+                        <span>{formatCurrency(summary.totalPelunasanNet || 0)}</span>
+                        <span className="text-[10px] font-normal text-muted-foreground">uang masuk rekening</span>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right text-purple-700 dark:text-purple-400 text-sm">
-                      {formatCurrency(summary.saldoAkhirAR || 0)}
+                      <div className="flex flex-col items-end">
+                        <span>{formatCurrency(summary.saldoAkhirAR || 0)}</span>
+                        <span className="text-[10px] font-normal text-muted-foreground">sisa belum cair</span>
+                      </div>
                     </td>
                     <td colSpan={2} className="px-4 py-3" />
                   </tr>
                   <tr className="bg-indigo-50/50 dark:bg-indigo-950/20 border-t border-indigo-200/50">
                     <td colSpan={7} className="px-4 py-3">
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                        <span className="font-semibold text-indigo-600">Ringkasan Global:</span>
-                        <span className="text-blue-600">Saldo Awal {formatCurrency(summary.saldoAwalPiutang || 0)}</span>
-                        <span className="text-green-600">+ Total Debit {formatCurrency(summary.netOmset || 0)}</span>
-                        <span className="text-red-600">− Total Kredit {formatCurrency(summary.totalPelunasanNet || 0)}</span>
-                        <span className="font-bold text-purple-600">= Saldo Akhir {formatCurrency(summary.saldoAkhirAR || 0)}</span>
+                        <span className="font-semibold text-indigo-600">Ringkasan:</span>
+                        <span className="text-blue-600">Piutang Bulan Lalu {formatCurrency(summary.saldoAwalPiutang || 0)}</span>
+                        <span className="text-green-600">+ Penjualan Baru {formatCurrency(summary.netOmset || 0)}</span>
+                        <span className="text-red-600">− Uang Sudah Cair {formatCurrency(summary.totalPelunasanNet || 0)}</span>
+                        <span className="font-bold text-purple-600">= Piutang Bulan Depan {formatCurrency(summary.saldoAkhirAR || 0)}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3" />
