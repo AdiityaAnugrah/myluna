@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/lib/providers";
 import { Toaster } from "@/components/ui/sonner";
+import { FaviconAnimator } from "@/components/layout/FaviconAnimator";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -22,6 +23,7 @@ export default function RootLayout({
     <html lang="id" suppressHydrationWarning>
       <body className={`${inter.className} antialiased`} suppressHydrationWarning>
         <Providers>
+          <FaviconAnimator />
           {children}
           <Toaster richColors closeButton position="top-right" />
         </Providers>
@@ -29,4 +31,3 @@ export default function RootLayout({
     </html>
   );
 }
-
