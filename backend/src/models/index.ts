@@ -22,6 +22,7 @@ import ShippingService from './ShippingService';
 import OtherIncome from './OtherIncome';
 import HistoricalSettlement from './HistoricalSettlement';
 import VariantOption from './VariantOption';
+import Complaint, { ComplaintStatus } from './Complaint';
 
 // Define associations
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -106,6 +107,19 @@ User.hasMany(Expense, { foreignKey: 'createdBy', as: 'expenses' });
 OtherIncome.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 User.hasMany(OtherIncome, { foreignKey: 'createdBy', as: 'otherIncomes' });
 
+// Complaint Associations
+Complaint.belongsTo(Sale, { foreignKey: 'saleId', as: 'sale' });
+Sale.hasMany(Complaint, { foreignKey: 'saleId', as: 'complaints' });
+
+Complaint.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+User.hasMany(Complaint, { foreignKey: 'createdBy', as: 'complaints' });
+
+Complaint.belongsTo(User, { foreignKey: 'reviewedBy', as: 'reviewer' });
+User.hasMany(Complaint, { foreignKey: 'reviewedBy', as: 'reviewedComplaints' });
+
+Complaint.belongsTo(User, { foreignKey: 'shippedBy', as: 'shipper' });
+User.hasMany(Complaint, { foreignKey: 'shippedBy', as: 'shippedComplaints' });
+
 export {
   Role,
   User,
@@ -140,4 +154,6 @@ export {
   OtherIncome,
   HistoricalSettlement,
   VariantOption,
+  Complaint,
+  ComplaintStatus,
 };

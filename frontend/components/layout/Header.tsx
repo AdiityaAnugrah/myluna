@@ -28,6 +28,7 @@ export function Header() {
     .join('')
     .toUpperCase()
     .slice(0, 2) || 'U';
+  const roleLabel = user?.isTestingMode ? (user.originalRole || 'TESTING') : user?.role;
 
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 shadow-sm">
@@ -57,7 +58,7 @@ export function Header() {
         <DropdownMenuTrigger className="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-accent transition-all duration-200 focus:outline-none">
           <div className="text-right hidden sm:block">
             <p className="text-sm font-semibold text-foreground">{user?.fullName}</p>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">{user?.role}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">{roleLabel}</p>
           </div>
           <Avatar className="h-9 w-9 border-2 border-primary/20 transition-transform hover:scale-105">
             <AvatarFallback className="bg-primary text-primary-foreground font-bold">

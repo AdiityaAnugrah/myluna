@@ -4,6 +4,7 @@ export interface AuthUser {
   username: string;
   roleId: string;
   roleName: string;
+  isTestingMode?: boolean;
 }
 
 export interface AuditContext {

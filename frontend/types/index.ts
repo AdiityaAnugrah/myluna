@@ -237,7 +237,7 @@ export interface ChangeRequest {
   entityId: string | null;
   requestType: 'CREATE' | 'UPDATE' | 'DELETE';
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  payload: any;
+  payload: Record<string, unknown>;
   requestedBy: string;
   reviewedBy: string | null;
   rejectionReason: string | null;
@@ -259,6 +259,55 @@ export interface Settlement {
   updatedAt: string;
   sale?: Sale;
   creator?: User;
+}
+
+export type ComplaintStatus =
+  | 'PENDING_TCP_REVIEW'
+  | 'REJECTED_BY_TCP'
+  | 'ACCEPTED_BY_TCP'
+  | 'REPLACEMENT_SHIPPED';
+
+export interface Complaint {
+  id: string;
+  complaintNumber: string;
+  saleId: string;
+  saleNumberSnapshot: string;
+  customerNameSnapshot: string | null;
+  reason: string;
+  complaintDate: string;
+  complaintPhoto: string;
+  status: ComplaintStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+  replacementProofDocument: string | null;
+  shippedBy: string | null;
+  shippedAt: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  sale?: Sale & {
+    creator?: {
+      id: string;
+      fullName: string;
+      username: string;
+    };
+  };
+  creator?: {
+    id: string;
+    fullName: string;
+    username: string;
+  };
+  reviewer?: {
+    id: string;
+    fullName: string;
+    username: string;
+  };
+  shipper?: {
+    id: string;
+    fullName: string;
+    username: string;
+  };
 }
 
 export interface PaginatedListResponse<T> {

@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -13,20 +12,34 @@ import {
   Users,
   ShoppingCart,
   ShoppingBag,
+  MessageSquareWarning,
   BarChart3,
-  Wallet,
   FileText,
   Store,
   History,
   Settings,
   FileCheck,
   Coins,
-
   DollarSign,
-  Truck
+  Truck,
+  type LucideIcon,
 } from 'lucide-react';
 
-const navigationGroups = [
+type NotificationKey = 'pendingSales' | 'pendingApprovals' | 'overdueSettlements';
+
+interface NavigationItem {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  notificationKey?: NotificationKey;
+}
+
+interface NavigationGroup {
+  title: string;
+  items: NavigationItem[];
+}
+
+const navigationGroups: NavigationGroup[] = [
   {
     title: 'Ringkasan',
     items: [
@@ -53,6 +66,7 @@ const navigationGroups = [
     items: [
       { name: 'Penjualan', href: '/sales', icon: ShoppingBag },
       { name: 'Proses Penjualan', href: '/sales/process', icon: FileCheck, notificationKey: 'pendingSales' },
+      { name: 'Komplen', href: '/complaints', icon: MessageSquareWarning },
     ]
   },
   {
@@ -88,13 +102,8 @@ interface SidebarProps {
 export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
-  const role = user?.role;
-  const [mounted, setMounted] = useState(false);
+  const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
   const notifications = useNotifications();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const filteredGroups = navigationGroups.map(group => {
     // Logic for USER
@@ -147,7 +156,7 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
         if (group.title === 'Penjualan') {
             return {
                 ...group,
-                items: group.items.filter(item => item.href === '/sales/process')
+                items: group.items.filter(item => item.href === '/sales/process' || item.href === '/complaints')
             };
         }
         
@@ -171,7 +180,7 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
 
     // SUPER_ADMIN (or others) sees everything by default
     return group;
-  }).filter(group => group.items.length > 0) as typeof navigationGroups;
+  }).filter(group => group.items.length > 0);
 
   return (
     <div className={cn(
@@ -182,27 +191,25 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
         <Logo size="md" />
       </div>
       <nav className="flex-1 px-3 py-4 space-y-6 tour-sidebar-nav">
-        {filteredGroups.map((group, groupIndex) => (
+        {filteredGroups.map((group) => (
           <div key={group.title} className="mb-6">
             <div className="px-3 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
               {group.title}
             </div>
             <div className="space-y-1">
-              {group.items.map((item: any) => {
+              {group.items.map((item) => {
                 const isActive = item.href === '/' 
                   ? pathname === '/' 
                   : pathname === item.href || pathname?.startsWith(item.href + '/');
                 
                 // Get notification count if item has notificationKey
                 let notificationCount = 0;
-                if (mounted) {
-                  if (item.notificationKey === 'pendingSales') {
-                    notificationCount = notifications.pendingSalesCount;
-                  } else if (item.notificationKey === 'pendingApprovals') {
-                    notificationCount = notifications.pendingApprovalsCount;
-                  } else if (item.notificationKey === 'overdueSettlements') {
-                    notificationCount = notifications.overdueSettlementsCount;
-                  }
+                if (item.notificationKey === 'pendingSales') {
+                  notificationCount = notifications.pendingSalesCount;
+                } else if (item.notificationKey === 'pendingApprovals') {
+                  notificationCount = notifications.pendingApprovalsCount;
+                } else if (item.notificationKey === 'overdueSettlements') {
+                  notificationCount = notifications.overdueSettlementsCount;
                 }
                   
                 return (

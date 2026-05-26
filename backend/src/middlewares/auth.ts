@@ -36,22 +36,38 @@ export async function auth(req: Request, _res: Response, next: NextFunction) {
         username: user.username,
         roleId: user.roleId,
         roleName: (user as any).role.name,
+        isTestingMode: (user as any).role.name === 'TESTING',
       };
 
-      next();
+      const isWriteMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method.toUpperCase());
+      if (req.user.isTestingMode && isWriteMethod) {
+        _res.status(200).json({
+          success: true,
+          message: 'MODE TESTING: aksi disimulasikan. Data produksi tidak diubah.',
+          data: {
+            simulated: true,
+            method: req.method,
+            path: req.originalUrl,
+            timestamp: new Date().toISOString(),
+          },
+        });
+        return;
+      }
+
+      return next();
     } catch (error) {
       if (error instanceof jwt.JsonWebTokenError) {
         logger.warn(`[AUTH] Invalid token: ${error.message}. Token start: ${token.substring(0, 10)}...`);
-        next(new UnauthorizedError('Invalid token'));
+        return next(new UnauthorizedError('Invalid token'));
       } else if (error instanceof jwt.TokenExpiredError) {
         logger.warn(`[AUTH] Token expired`);
-        next(new UnauthorizedError('Token expired'));
+        return next(new UnauthorizedError('Token expired'));
       } else {
         logger.error(`[AUTH] Verification error: ${error instanceof Error ? error.message : String(error)}`);
-        next(error);
+        return next(error);
       }
     }
   } catch (error) {
-    next(error);
+    return next(error);
   }
 }

@@ -7,6 +7,8 @@ interface User {
   username: string;
   fullName: string;
   role: string;
+  originalRole?: string;
+  isTestingMode?: boolean;
 }
 
 interface AuthState {
@@ -14,8 +16,10 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
+  hasHydrated: boolean;
   setAuth: (user: User, accessToken: string, refreshToken: string) => void;
   clearAuth: () => void;
+  setHasHydrated: (value: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -25,13 +29,29 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
+      hasHydrated: false,
+      setHasHydrated: (value) => set({ hasHydrated: value }),
       setAuth: (user, accessToken, refreshToken) => {
+        const normalizedUser =
+          user.role === 'TESTING'
+            ? {
+                ...user,
+                role: 'SUPER_ADMIN',
+                originalRole: 'TESTING',
+                isTestingMode: true,
+              }
+            : {
+                ...user,
+                originalRole: user.originalRole || user.role,
+                isTestingMode: user.isTestingMode || false,
+              };
+
         // Also set in localStorage for API client
         localStorage.setItem('accessToken', accessToken);
         localStorage.setItem('refreshToken', refreshToken);
         
         set({
-          user,
+          user: normalizedUser,
           accessToken,
           refreshToken,
           isAuthenticated: true,
@@ -51,6 +71,9 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );

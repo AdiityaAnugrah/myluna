@@ -20,6 +20,7 @@ import { shippingRoutes } from './shipping.routes';
 import otherIncomeRoutes from './otherIncome.routes';
 import searchRoutes from './search.routes';
 import variantOptionRoutes from './variantOption.routes';
+import complaintRoutes from './complaint.routes';
 
 const router = Router();
 
@@ -45,5 +46,6 @@ router.use('/other-incomes', otherIncomeRoutes);
 router.use('/search', searchRoutes);
 router.use('/finance', financialRoutes);
 router.use('/variant-options', variantOptionRoutes);
+router.use('/complaints', complaintRoutes);
 
 export default router;
