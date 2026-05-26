@@ -99,8 +99,8 @@ export default function SettlementsPage() {
     return (
       <div className="flex h-[80vh] w-full items-center justify-center">
         <div className="text-center space-y-4 p-8 rounded-2xl bg-card border shadow-lg max-w-md mx-auto">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-            <AlertCircle className="h-8 w-8 text-red-600" />
+          <div className="w-16 h-16 bg-red-100 dark:bg-red-950/40 rounded-full flex items-center justify-center mx-auto">
+            <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-300" />
           </div>
           <div>
             <h3 className="text-xl font-bold text-foreground">Akses Ditolak</h3>
@@ -192,7 +192,7 @@ export default function SettlementsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Pelunasan Penjualan</h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-muted-foreground mt-1">
             Kelola pelunasan dan dana bersih dari penjualan
           </p>
         </div>
@@ -259,7 +259,7 @@ export default function SettlementsPage() {
             <div className="space-y-2">
               <Label>Cari Penjualan</Label>
               <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="No. Penjualan, Nama, HP..."
                   value={searchQuery}
@@ -307,14 +307,14 @@ export default function SettlementsPage() {
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <>
                 {/* Mobile View */}
                 <div className="md:hidden space-y-3 animate-in fade-in-50">
                     {filteredSettlements.length === 0 ? (
-                        <div className="text-center py-8 text-gray-500 text-xs">
+                        <div className="text-center py-8 text-muted-foreground text-xs">
                             Tidak ada data
                         </div>
                     ) : (
@@ -329,7 +329,7 @@ export default function SettlementsPage() {
                             return (
                                 <div key={sale.id} className={cn(
                                     "rounded-lg border bg-card p-3 shadow-sm relative overflow-hidden",
-                                    overdue && !isSettled && "border-l-4 border-l-red-500 bg-red-50/50"
+                                    overdue && !isSettled && "border-l-4 border-l-red-500 bg-red-50/70 dark:bg-red-950/30"
                                 )}>
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="text-[10px] text-muted-foreground">
@@ -341,7 +341,7 @@ export default function SettlementsPage() {
                                             ) : overdue ? (
                                                 <Badge variant="destructive" className="animate-pulse h-5 px-1.5 text-[10px]">URGENT</Badge>
                                             ) : warning ? (
-                                                <Badge variant="outline" className="border-orange-500 text-orange-600 h-5 px-1.5 text-[10px]">Warning</Badge>
+                                                <Badge variant="outline" className="border-orange-500 text-orange-600 dark:text-orange-300 h-5 px-1.5 text-[10px]">Warning</Badge>
                                             ) : (
                                                 <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Pending</Badge>
                                             )}
@@ -366,13 +366,13 @@ export default function SettlementsPage() {
                                         {isSettled && settlement && (
                                             <div className="text-right">
                                                 <span className="text-[10px] text-muted-foreground block">Bersih</span>
-                                                <span className="font-bold text-[12px] text-green-600">{formatCurrency(settlement.netAmount)}</span>
+                                                <span className="font-bold text-[12px] text-green-600 dark:text-green-400">{formatCurrency(settlement.netAmount)}</span>
                                             </div>
                                         )}
                                     </div>
 
                                     {!isSettled && overdue && (
-                                        <div className="flex items-center gap-1.5 text-[10px] text-red-600 bg-red-100/50 p-1.5 rounded mb-2">
+                                        <div className="flex items-center gap-1.5 text-[10px] text-red-700 dark:text-red-300 bg-red-100/60 dark:bg-red-950/40 p-1.5 rounded mb-2">
                                             <AlertCircle className="h-3 w-3" />
                                             <span>Telat {daysSince} hari (Deadline 15 hari)</span>
                                         </div>
@@ -434,7 +434,7 @@ export default function SettlementsPage() {
                     <TableBody>
                     {filteredSettlements.length === 0 ? (
                         <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                             Tidak ada data
                         </TableCell>
                         </TableRow>
@@ -455,7 +455,7 @@ export default function SettlementsPage() {
                         const overdue = isOverdue(sale);
 
                         return (
-                            <TableRow key={sale.id} className={overdue && !isSettled ? 'bg-red-50 border-l-4 border-l-red-500' : ''}>
+                            <TableRow key={sale.id} className={overdue && !isSettled ? 'bg-red-50 dark:bg-red-950/30 border-l-4 border-l-red-500' : ''}>
                             <TableCell>
                                 {isSettled ? (
                                 <Badge variant="default" className="bg-green-600">
@@ -468,7 +468,7 @@ export default function SettlementsPage() {
                                     URGENT - {daysSince} hari (Deadline 15 hari!)
                                 </Badge>
                                 ) : warning ? (
-                                <Badge variant="outline" className="border-orange-500 text-orange-600">
+                                <Badge variant="outline" className="border-orange-500 text-orange-600 dark:text-orange-300">
                                     <Clock className="mr-1 h-3 w-3" />
                                     {daysSince} hari (Deadline 15 hari)
                                 </Badge>
@@ -487,7 +487,7 @@ export default function SettlementsPage() {
                                 <div className="font-medium">
                                     {sale.customerName || '-'}
                                 </div>
-                                <div className="text-sm text-gray-500">
+                                <div className="text-sm text-muted-foreground">
                                     {sale.customerPhone || '-'}
                                 </div>
                                 </div>
@@ -497,11 +497,11 @@ export default function SettlementsPage() {
                             </TableCell>
                             <TableCell className="text-right">
                                 {isSettled && settlement ? (
-                                <span className="font-semibold text-green-600">
+                                <span className="font-semibold text-green-600 dark:text-green-400">
                                     {formatCurrency(settlement.netAmount)}
                                 </span>
                                 ) : (
-                                <span className="text-gray-400">-</span>
+                                <span className="text-muted-foreground">-</span>
                                 )}
                             </TableCell>
                             <TableCell>
@@ -525,7 +525,7 @@ export default function SettlementsPage() {
                                 <Button
                                     size="sm"
                                     variant="ghost"
-                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                    className="text-red-500 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30"
                                     onClick={() => handleCancelClick(sale.id, 'SALE')}
                                     title="Ajukan Pembatalan Penjualan"
                                 >

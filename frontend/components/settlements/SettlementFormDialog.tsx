@@ -14,8 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Upload, AlertTriangle } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -147,18 +146,18 @@ export function SettlementFormDialog({
 
           <div className="space-y-4 py-4">
             {/* Sale Info */}
-            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+            <div className="bg-muted/40 border border-border p-4 rounded-lg space-y-2">
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">No Invoice:</span>
+                <span className="text-sm text-muted-foreground">No Invoice:</span>
                 <span className="font-semibold">{sale.saleNumber || '-'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Pelanggan:</span>
+                <span className="text-sm text-muted-foreground">Pelanggan:</span>
                 <span className="font-medium">{sale.customerName || '-'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Total Penjualan (Kotor):</span>
-                <span className="font-bold text-blue-600">
+                <span className="text-sm text-muted-foreground">Total Penjualan (Kotor):</span>
+                <span className="font-bold text-primary">
                   {formatCurrency(sale.totalAmount)}
                 </span>
               </div>
@@ -179,16 +178,16 @@ export function SettlementFormDialog({
                 required
                 className="text-lg font-semibold"
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Masukkan jumlah dana bersih yang benar-benar diterima
               </p>
             </div>
 
             {/* Difference Display */}
             {netAmountNum > 0 && (
-              <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
+              <div className="bg-primary/10 border border-primary/20 p-3 rounded-lg">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-blue-900">Selisih:</span>
+                  <span className="text-sm font-medium text-foreground">Selisih:</span>
                   <span className={`font-bold ${difference >= 0 ? 'text-orange-600' : 'text-red-600'}`}>
                     {formatCurrency(Math.abs(difference))}
                     {difference < 0 && ' (Dana bersih lebih besar!)'}
@@ -243,8 +242,8 @@ export function SettlementFormDialog({
         <AlertDialogContent>
           <AlertDialogHeader>
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center">
-                <AlertTriangle className="h-6 w-6 text-orange-600" />
+              <div className="h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-950/30 flex items-center justify-center">
+                <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-300" />
               </div>
               <AlertDialogTitle className="text-xl">Konfirmasi Data Pelunasan</AlertDialogTitle>
             </div>
@@ -253,23 +252,23 @@ export function SettlementFormDialog({
                 <p className="text-base font-medium text-foreground">
                   Apakah Anda yakin dengan data yang Anda masukkan?
                 </p>
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-2">
-                  <p className="text-sm font-medium text-yellow-900 flex items-start gap-2">
+                <div className="bg-yellow-50 dark:bg-yellow-950/25 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 space-y-2">
+                  <p className="text-sm font-medium text-yellow-900 dark:text-yellow-200 flex items-start gap-2">
                     <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                     <span><strong>Perhatian:</strong> Setelah data disimpan, Anda tidak dapat mengedit atau menghapus data pelunasan ini lagi.</span>
                   </p>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+                <div className="bg-muted/40 border border-border rounded-lg p-4 space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">No Invoice:</span>
+                    <span className="text-muted-foreground">No Invoice:</span>
                     <span className="font-semibold">{sale.saleNumber || '-'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Dana Bersih:</span>
-                    <span className="font-semibold text-green-600">{formatCurrency(netAmount)}</span>
+                    <span className="text-muted-foreground">Dana Bersih:</span>
+                    <span className="font-semibold text-green-600 dark:text-green-400">{formatCurrency(netAmount)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Tanggal:</span>
+                    <span className="text-muted-foreground">Tanggal:</span>
                     <span className="font-semibold">{new Date(settlementDate).toLocaleDateString('id-ID')}</span>
                   </div>
                 </div>

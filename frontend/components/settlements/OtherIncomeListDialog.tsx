@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
-import { Eye, FileText, Image, Loader2, X, Search, ChevronRight } from 'lucide-react';
+import { Eye, FileText, Image, Search, ChevronRight } from 'lucide-react';
 
 interface OtherIncome {
   id: string;
@@ -180,7 +180,7 @@ export function OtherIncomeListDialog({ open, onOpenChange }: Props) {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-500"
+                                  className="h-8 w-8 rounded-full hover:bg-destructive/10 hover:text-destructive"
                                   onClick={() => {
                                     setSelectedIncome(income);
                                     setProofOpen(true);
@@ -275,7 +275,7 @@ export function OtherIncomeListDialog({ open, onOpenChange }: Props) {
               )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Jumlah</span>
-                <span className="font-bold text-blue-600">{formatCurrency(selectedIncome.amount)}</span>
+                <span className="font-bold text-primary">{formatCurrency(selectedIncome.amount)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Input Oleh</span>
@@ -292,9 +292,9 @@ export function OtherIncomeListDialog({ open, onOpenChange }: Props) {
                   onClick={() => setProofOpen(true)}
                 >
                   {isPdf(selectedIncome.proofDocument!) ? (
-                    <FileText className="h-4 w-4 mr-2 text-red-500" />
+                    <FileText className="h-4 w-4 mr-2 text-red-500 dark:text-red-300" />
                   ) : (
-                    <Image className="h-4 w-4 mr-2 text-blue-500" />
+                    <Image className="h-4 w-4 mr-2 text-primary" />
                   )}
                   Lihat Bukti Transfer
                 </Button>
@@ -314,7 +314,7 @@ export function OtherIncomeListDialog({ open, onOpenChange }: Props) {
             <div className="flex-1 overflow-auto flex items-center justify-center bg-muted/30 rounded-lg p-2">
               {isPdf(selectedIncome.proofDocument) ? (
                 <div className="text-center space-y-3">
-                  <FileText className="h-16 w-16 text-red-400 mx-auto" />
+                  <FileText className="h-16 w-16 text-red-500/80 dark:text-red-300 mx-auto" />
                   <p className="text-sm text-muted-foreground">File PDF tidak bisa ditampilkan di sini.</p>
                   <Button
                     variant="outline"
