@@ -6,6 +6,7 @@ import { useSales, useSalesStats } from '@/lib/hooks/useSales';
 import { usePurchases } from '@/lib/hooks/usePurchases';
 import { useAuditLogs } from '@/lib/hooks/useAudit';
 import { useSettlementStats } from '@/lib/hooks/useSettlements';
+import { useComplaints } from '@/lib/hooks/useComplaints';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -31,7 +32,9 @@ import {
   XCircle,
   BarChart3,
   ChevronRight,
-  Layers
+  Layers,
+  MessageSquareWarning,
+  Truck
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -66,6 +69,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const isUserRole = user?.role === 'USER';
+  const isTcpRole = user?.role === 'TCP';
 
   useEffect(() => {
     setMounted(true);
@@ -116,6 +121,28 @@ export default function DashboardPage() {
     data: settlementStatsData,
     refetch: refetchSettlement 
   } = useSettlementStats({}, { enabled: user?.role !== 'TCP' });
+
+  // Complaint summaries for role-specific dashboard blocks
+  const { data: complaintPendingReviewData } = useComplaints(
+    { page: 1, limit: 1, status: 'PENDING_TCP_REVIEW' },
+    { enabled: isTcpRole }
+  );
+  const { data: complaintNeedShipData } = useComplaints(
+    { page: 1, limit: 1, status: 'ACCEPTED_BY_TCP' },
+    { enabled: isTcpRole }
+  );
+  const { data: myComplaintsTotalData } = useComplaints(
+    { page: 1, limit: 1 },
+    { enabled: isUserRole }
+  );
+  const { data: myComplaintsPendingData } = useComplaints(
+    { page: 1, limit: 1, status: 'PENDING_TCP_REVIEW' },
+    { enabled: isUserRole }
+  );
+  const { data: myComplaintsShippedData } = useComplaints(
+    { page: 1, limit: 1, status: 'REPLACEMENT_SHIPPED' },
+    { enabled: isUserRole }
+  );
 
   useEffect(() => {
     if (!user) {
@@ -183,6 +210,8 @@ export default function DashboardPage() {
   // ─── TCP ROLE: Tampilan Proses Penjualan ────────────────────────────────
   if (user.role === 'TCP') {
     const allSales: any[] = salesData?.data?.sales || [];
+    const complaintPendingReviewCount = complaintPendingReviewData?.data?.pagination?.total || 0;
+    const complaintNeedShipCount = complaintNeedShipData?.data?.pagination?.total || 0;
 
     const stats = salesStatsData?.data || {
       WAITING_APPROVAL: 0,
@@ -312,6 +341,39 @@ export default function DashboardPage() {
           )}
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <Card className="border-none shadow-md bg-card/50 backdrop-blur-sm card-hover">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Komplen Menunggu Review</p>
+                  <p className="text-2xl font-bold text-amber-600">{complaintPendingReviewCount}</p>
+                </div>
+                <div className="p-3 bg-amber-500/10 rounded-2xl">
+                  <MessageSquareWarning className="h-6 w-6 text-amber-600" />
+                </div>
+              </div>
+              <Link href="/complaints" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
+                Buka halaman Komplen
+              </Link>
+            </CardContent>
+          </Card>
+          <Card className="border-none shadow-md bg-card/50 backdrop-blur-sm card-hover">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Komplen Siap Kirim Pengganti</p>
+                  <p className="text-2xl font-bold text-blue-600">{complaintNeedShipCount}</p>
+                </div>
+                <div className="p-3 bg-blue-500/10 rounded-2xl">
+                  <Truck className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">Wajib upload PDF resi pengganti</p>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Pipeline Funnel */}
         {salesLoading ? <SkeletonCard /> : (
           <Card className="border-none shadow-lg animate-in [animation-delay:300ms]">
@@ -358,6 +420,9 @@ export default function DashboardPage() {
 
   const totalProducts = productsData?.data?.pagination?.total || 0;
   const lowStockCount = lowStockData?.data?.length || 0;
+  const myComplaintsTotal = myComplaintsTotalData?.data?.pagination?.total || 0;
+  const myComplaintsPending = myComplaintsPendingData?.data?.pagination?.total || 0;
+  const myComplaintsShipped = myComplaintsShippedData?.data?.pagination?.total || 0;
   const isLoading = productsLoading || lowStockLoading || salesLoading || purchasesLoading;
   const hasError = productsError || lowStockError || salesError;
 
@@ -506,6 +571,37 @@ export default function DashboardPage() {
           </Card>
         )}
       </div>
+
+      {isUserRole && (
+        <Card className="border-none shadow-lg bg-card/60 animate-in [animation-delay:430ms]">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquareWarning className="h-5 w-5 text-primary" />
+                Ringkasan Komplen Saya
+              </CardTitle>
+              <CardDescription>Pantau progres komplen pesanan Anda.</CardDescription>
+            </div>
+            <Link href="/complaints">
+              <Button variant="outline" size="sm">Lihat Detail</Button>
+            </Link>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Total Komplen</p>
+              <p className="text-2xl font-bold">{myComplaintsTotal}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Menunggu Review TCP</p>
+              <p className="text-2xl font-bold text-amber-600">{myComplaintsPending}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Sedang Dikirim</p>
+              <p className="text-2xl font-bold text-green-600">{myComplaintsShipped}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Settlement Stats - Simplified */}
       {user?.role !== 'TCP' && (settlementStatsData as any)?.data && (

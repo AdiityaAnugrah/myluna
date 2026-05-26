@@ -25,10 +25,11 @@ export function useComplaints(params?: {
   limit?: number;
   status?: string;
   search?: string;
-}) {
+}, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['complaints', params],
     queryFn: () => complaintsApi.getAll(params),
+    ...(options ?? {}),
   });
 }
 
