@@ -70,9 +70,10 @@ export default function ComplaintsPage() {
   const role = user?.role || '';
   const isUser = role === 'USER';
   const isTcp = role === 'TCP';
+  const isAdmin = role === 'ADMIN';
   const isSuperAdmin = role === 'SUPER_ADMIN';
-  const canCreate = isUser || isSuperAdmin;
-  const canTcpReview = isTcp || isSuperAdmin;
+  const canCreate = isUser || isSuperAdmin || isAdmin;
+  const canTcpReview = isTcp || isSuperAdmin || isAdmin;
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -88,6 +89,9 @@ export default function ComplaintsPage() {
   // List state
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchFilter, setSearchFilter] = useState('');
+  const [debouncedSearchFilter, setDebouncedSearchFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageLimit, setPageLimit] = useState('10');
 
   // TCP actions state
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
@@ -106,15 +110,24 @@ export default function ComplaintsPage() {
     return () => clearTimeout(t);
   }, [saleQuery]);
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchFilter(searchFilter), 350);
+    return () => clearTimeout(t);
+  }, [searchFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, debouncedSearchFilter, pageLimit]);
+
   const eligibleSalesQuery = useEligibleComplaintSales(debouncedSaleQuery, {
     enabled: canCreate,
   });
 
   const complaintsQuery = useComplaints({
-    page: 1,
-    limit: 100,
+    page: currentPage,
+    limit: Number(pageLimit),
     status: statusFilter === 'all' ? undefined : statusFilter,
-    search: searchFilter || undefined,
+    search: debouncedSearchFilter || undefined,
   });
 
   const complaints: Complaint[] = useMemo(
@@ -125,6 +138,10 @@ export default function ComplaintsPage() {
     () => eligibleSalesQuery.data?.data ?? [],
     [eligibleSalesQuery.data]
   );
+  const complaintPagination = complaintsQuery.data?.data?.pagination;
+  const totalComplaints = complaintPagination?.total ?? 0;
+  const totalPages = complaintPagination?.totalPages ?? 1;
+  const safeCurrentPage = complaintPagination?.page ?? currentPage;
   const effectiveComplaintDate = isUser ? today : complaintDate;
 
   const selectedSaleStillExists = useMemo(() => {
@@ -361,9 +378,22 @@ export default function ComplaintsPage() {
                 <SelectItem value="REPLACEMENT_SHIPPED">Pesanan Komplen Sedang Dikirim</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={pageLimit} onValueChange={setPageLimit}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 / halaman</SelectItem>
+                <SelectItem value="20">20 / halaman</SelectItem>
+                <SelectItem value="50">50 / halaman</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-3 text-xs text-muted-foreground">
+            Total data: {totalComplaints}
+          </div>
           {complaintsQuery.isLoading ? (
             <div className="py-10 text-center text-muted-foreground flex items-center justify-center gap-2">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -454,6 +484,29 @@ export default function ComplaintsPage() {
               ))}
             </div>
           )}
+          <div className="mt-4 flex items-center justify-between border-t pt-3">
+            <p className="text-xs text-muted-foreground">
+              Halaman {safeCurrentPage} dari {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={safeCurrentPage <= 1 || complaintsQuery.isFetching}
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              >
+                Sebelumnya
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={safeCurrentPage >= totalPages || complaintsQuery.isFetching}
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              >
+                Berikutnya
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

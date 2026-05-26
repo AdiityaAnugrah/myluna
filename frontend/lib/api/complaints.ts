@@ -1,5 +1,5 @@
 import apiClient from './client';
-import { Complaint, ApiResponse, Sale } from '@/types';
+import { Complaint, ApiResponse, ComplaintListData, Sale } from '@/types';
 
 export const complaintsApi = {
   getEligibleSales: async (q: string) => {
@@ -24,7 +24,7 @@ export const complaintsApi = {
     status?: string;
     search?: string;
   }) => {
-    const response = await apiClient.get('/complaints', { params });
+    const response = await apiClient.get<ApiResponse<ComplaintListData>>('/complaints', { params });
     return response.data;
   },
 

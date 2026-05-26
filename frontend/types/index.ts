@@ -310,6 +310,16 @@ export interface Complaint {
   };
 }
 
+export interface ComplaintListData {
+  complaints: Complaint[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
 export interface PaginatedListResponse<T> {
   success: boolean;
   message: string;
