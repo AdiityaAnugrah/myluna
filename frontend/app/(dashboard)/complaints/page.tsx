@@ -280,7 +280,7 @@ export default function ComplaintsPage() {
       <div>
         <h1 className="text-3xl font-bold">Komplen Pesanan</h1>
         <p className="text-muted-foreground mt-1">
-          Komplen hanya untuk pesanan yang sudah pelunasan (SETTLED).
+          Komplen untuk pesanan yang sudah dikirim atau sudah pelunasan.
         </p>
       </div>
 
@@ -291,7 +291,7 @@ export default function ComplaintsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Cari Pesanan Settled (Nama / No Pesanan)</Label>
+              <Label>Cari Pesanan (Sudah Dikirim/Settled)</Label>
               <Input
                 placeholder="Contoh: INV-2026-001 atau nama pelanggan"
                 value={saleQuery}
@@ -304,7 +304,7 @@ export default function ComplaintsPage() {
                       <Loader2 className="h-4 w-4 animate-spin" /> Mencari pesanan...
                     </div>
                   ) : eligibleSales.length === 0 ? (
-                    <div className="p-3 text-sm text-muted-foreground">Pesanan settled tidak ditemukan.</div>
+                    <div className="p-3 text-sm text-muted-foreground">Pesanan eligible tidak ditemukan.</div>
                   ) : (
                     eligibleSales.map((sale) => (
                       <button

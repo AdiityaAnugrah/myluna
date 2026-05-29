@@ -19,6 +19,11 @@ import { complaintReceiptDir, complaintVideoDir } from '../middlewares/uploadCom
 import { compressComplaintVideoBuffer } from '../utils/videoProcessor';
 
 const complaintPhotoDir = path.join(process.cwd(), 'uploads/complaints/photos');
+const complaintEligibleStatuses: SaleStatus[] = [
+  SaleStatus.PROCESSED,
+  SaleStatus.COMPLETED,
+  SaleStatus.SETTLED,
+];
 
 function getLocalDateString(date: Date) {
   const year = date.getFullYear();
@@ -41,7 +46,9 @@ export const complaintController = {
     try {
       const q = String(req.query.q || '').trim();
       const where: any = {
-        status: SaleStatus.SETTLED,
+        status: {
+          [Op.in]: complaintEligibleStatuses,
+        },
         isInitialBalance: false,
       };
 
@@ -120,8 +127,8 @@ export const complaintController = {
         throw new AppError('Pesanan tidak ditemukan', 404);
       }
 
-      if (sale.status !== SaleStatus.SETTLED) {
-        throw new AppError('Komplen hanya bisa dibuat untuk pesanan yang sudah pelunasan (SETTLED)', 400);
+      if (!complaintEligibleStatuses.includes(sale.status as SaleStatus)) {
+        throw new AppError('Komplen hanya bisa dibuat untuk pesanan yang sudah dikirim atau sudah pelunasan', 400);
       }
 
       if (req.user.roleName === 'USER' && sale.createdBy !== req.user.id) {
