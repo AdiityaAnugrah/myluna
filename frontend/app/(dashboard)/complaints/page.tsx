@@ -111,7 +111,7 @@ export default function ComplaintsPage() {
   const isTcp = role === 'TCP';
   const isAdmin = role === 'ADMIN';
   const isSuperAdmin = role === 'SUPER_ADMIN';
-  const canCreate = isUser;
+  const canCreate = isUser || isAdmin || isSuperAdmin;
   const canTcpProcess = isTcp || isSuperAdmin || isAdmin;
 
   const today = new Date().toISOString().split('T')[0];
@@ -181,7 +181,7 @@ export default function ComplaintsPage() {
     return eligibleSales.some((s) => s.id === selectedSale.id) || saleQuery.trim().length === 0;
   }, [selectedSale, eligibleSales, saleQuery]);
 
-  const effectiveComplaintDate = today;
+  const effectiveComplaintDate = isUser ? today : complaintDate;
   const hasValidReceipt =
     receiptMode === 'UPLOAD' ? !!uploadedReceiptPdf : salesInformation.trim().length >= 10;
 
@@ -404,8 +404,17 @@ export default function ComplaintsPage() {
 
             <div className="space-y-2">
               <Label>Tanggal Komplen</Label>
-              <Input type="date" value={effectiveComplaintDate} readOnly min={today} max={today} />
-              <p className="text-xs text-muted-foreground">Role USER hanya boleh tanggal hari ini.</p>
+              <Input
+                type="date"
+                value={effectiveComplaintDate}
+                onChange={(e) => {
+                  if (!isUser) setComplaintDate(e.target.value);
+                }}
+                readOnly={isUser}
+                min={isUser ? today : undefined}
+                max={isUser ? today : undefined}
+              />
+              {isUser && <p className="text-xs text-muted-foreground">Role USER hanya boleh tanggal hari ini.</p>}
             </div>
 
             <div className="space-y-2">

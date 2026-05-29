@@ -8,8 +8,8 @@ const router = Router();
 
 router.use(auth);
 
-router.get('/eligible-sales', rbac(['USER']), complaintController.getEligibleSales);
-router.post('/', rbac(['USER']), uploadComplaintSubmission, complaintController.create);
+router.get('/eligible-sales', rbac(['USER', 'SUPER_ADMIN', 'ADMIN']), complaintController.getEligibleSales);
+router.post('/', rbac(['USER', 'SUPER_ADMIN', 'ADMIN']), uploadComplaintSubmission, complaintController.create);
 router.get('/', rbac(['USER', 'SUPER_ADMIN', 'ADMIN', 'TCP']), complaintController.getAll);
 router.get('/:id/video-metadata', rbac(['USER', 'SUPER_ADMIN', 'ADMIN', 'TCP']), complaintController.getVideoMetadata);
 router.patch('/:id/claim', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), complaintController.claim);
