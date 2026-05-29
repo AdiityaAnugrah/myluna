@@ -46,6 +46,30 @@ module.exports = {
         type: DataTypes.STRING(255),
         allowNull: false,
       },
+      complaintPhotos: {
+        type: DataTypes.JSON,
+        allowNull: true,
+      },
+      salesInformation: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
+      complaintReceiptPdf: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
+      complaintVideo: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
+      complaintVideoOriginalSize: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      complaintVideoCompressedSize: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
       status: {
         type: DataTypes.ENUM(
           'PENDING_TCP_REVIEW',

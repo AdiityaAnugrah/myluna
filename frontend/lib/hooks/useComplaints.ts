@@ -33,6 +33,14 @@ export function useComplaints(params?: {
   });
 }
 
+export function useComplaintVideoMetadata(id?: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['complaints', 'video-metadata', id],
+    queryFn: () => complaintsApi.getVideoMetadata(id as string),
+    enabled: !!id && (options?.enabled ?? true),
+  });
+}
+
 export function useCreateComplaint() {
   const queryClient = useQueryClient();
 
@@ -48,15 +56,14 @@ export function useCreateComplaint() {
   });
 }
 
-export function useReviewComplaint() {
+export function useClaimComplaint() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, decision, rejectionReason }: { id: string; decision: 'ACCEPT' | 'REJECT'; rejectionReason?: string }) =>
-      complaintsApi.review(id, { decision, rejectionReason }),
-    onSuccess: (_, variables) => {
+    mutationFn: ({ id }: { id: string }) => complaintsApi.claim(id),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['complaints'] });
-      toast.success(variables.decision === 'ACCEPT' ? 'Komplen diterima' : 'Komplen ditolak');
+      toast.success('Komplen sedang diproses oleh TCP');
     },
     onError: (error: unknown) => {
       toast.error(getErrorMessage(error, 'Gagal memproses komplen'));
@@ -64,17 +71,17 @@ export function useReviewComplaint() {
   });
 }
 
-export function useShipComplaintReplacement() {
+export function useMarkComplaintHandled() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: FormData }) => complaintsApi.shipReplacement(id, data),
+    mutationFn: ({ id }: { id: string }) => complaintsApi.markHandled(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['complaints'] });
-      toast.success('Resi pengganti berhasil diunggah');
+      toast.success('Komplen ditandai sudah diurus');
     },
     onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, 'Gagal mengunggah resi pengganti'));
+      toast.error(getErrorMessage(error, 'Gagal memperbarui status komplen'));
     },
   });
 }

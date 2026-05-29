@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { jsPDF } from 'jspdf';
 import { useAuthStore } from '@/lib/stores/auth';
 import {
+  useClaimComplaint,
   useComplaints,
   useCreateComplaint,
   useEligibleComplaintSales,
-  useReviewComplaint,
-  useShipComplaintReplacement,
+  useMarkComplaintHandled,
 } from '@/lib/hooks/useComplaints';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,18 +34,20 @@ import {
 } from '@/components/ui/select';
 import { getImageUrl } from '@/lib/utils/url';
 import { Complaint, ComplaintStatus, Sale } from '@/types';
-import { CheckCircle2, FileText, Loader2, Search, Send, Upload, XCircle } from 'lucide-react';
+import { CheckCircle2, Download, FileText, Loader2, Search, Send, Video } from 'lucide-react';
+
+type ReceiptMode = 'UPLOAD' | 'GENERATED';
 
 function statusLabel(status: ComplaintStatus) {
   switch (status) {
     case 'PENDING_TCP_REVIEW':
-      return 'Menunggu Review TCP';
+      return 'Menunggu Klaim TCP';
     case 'REJECTED_BY_TCP':
       return 'Ditolak TCP';
     case 'ACCEPTED_BY_TCP':
-      return 'Diterima TCP';
+      return 'Sedang Diproses TCP';
     case 'REPLACEMENT_SHIPPED':
-      return 'Pesanan Komplen Sedang Dikirim';
+      return 'Sudah Diurus TCP';
     default:
       return status;
   }
@@ -65,6 +68,42 @@ function statusBadgeClass(status: ComplaintStatus) {
   }
 }
 
+function createSalesInfoPdf(params: {
+  sale: Sale;
+  complaintDate: string;
+  reason: string;
+  salesInformation: string;
+}) {
+  const { sale, complaintDate, reason, salesInformation } = params;
+  const doc = new jsPDF({
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  doc.setFontSize(14);
+  doc.text('RESI KOMPLEN - INFORMASI PENJUALAN', 15, 18);
+  doc.setFontSize(10);
+  doc.text(`Tanggal Komplen: ${new Date(complaintDate).toLocaleDateString('id-ID')}`, 15, 26);
+  doc.text(`No Pesanan: ${sale.saleNumber}`, 15, 32);
+  doc.text(`Customer: ${sale.customerName || '-'}`, 15, 38);
+  doc.text(`Tanggal Penjualan: ${new Date(sale.saleDate).toLocaleDateString('id-ID')}`, 15, 44);
+
+  doc.setFontSize(11);
+  doc.text('Alasan Komplen:', 15, 54);
+  const reasonLines = doc.splitTextToSize(reason, 180);
+  doc.text(reasonLines, 15, 60);
+
+  const infoStartY = 70 + reasonLines.length * 5;
+  doc.text('Informasi Penjualan:', 15, infoStartY);
+  const infoLines = doc.splitTextToSize(salesInformation, 180);
+  doc.text(infoLines, 15, infoStartY + 6);
+
+  const pdfBlob = doc.output('blob');
+  return new File([pdfBlob], `resi-komplen-${sale.saleNumber}.pdf`, {
+    type: 'application/pdf',
+  });
+}
+
 export default function ComplaintsPage() {
   const { user } = useAuthStore();
   const role = user?.role || '';
@@ -72,38 +111,32 @@ export default function ComplaintsPage() {
   const isTcp = role === 'TCP';
   const isAdmin = role === 'ADMIN';
   const isSuperAdmin = role === 'SUPER_ADMIN';
-  const canCreate = isUser || isSuperAdmin || isAdmin;
-  const canTcpReview = isTcp || isSuperAdmin || isAdmin;
+  const canCreate = isUser;
+  const canTcpProcess = isTcp || isSuperAdmin || isAdmin;
 
   const today = new Date().toISOString().split('T')[0];
 
-  // Create form state
   const [saleQuery, setSaleQuery] = useState('');
   const [debouncedSaleQuery, setDebouncedSaleQuery] = useState('');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [reason, setReason] = useState('');
+  const [salesInformation, setSalesInformation] = useState('');
   const [complaintDate, setComplaintDate] = useState(today);
-  const [complaintPhoto, setComplaintPhoto] = useState<File | null>(null);
+  const [complaintPhotos, setComplaintPhotos] = useState<File[]>([]);
+  const [complaintVideo, setComplaintVideo] = useState<File | null>(null);
+  const [receiptMode, setReceiptMode] = useState<ReceiptMode>('UPLOAD');
+  const [uploadedReceiptPdf, setUploadedReceiptPdf] = useState<File | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  // List state
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchFilter, setSearchFilter] = useState('');
   const [debouncedSearchFilter, setDebouncedSearchFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageLimit, setPageLimit] = useState('10');
 
-  // TCP actions state
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
-
-  const [shipDialogOpen, setShipDialogOpen] = useState(false);
-  const [replacementProof, setReplacementProof] = useState<File | null>(null);
-
   const createComplaint = useCreateComplaint();
-  const reviewComplaint = useReviewComplaint();
-  const shipComplaint = useShipComplaintReplacement();
+  const claimComplaint = useClaimComplaint();
+  const markHandledComplaint = useMarkComplaintHandled();
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSaleQuery(saleQuery), 350);
@@ -142,94 +175,103 @@ export default function ComplaintsPage() {
   const totalComplaints = complaintPagination?.total ?? 0;
   const totalPages = complaintPagination?.totalPages ?? 1;
   const safeCurrentPage = complaintPagination?.page ?? currentPage;
-  const effectiveComplaintDate = isUser ? today : complaintDate;
 
   const selectedSaleStillExists = useMemo(() => {
     if (!selectedSale) return false;
     return eligibleSales.some((s) => s.id === selectedSale.id) || saleQuery.trim().length === 0;
   }, [selectedSale, eligibleSales, saleQuery]);
 
+  const effectiveComplaintDate = today;
+  const hasValidReceipt =
+    receiptMode === 'UPLOAD' ? !!uploadedReceiptPdf : salesInformation.trim().length >= 10;
+
   const canSubmitComplaint =
     !!selectedSale &&
-    !!complaintPhoto &&
+    complaintPhotos.length > 0 &&
     reason.trim().length >= 5 &&
-    !!effectiveComplaintDate &&
+    hasValidReceipt &&
     selectedSaleStillExists &&
     !createComplaint.isPending;
 
-  const openPreview = () => {
-    if (!canSubmitComplaint) return;
-    setPreviewOpen(true);
-  };
+  const previewPhotoUrls = useMemo(
+    () => complaintPhotos.map((file) => URL.createObjectURL(file)),
+    [complaintPhotos]
+  );
 
-  const submitComplaint = () => {
-    if (!selectedSale || !complaintPhoto) return;
+  useEffect(() => {
+    return () => {
+      previewPhotoUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [previewPhotoUrls]);
+
+  const submitComplaint = async () => {
+    if (!selectedSale || complaintPhotos.length === 0) return;
+
+    let receiptPdfFile = uploadedReceiptPdf;
+    if (receiptMode === 'GENERATED') {
+      receiptPdfFile = createSalesInfoPdf({
+        sale: selectedSale,
+        complaintDate: effectiveComplaintDate,
+        reason: reason.trim(),
+        salesInformation: salesInformation.trim(),
+      });
+    }
+
+    if (!receiptPdfFile) return;
+
     const formData = new FormData();
     formData.append('saleId', selectedSale.id);
     formData.append('reason', reason.trim());
     formData.append('complaintDate', effectiveComplaintDate);
-    formData.append('complaintPhoto', complaintPhoto);
+    formData.append('receiptSource', receiptMode);
+    formData.append('complaintReceiptPdf', receiptPdfFile);
+    formData.append('salesInformation', salesInformation.trim());
+    complaintPhotos.forEach((file) => {
+      formData.append('complaintPhotos', file);
+    });
+    if (complaintVideo) {
+      formData.append('complaintVideo', complaintVideo);
+    }
 
     createComplaint.mutate(formData, {
       onSuccess: () => {
         setPreviewOpen(false);
         setSelectedSale(null);
         setReason('');
+        setSalesInformation('');
         setComplaintDate(today);
-        setComplaintPhoto(null);
+        setComplaintPhotos([]);
+        setComplaintVideo(null);
+        setUploadedReceiptPdf(null);
+        setReceiptMode('UPLOAD');
         setSaleQuery('');
         setDebouncedSaleQuery('');
       },
     });
   };
 
-  const openRejectDialog = (complaint: Complaint) => {
-    setSelectedComplaint(complaint);
-    setRejectReason('');
-    setRejectDialogOpen(true);
+  const handleClaim = (complaintId: string) => {
+    claimComplaint.mutate({ id: complaintId });
   };
 
-  const confirmReject = () => {
-    if (!selectedComplaint || rejectReason.trim().length < 5) return;
-    reviewComplaint.mutate(
-      {
-        id: selectedComplaint.id,
-        decision: 'REJECT',
-        rejectionReason: rejectReason.trim(),
-      },
+  const handleMarkHandledAndOpenPdf = (complaint: Complaint) => {
+    const pdfUrl = complaint.complaintReceiptPdf
+      ? getImageUrl(complaint.complaintReceiptPdf)
+      : complaint.replacementProofDocument
+        ? getImageUrl(complaint.replacementProofDocument)
+        : '';
+
+    if (!pdfUrl) return;
+
+    markHandledComplaint.mutate(
+      { id: complaint.id },
       {
         onSuccess: () => {
-          setRejectDialogOpen(false);
-          setSelectedComplaint(null);
-          setRejectReason('');
+          window.open(pdfUrl, '_blank', 'noopener,noreferrer');
         },
       }
     );
   };
-
-  const openShipDialog = (complaint: Complaint) => {
-    setSelectedComplaint(complaint);
-    setReplacementProof(null);
-    setShipDialogOpen(true);
-  };
-
-  const confirmShip = () => {
-    if (!selectedComplaint || !replacementProof) return;
-    const formData = new FormData();
-    formData.append('replacementProof', replacementProof);
-    shipComplaint.mutate(
-      { id: selectedComplaint.id, data: formData },
-      {
-        onSuccess: () => {
-          setShipDialogOpen(false);
-          setSelectedComplaint(null);
-          setReplacementProof(null);
-        },
-      }
-    );
-  };
-
-  const previewPhotoUrl = complaintPhoto ? URL.createObjectURL(complaintPhoto) : '';
 
   return (
     <div className="space-y-6">
@@ -238,7 +280,7 @@ export default function ComplaintsPage() {
       <div>
         <h1 className="text-3xl font-bold">Komplen Pesanan</h1>
         <p className="text-muted-foreground mt-1">
-          Input, review, dan tracking status komplen pesanan pengganti.
+          Komplen hanya untuk pesanan yang sudah pelunasan (SETTLED).
         </p>
       </div>
 
@@ -249,7 +291,7 @@ export default function ComplaintsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Cari Pesanan (Nama / No Resi Saat Ini)</Label>
+              <Label>Cari Pesanan Settled (Nama / No Pesanan)</Label>
               <Input
                 placeholder="Contoh: INV-2026-001 atau nama pelanggan"
                 value={saleQuery}
@@ -262,7 +304,7 @@ export default function ComplaintsPage() {
                       <Loader2 className="h-4 w-4 animate-spin" /> Mencari pesanan...
                     </div>
                   ) : eligibleSales.length === 0 ? (
-                    <div className="p-3 text-sm text-muted-foreground">Pesanan selesai tidak ditemukan.</div>
+                    <div className="p-3 text-sm text-muted-foreground">Pesanan settled tidak ditemukan.</div>
                   ) : (
                     eligibleSales.map((sale) => (
                       <button
@@ -287,54 +329,87 @@ export default function ComplaintsPage() {
             {selectedSale && (
               <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
                 <p className="text-sm font-semibold">Validasi Pesanan</p>
-                <p className="text-sm">No Resi/No Pesanan: <strong>{selectedSale.saleNumber}</strong></p>
+                <p className="text-sm">No Pesanan: <strong>{selectedSale.saleNumber}</strong></p>
                 <p className="text-sm">Nama: <strong>{selectedSale.customerName || '-'}</strong></p>
+                <p className="text-sm">
+                  Tanggal Penjualan: <strong>{new Date(selectedSale.saleDate).toLocaleDateString('id-ID')}</strong>
+                </p>
               </div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Upload Foto Komplen (Maks 1MB)</Label>
+                <Label>Upload Foto Komplen (1-5 foto, maks 1MB/foto) *</Label>
                 <Input
                   type="file"
+                  multiple
                   accept="image/jpeg,image/jpg,image/png,image/webp"
                   onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    if (file.size > 1024 * 1024) {
-                      alert('Ukuran foto maksimal 1MB');
+                    const files = Array.from(e.target.files || []);
+                    if (files.length === 0) {
+                      setComplaintPhotos([]);
                       return;
                     }
-                    setComplaintPhoto(file);
+                    if (files.length > 5) {
+                      alert('Maksimal 5 foto');
+                      return;
+                    }
+                    const oversizeFile = files.find((file) => file.size > 1024 * 1024);
+                    if (oversizeFile) {
+                      alert(`Ukuran foto maksimal 1MB: ${oversizeFile.name}`);
+                      return;
+                    }
+                    setComplaintPhotos(files);
                   }}
                 />
-                {complaintPhoto && (
-                  <p className="text-xs text-muted-foreground">
-                    {complaintPhoto.name} ({Math.round(complaintPhoto.size / 1024)} KB)
-                  </p>
+                {complaintPhotos.length > 0 && (
+                  <div className="space-y-1">
+                    {complaintPhotos.map((file) => (
+                      <p key={file.name + file.size} className="text-xs text-muted-foreground">
+                        {file.name} ({Math.round(file.size / 1024)} KB)
+                      </p>
+                    ))}
+                  </div>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label>Tanggal Komplen</Label>
-                  <Input
-                    type="date"
-                    value={effectiveComplaintDate}
-                    onChange={(e) => {
-                      if (!isUser) {
-                        setComplaintDate(e.target.value);
-                      }
-                    }}
-                    readOnly={isUser}
-                    min={isUser ? today : undefined}
-                    max={isUser ? today : undefined}
+                <Label>Video Komplen (Opsional, maks 25MB)</Label>
+                <Input
+                  type="file"
+                  accept="video/mp4,video/webm,video/quicktime"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) {
+                      setComplaintVideo(null);
+                      return;
+                    }
+                    if (file.size > 25 * 1024 * 1024) {
+                      alert('Video maksimal 25MB');
+                      return;
+                    }
+                    setComplaintVideo(file);
+                  }}
                 />
-                {isUser && <p className="text-xs text-muted-foreground">Role USER hanya boleh tanggal hari ini.</p>}
+                {complaintVideo && (
+                  <p className="text-xs text-muted-foreground">
+                    {complaintVideo.name} ({Math.round(complaintVideo.size / 1024 / 1024)} MB)
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Disarankan upload video yang sudah dikompres dari perangkat.
+                </p>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Alasan Komplen</Label>
+              <Label>Tanggal Komplen</Label>
+              <Input type="date" value={effectiveComplaintDate} readOnly min={today} max={today} />
+              <p className="text-xs text-muted-foreground">Role USER hanya boleh tanggal hari ini.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Alasan Komplen *</Label>
               <Textarea
                 placeholder="Jelaskan alasan komplen secara jelas"
                 rows={4}
@@ -343,8 +418,65 @@ export default function ComplaintsPage() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label>Sumber Resi Komplen (PDF) *</Label>
+              <Select value={receiptMode} onValueChange={(value: ReceiptMode) => setReceiptMode(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UPLOAD">Upload PDF Resi dari User</SelectItem>
+                  <SelectItem value="GENERATED">Input Informasi Penjualan lalu Auto-PDF</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {receiptMode === 'UPLOAD' ? (
+              <div className="space-y-2">
+                <Label>Upload PDF Resi Komplen (maks 5MB) *</Label>
+                <Input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) {
+                      setUploadedReceiptPdf(null);
+                      return;
+                    }
+                    if (file.type !== 'application/pdf') {
+                      alert('File wajib PDF');
+                      return;
+                    }
+                    if (file.size > 5 * 1024 * 1024) {
+                      alert('Ukuran PDF maksimal 5MB');
+                      return;
+                    }
+                    setUploadedReceiptPdf(file);
+                  }}
+                />
+                {uploadedReceiptPdf && (
+                  <p className="text-xs text-muted-foreground">
+                    {uploadedReceiptPdf.name} ({Math.round(uploadedReceiptPdf.size / 1024)} KB)
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Informasi Penjualan (akan diubah jadi PDF) *</Label>
+                <Textarea
+                  placeholder="Isi detail penjualan: alamat, no hp, akun buyer, kronologi, dan informasi lain yang dibutuhkan TCP"
+                  rows={5}
+                  value={salesInformation}
+                  onChange={(e) => setSalesInformation(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Minimal 10 karakter. Sistem akan generate PDF resi otomatis saat kirim komplen.
+                </p>
+              </div>
+            )}
+
             <div className="flex justify-end">
-              <Button onClick={openPreview} disabled={!canSubmitComplaint}>
+              <Button onClick={() => setPreviewOpen(true)} disabled={!canSubmitComplaint}>
                 <Send className="h-4 w-4 mr-2" />
                 Preview & Konfirmasi
               </Button>
@@ -372,10 +504,10 @@ export default function ComplaintsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua Status</SelectItem>
-                <SelectItem value="PENDING_TCP_REVIEW">Menunggu Review TCP</SelectItem>
+                <SelectItem value="PENDING_TCP_REVIEW">Menunggu Klaim TCP</SelectItem>
+                <SelectItem value="ACCEPTED_BY_TCP">Sedang Diproses TCP</SelectItem>
+                <SelectItem value="REPLACEMENT_SHIPPED">Sudah Diurus TCP</SelectItem>
                 <SelectItem value="REJECTED_BY_TCP">Ditolak TCP</SelectItem>
-                <SelectItem value="ACCEPTED_BY_TCP">Diterima TCP</SelectItem>
-                <SelectItem value="REPLACEMENT_SHIPPED">Pesanan Komplen Sedang Dikirim</SelectItem>
               </SelectContent>
             </Select>
             <Select value={pageLimit} onValueChange={setPageLimit}>
@@ -403,85 +535,95 @@ export default function ComplaintsPage() {
             <div className="py-10 text-center text-muted-foreground">Belum ada data komplen.</div>
           ) : (
             <div className="space-y-3">
-              {complaints.map((complaint) => (
-                <div key={complaint.id} className="rounded-lg border p-3">
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{complaint.complaintNumber}</span>
-                        <Badge variant="outline" className={statusBadgeClass(complaint.status)}>
-                          {statusLabel(complaint.status)}
-                        </Badge>
-                      </div>
-                      <p className="text-sm">
-                        Pesanan: <strong>{complaint.saleNumberSnapshot}</strong> •
-                        Customer: <strong> {complaint.customerNameSnapshot || '-'} </strong>
-                      </p>
-                      <p className="text-sm text-muted-foreground">{complaint.reason}</p>
-                      {complaint.rejectionReason && (
-                        <p className="text-sm text-red-600">Alasan ditolak: {complaint.rejectionReason}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        Tanggal komplen: {new Date(complaint.complaintDate).toLocaleDateString('id-ID')}
-                      </p>
-                      {complaint.sale?.creator && (
-                        <p className="text-xs text-muted-foreground">
-                          Penanggung jawab pesanan: {complaint.sale.creator.fullName}
+              {complaints.map((complaint) => {
+                const receiptPdfPath = complaint.complaintReceiptPdf || complaint.replacementProofDocument;
+                return (
+                  <div key={complaint.id} className="rounded-lg border p-3">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{complaint.complaintNumber}</span>
+                          <Badge variant="outline" className={statusBadgeClass(complaint.status)}>
+                            {statusLabel(complaint.status)}
+                          </Badge>
+                        </div>
+                        <p className="text-sm">
+                          Pesanan: <strong>{complaint.saleNumberSnapshot}</strong> •
+                          Customer: <strong> {complaint.customerNameSnapshot || '-'} </strong>
                         </p>
-                      )}
-                    </div>
+                        <p className="text-sm text-muted-foreground">{complaint.reason}</p>
+                        {complaint.salesInformation && (
+                          <p className="text-sm">
+                            Informasi Penjualan: <span className="text-muted-foreground">{complaint.salesInformation}</span>
+                          </p>
+                        )}
+                        {complaint.rejectionReason && (
+                          <p className="text-sm text-red-600">Alasan ditolak: {complaint.rejectionReason}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Tanggal komplen: {new Date(complaint.complaintDate).toLocaleDateString('id-ID')}
+                        </p>
+                        {complaint.sale?.creator && (
+                          <p className="text-xs text-muted-foreground">
+                            Penanggung jawab pesanan: {complaint.sale.creator.fullName}
+                          </p>
+                        )}
+                      </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <a href={getImageUrl(complaint.complaintPhoto)} target="_blank" rel="noreferrer">
-                        <Button size="sm" variant="outline">Lihat Foto</Button>
-                      </a>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {(complaint.complaintPhotos && complaint.complaintPhotos.length > 0
+                          ? complaint.complaintPhotos
+                          : [complaint.complaintPhoto]
+                        ).map((photo, index) => (
+                          <a key={`${complaint.id}-photo-${index}`} href={getImageUrl(photo)} target="_blank" rel="noreferrer">
+                            <Button size="sm" variant="outline">Lihat Foto {index + 1}</Button>
+                          </a>
+                        ))}
 
-                      {complaint.replacementProofDocument && (
-                        <a href={getImageUrl(complaint.replacementProofDocument)} target="_blank" rel="noreferrer">
-                          <Button size="sm" variant="outline">
-                            <FileText className="h-4 w-4 mr-1" />
-                            Lihat PDF
-                          </Button>
-                        </a>
-                      )}
+                        {receiptPdfPath && (
+                          <a href={getImageUrl(receiptPdfPath)} target="_blank" rel="noreferrer">
+                            <Button size="sm" variant="outline">
+                              <FileText className="h-4 w-4 mr-1" />
+                              Lihat PDF Resi
+                            </Button>
+                          </a>
+                        )}
 
-                      {canTcpReview && complaint.status === 'PENDING_TCP_REVIEW' && (
-                        <>
+                        {complaint.complaintVideo && (
+                          <a href={getImageUrl(complaint.complaintVideo)} target="_blank" rel="noreferrer">
+                            <Button size="sm" variant="outline">
+                              <Video className="h-4 w-4 mr-1" />
+                              Lihat Video
+                            </Button>
+                          </a>
+                        )}
+
+                        {canTcpProcess && complaint.status === 'PENDING_TCP_REVIEW' && (
                           <Button
                             size="sm"
-                            onClick={() =>
-                              reviewComplaint.mutate({
-                                id: complaint.id,
-                                decision: 'ACCEPT',
-                              })
-                            }
-                            disabled={reviewComplaint.isPending}
+                            onClick={() => handleClaim(complaint.id)}
+                            disabled={claimComplaint.isPending}
                           >
                             <CheckCircle2 className="h-4 w-4 mr-1" />
-                            Terima
+                            Klaim Komplen
                           </Button>
+                        )}
+
+                        {canTcpProcess && complaint.status === 'ACCEPTED_BY_TCP' && receiptPdfPath && (
                           <Button
                             size="sm"
-                            variant="destructive"
-                            onClick={() => openRejectDialog(complaint)}
-                            disabled={reviewComplaint.isPending}
+                            onClick={() => handleMarkHandledAndOpenPdf(complaint)}
+                            disabled={markHandledComplaint.isPending}
                           >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            Tolak
+                            <Download className="h-4 w-4 mr-1" />
+                            Download/Cetak & Selesai
                           </Button>
-                        </>
-                      )}
-
-                      {canTcpReview && complaint.status === 'ACCEPTED_BY_TCP' && (
-                        <Button size="sm" onClick={() => openShipDialog(complaint)}>
-                          <Upload className="h-4 w-4 mr-1" />
-                          Upload Resi Pengganti (PDF)
-                        </Button>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           <div className="mt-4 flex items-center justify-between border-t pt-3">
@@ -521,8 +663,24 @@ export default function ComplaintsPage() {
             <p>Nama: <strong>{selectedSale?.customerName || '-'}</strong></p>
             <p>Tanggal Komplen: <strong>{new Date(effectiveComplaintDate).toLocaleDateString('id-ID')}</strong></p>
             <p>Alasan: {reason}</p>
-            {previewPhotoUrl && (
-              <img src={previewPhotoUrl} alt="Preview komplen" className="w-full max-h-64 object-contain rounded border" />
+            <p>Mode Resi PDF: <strong>{receiptMode === 'UPLOAD' ? 'Upload PDF' : 'Auto Generate dari Informasi Penjualan'}</strong></p>
+            {receiptMode === 'GENERATED' && salesInformation.trim() && (
+              <p>Informasi Penjualan: {salesInformation}</p>
+            )}
+            {complaintVideo && (
+              <p>Video: {complaintVideo.name}</p>
+            )}
+            {previewPhotoUrls.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {previewPhotoUrls.map((url, index) => (
+                  <img
+                    key={url}
+                    src={url}
+                    alt={`Preview komplen ${index + 1}`}
+                    className="w-full max-h-64 object-contain rounded border"
+                  />
+                ))}
+              </div>
             )}
           </div>
           <DialogFooter>
@@ -537,75 +695,6 @@ export default function ComplaintsPage() {
                 </>
               ) : (
                 'Ya, Kirim Komplen'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Tolak Komplen</DialogTitle>
-            <DialogDescription>Masukkan alasan penolakan komplen.</DialogDescription>
-          </DialogHeader>
-          <Textarea
-            rows={4}
-            placeholder="Alasan penolakan"
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
-              Batal
-            </Button>
-            <Button variant="destructive" onClick={confirmReject} disabled={rejectReason.trim().length < 5 || reviewComplaint.isPending}>
-              Tolak Komplen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={shipDialogOpen} onOpenChange={setShipDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Upload Resi Pengganti</DialogTitle>
-            <DialogDescription>Upload PDF resi pengiriman barang pengganti.</DialogDescription>
-          </DialogHeader>
-          <Input
-            type="file"
-            accept="application/pdf"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              if (file.type !== 'application/pdf') {
-                alert('File wajib PDF');
-                return;
-              }
-              if (file.size > 2 * 1024 * 1024) {
-                alert('Ukuran PDF maksimal 2MB');
-                return;
-              }
-              setReplacementProof(file);
-            }}
-          />
-          {replacementProof && (
-            <p className="text-xs text-muted-foreground">
-              {replacementProof.name} ({Math.round(replacementProof.size / 1024)} KB)
-            </p>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShipDialogOpen(false)}>
-              Batal
-            </Button>
-            <Button onClick={confirmShip} disabled={!replacementProof || shipComplaint.isPending}>
-              {shipComplaint.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Mengunggah...
-                </>
-              ) : (
-                'Kirim Resi PDF'
               )}
             </Button>
           </DialogFooter>

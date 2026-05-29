@@ -17,6 +17,12 @@ interface ComplaintAttributes {
   reason: string;
   complaintDate: Date;
   complaintPhoto: string;
+  complaintPhotos: string[] | null;
+  salesInformation: string | null;
+  complaintReceiptPdf: string | null;
+  complaintVideo: string | null;
+  complaintVideoOriginalSize: number | null;
+  complaintVideoCompressedSize: number | null;
   status: ComplaintStatus;
   reviewedBy: string | null;
   reviewedAt: Date | null;
@@ -34,6 +40,12 @@ interface ComplaintCreationAttributes
     ComplaintAttributes,
     | 'id'
     | 'customerNameSnapshot'
+    | 'complaintPhotos'
+    | 'salesInformation'
+    | 'complaintReceiptPdf'
+    | 'complaintVideo'
+    | 'complaintVideoOriginalSize'
+    | 'complaintVideoCompressedSize'
     | 'status'
     | 'reviewedBy'
     | 'reviewedAt'
@@ -57,6 +69,12 @@ class Complaint
   declare reason: string;
   declare complaintDate: Date;
   declare complaintPhoto: string;
+  declare complaintPhotos: string[] | null;
+  declare salesInformation: string | null;
+  declare complaintReceiptPdf: string | null;
+  declare complaintVideo: string | null;
+  declare complaintVideoOriginalSize: number | null;
+  declare complaintVideoCompressedSize: number | null;
   declare status: ComplaintStatus;
   declare reviewedBy: string | null;
   declare reviewedAt: Date | null;
@@ -108,6 +126,30 @@ Complaint.init(
     complaintPhoto: {
       type: DataTypes.STRING(255),
       allowNull: false,
+    },
+    complaintPhotos: {
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
+    salesInformation: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    complaintReceiptPdf: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    complaintVideo: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    complaintVideoOriginalSize: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    complaintVideoCompressedSize: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
     },
     status: {
       type: DataTypes.ENUM(...Object.values(ComplaintStatus)),

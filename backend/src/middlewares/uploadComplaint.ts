@@ -5,50 +5,59 @@ import { Request } from 'express';
 import { AppError } from '../utils/errors';
 
 const complaintPhotoDir = path.join(process.cwd(), 'uploads/complaints/photos');
-const replacementProofDir = path.join(process.cwd(), 'uploads/complaints/replacements');
+const complaintReceiptDir = path.join(process.cwd(), 'uploads/complaints/receipts');
+const complaintVideoDir = path.join(process.cwd(), 'uploads/complaints/videos');
 
-if (!fs.existsSync(complaintPhotoDir)) {
-  fs.mkdirSync(complaintPhotoDir, { recursive: true });
-}
+[complaintPhotoDir, complaintReceiptDir, complaintVideoDir].forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
 
-if (!fs.existsSync(replacementProofDir)) {
-  fs.mkdirSync(replacementProofDir, { recursive: true });
-}
-
-const complaintPhotoUpload = multer({
+const complaintUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 1 * 1024 * 1024, // 1MB
+    files: 7, // max 5 photos + 1 pdf + 1 video
+    fileSize: 25 * 1024 * 1024, // allow optional video upload
   },
   fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.mimetype)) {
-      cb(new AppError('Foto komplen wajib format JPEG/PNG/WebP', 400) as any);
+    if (file.fieldname === 'complaintPhotos') {
+      const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!allowedImageTypes.includes(file.mimetype)) {
+        cb(new AppError('Foto komplen wajib format JPEG/PNG/WebP', 400) as any);
+        return;
+      }
+      cb(null, true);
       return;
     }
-    cb(null, true);
+
+    if (file.fieldname === 'complaintReceiptPdf') {
+      if (file.mimetype !== 'application/pdf') {
+        cb(new AppError('Resi komplen wajib format PDF', 400) as any);
+        return;
+      }
+      cb(null, true);
+      return;
+    }
+
+    if (file.fieldname === 'complaintVideo') {
+      const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
+      if (!allowedVideoTypes.includes(file.mimetype)) {
+        cb(new AppError('Video komplen hanya mendukung MP4/WEBM/MOV', 400) as any);
+        return;
+      }
+      cb(null, true);
+      return;
+    }
+
+    cb(new AppError('Field upload tidak dikenali', 400) as any);
   },
 });
 
-const replacementProofUpload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, replacementProofDir),
-    filename: (_req, file, cb) => {
-      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-      cb(null, `complaint-replacement-${uniqueSuffix}${path.extname(file.originalname)}`);
-    },
-  }),
-  limits: {
-    fileSize: 2 * 1024 * 1024, // 2MB
-  },
-  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    if (file.mimetype !== 'application/pdf') {
-      cb(new AppError('Resi pengganti wajib format PDF', 400) as any);
-      return;
-    }
-    cb(null, true);
-  },
-});
+export const uploadComplaintSubmission = complaintUpload.fields([
+  { name: 'complaintPhotos', maxCount: 5 },
+  { name: 'complaintReceiptPdf', maxCount: 1 },
+  { name: 'complaintVideo', maxCount: 1 },
+]);
 
-export const uploadComplaintPhoto = complaintPhotoUpload.single('complaintPhoto');
-export const uploadComplaintReplacementProof = replacementProofUpload.single('replacementProof');
+export { complaintReceiptDir, complaintVideoDir };

@@ -1,5 +1,5 @@
 import apiClient from './client';
-import { Complaint, ApiResponse, ComplaintListData, Sale } from '@/types';
+import { Complaint, ApiResponse, ComplaintListData, ComplaintVideoMetadata, Sale } from '@/types';
 
 export const complaintsApi = {
   getEligibleSales: async (q: string) => {
@@ -28,17 +28,18 @@ export const complaintsApi = {
     return response.data;
   },
 
-  review: async (id: string, payload: { decision: 'ACCEPT' | 'REJECT'; rejectionReason?: string }) => {
-    const response = await apiClient.patch<ApiResponse<Complaint>>(`/complaints/${id}/review`, payload);
+  getVideoMetadata: async (id: string) => {
+    const response = await apiClient.get<ApiResponse<ComplaintVideoMetadata>>(`/complaints/${id}/video-metadata`);
     return response.data;
   },
 
-  shipReplacement: async (id: string, data: FormData) => {
-    const response = await apiClient.patch<ApiResponse<Complaint>>(`/complaints/${id}/ship`, data, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+  claim: async (id: string) => {
+    const response = await apiClient.patch<ApiResponse<Complaint>>(`/complaints/${id}/claim`);
+    return response.data;
+  },
+
+  markHandled: async (id: string) => {
+    const response = await apiClient.patch<ApiResponse<Complaint>>(`/complaints/${id}/mark-handled`);
     return response.data;
   },
 };
