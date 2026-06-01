@@ -52,10 +52,6 @@ export const complaintController = {
         isInitialBalance: false,
       };
 
-      if (req.user?.roleName === 'USER') {
-        where.createdBy = req.user.id;
-      }
-
       if (q.length >= 2) {
         where[Op.or] = [
           { saleNumber: { [Op.like]: `%${q}%` } },
@@ -129,10 +125,6 @@ export const complaintController = {
 
       if (!complaintEligibleStatuses.includes(sale.status as SaleStatus)) {
         throw new AppError('Komplen hanya bisa dibuat untuk pesanan yang sudah dikirim atau sudah pelunasan', 400);
-      }
-
-      if (req.user.roleName === 'USER' && sale.createdBy !== req.user.id) {
-        throw new AppError('Anda hanya dapat membuat komplen untuk pesanan Anda sendiri', 403);
       }
 
       const today = getLocalDateString(new Date());
