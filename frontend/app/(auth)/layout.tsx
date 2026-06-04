@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Login - WMS',
-  description: 'Login to Warehouse Management System',
+  title: 'Login - Lunarea',
+  description: 'Login ke Sistem Manajemen Lunarea',
 };
 
 export default function AuthLayout({

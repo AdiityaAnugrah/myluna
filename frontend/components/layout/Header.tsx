@@ -45,7 +45,7 @@ export function Header() {
 
       <div className="animate-in flex-shrink-0 hidden md:block">
         <h2 className="text-lg font-bold tracking-tight text-gradient">
-          Sistem Manajemen Gudang
+          Sistem Manajemen Lunarea
         </h2>
       </div>
 

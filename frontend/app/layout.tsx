@@ -10,8 +10,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Lunarea - Sistem Manajemen Gudang",
-  description: "Sistem Aplikasi Manajemen Gudang & Inventaris Modern",
+  title: "Lunarea - Sistem Manajemen Lunarea",
+  description: "Sistem Aplikasi Manajemen Lunarea & Inventaris Modern",
 };
 
 export default function RootLayout({

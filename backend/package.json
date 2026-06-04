@@ -1,7 +1,7 @@
 {
   "name": "wms-backend",
   "version": "1.0.0",
-  "description": "Warehouse Management System Backend API",
+  "description": "Sistem Manajemen Lunarea Backend API",
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",

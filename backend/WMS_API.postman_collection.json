@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "wms-backend-api",
 		"name": "WMS Backend API",
-		"description": "Complete API collection for Warehouse Management System",
+		"description": "Complete API collection for Sistem Manajemen Lunarea",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"auth": {

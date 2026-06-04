@@ -1,299 +1,209 @@
-# WMS Backend - Warehouse Management System
+# Luna Sistem Backend
 
-Backend API untuk sistem manajemen gudang (WMS) menggunakan Node.js, TypeScript, Express, dan Sequelize dengan MySQL.
+Backend API untuk Luna Sistem, aplikasi operasional inventaris, penjualan, pelunasan, piutang, approval, audit, dan komplen. Server dibangun dengan Node.js, Express, TypeScript, Sequelize, MySQL, JWT auth, dan Socket.IO.
 
-## 📋 Status Implementasi
+## Stack
 
-### ✅ Selesai
-- ✅ Project setup (package.json, tsconfig.json, jest.config.js)
-- ✅ Configuration (env, database, jwt)
-- ✅ Utilities (logger, errors, response formatters)
-- ✅ Type definitions (Express extensions)
-- ✅ **12 Models** (Role, User, RefreshToken, AuditLog, Category, Supplier, Product, StockMovement, Purchase, PurchaseItem, Sale, SaleItem)
-- ✅ Model associations
-- ✅ **5 Middleware** (auth, RBAC, audit context, error handler, validator)
-- ✅ Audit service
-- ✅ Express app setup
-- ✅ Server entry point
+- Node.js + Express + TypeScript
+- Sequelize ORM + MySQL
+- JWT access token + refresh token
+- Socket.IO untuk notifikasi dan sinkronisasi data realtime
+- Multer, Sharp, dan ffmpeg-static untuk upload/compress media
+- Zod, Helmet, CORS, rate limit, Winston
+- Jest + Supertest untuk test backend
 
-### 🔄 Perlu Dilengkapi
-- ⏳ **5 Models tersisa** (Return, ReturnItem, Exchange, ExchangeItem, FinanceSource, FinanceTransaction)
-- ⏳ **Migrations** untuk semua 17 tabel
-- ⏳ **Seeders** untuk roles dan demo data
-- ⏳ **Validators** (Zod schemas untuk semua endpoint)
-- ⏳ **Services** (auth, product, purchase, sale, stock, finance, dll)
-- ⏳ **Controllers** (auth, product, purchase, sale, stock, finance, dll)
-- ⏳ **Routes** (semua endpoint API)
-- ⏳ **Swagger documentation**
+## Runtime
 
-## 🚀 Quick Start
+- Entry app: `src/app.ts`
+- Entry server: `src/server.ts`
+- Default API prefix: `/api/v1`
+- Health check: `GET /health`
+- Static upload: `/uploads`
+- Socket.IO berjalan di HTTP server yang sama dengan Express.
 
-### 1. Install Dependencies
+Alur start server:
+
+1. Load env dari `.env`.
+2. Validasi env di `src/config/env.ts`.
+3. Connect ke MySQL via Sequelize.
+4. Start Express HTTP server.
+5. Inisialisasi Socket.IO.
+6. Jalankan audit cleanup harian.
+
+## Quick Start
 
 ```bash
-cd c:\xampp\htdocs\luna-sistem\backend
+cd C:\xampp\htdocs\luna-sistem\backend
 npm install
-```
-
-### 2. Setup Environment
-
-Copy `.env.example` ke `.env` dan sesuaikan konfigurasi:
-
-```bash
 copy .env.example .env
+npm run migrate
+npm run seed
+npm run dev
 ```
 
-Edit `.env`:
+Default `.env.example` memakai `PORT=3000`, tetapi frontend project ini default memanggil API ke `http://localhost:4000/api/v1`. Pastikan `PORT` backend dan `NEXT_PUBLIC_API_URL` frontend konsisten di environment lokal.
+
+## Environment
+
+Minimal konfigurasi:
+
 ```env
+NODE_ENV=development
+PORT=4000
+API_PREFIX=/api/v1
+
 DB_HOST=localhost
 DB_PORT=3306
 DB_NAME=wms_db
 DB_USER=root
-DB_PASSWORD=your_password
+DB_PASSWORD=
+DB_DIALECT=mysql
 
-JWT_ACCESS_SECRET=generate-random-32-char-string-here
-JWT_REFRESH_SECRET=generate-random-32-char-string-here
+JWT_ACCESS_SECRET=change-this-minimum-32-characters
+JWT_REFRESH_SECRET=change-this-minimum-32-characters
+CORS_ORIGIN=http://localhost:3000
 ```
 
-### 3. Create Database
-
-Buat database MySQL:
-```sql
-CREATE DATABASE wms_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-### 4. Run Migrations (Setelah dibuat)
+## Commands
 
 ```bash
-npm run migrate
+npm run dev             # Start development server with ts-node-dev
+npm run build           # Compile TypeScript to dist/
+npm start               # Run dist/server.js
+npm run migrate         # Run Sequelize migrations
+npm run migrate:undo    # Undo latest migration
+npm run seed            # Run seeders
+npm test                # Run Jest with coverage
+npm run test:watch      # Run Jest watch mode
+npm run lint            # ESLint src/**/*.ts
+npm run format          # Prettier src/**/*.ts
 ```
 
-### 5. Run Seeders (Setelah dibuat)
+## Struktur
 
-```bash
-npm run seed
-```
-
-### 6. Start Development Server
-
-```bash
-npm run dev
-```
-
-Server akan berjalan di `http://localhost:3000`
-
-## 📁 Struktur Folder
-
-```
+```text
 backend/
-├── src/
-│   ├── config/           # ✅ Configuration files
-│   │   ├── env.ts
-│   │   ├── database.ts
-│   │   └── jwt.ts
-│   ├── models/           # ✅ 12/17 models (perlu 5 lagi)
-│   │   ├── index.ts      # ✅ Associations
-│   │   ├── Role.ts
-│   │   ├── User.ts
-│   │   ├── RefreshToken.ts
-│   │   ├── AuditLog.ts
-│   │   ├── Category.ts
-│   │   ├── Supplier.ts
-│   │   ├── Product.ts
-│   │   ├── StockMovement.ts
-│   │   ├── Purchase.ts
-│   │   ├── PurchaseItem.ts
-│   │   ├── Sale.ts
-│   │   └── SaleItem.ts
-│   ├── migrations/       # ⏳ Perlu dibuat
-│   ├── seeders/          # ⏳ Perlu dibuat
-│   ├── middlewares/      # ✅ Complete
-│   │   ├── auth.ts
-│   │   ├── rbac.ts
-│   │   ├── auditContext.ts
-│   │   ├── errorHandler.ts
-│   │   └── validator.ts
-│   ├── validators/       # ⏳ Perlu dibuat
-│   ├── services/         # ⏳ 1/10 services (perlu 9 lagi)
-│   │   └── audit.service.ts
-│   ├── controllers/      # ⏳ Perlu dibuat
-│   ├── routes/           # ⏳ Perlu dibuat
-│   ├── utils/            # ✅ Complete
-│   │   ├── logger.ts
-│   │   ├── errors.ts
-│   │   └── response.ts
-│   ├── types/            # ✅ Complete
-│   │   └── express.d.ts
-│   ├── app.ts            # ✅ Express app
-│   └── server.ts         # ✅ Server entry
-├── tests/                # ⏳ Perlu dibuat
-├── .env.example          # ✅ Complete
-├── .gitignore            # ✅ Complete
-├── package.json          # ✅ Complete
-├── tsconfig.json         # ✅ Complete
-└── jest.config.js        # ✅ Complete
+  src/
+    app.ts                  Express app, middleware, route mounting
+    server.ts               DB connection, HTTP server, Socket.IO bootstrap
+    config/                 env, database, jwt config
+    controllers/            request handlers per module
+    middlewares/            auth, RBAC, validation, upload, error handling
+    migrations/             Sequelize migrations
+    models/                 Sequelize models and associations
+    routes/                 Express routes mounted under /api/v1
+    scripts/                local maintenance/debug/import scripts
+    seeders/                Sequelize seeders
+    services/               audit, auth, socket services
+    utils/                  logger, response, errors, media processing
+    validations/            shared schemas
+    validators/             request validators
+  dist/                     compiled output from npm run build
+  uploads/                  runtime uploaded files
 ```
 
-## 📝 Langkah Selanjutnya
+## Modul Aktif
 
-### Prioritas 1: Models Tersisa
+- Auth: login, refresh, logout, profile, change password, heartbeat.
+- User & role: user CRUD, role list, user settings.
+- Master data: products, categories, suppliers, platforms, shipping services, variant options.
+- Inventory: stock movement, adjustment, stock report, low stock.
+- Purchase/restock: purchase CRUD dan item pembelian.
+- Sales: create sale, approval, reject, process, cancel request, stats.
+- Approval: generic change request, product status request, sale return/exchange request.
+- Settlements: pending/settled list, create/update settlement, stats, cancel request.
+- Finance: financial summary, omset breakdown, initial receivable, import settlements, import other incomes, historical settlements.
+- Expenses and other incomes.
+- Complaints: eligible sales, create complaint, TCP claim, mark handled, video metadata.
+- Audit logs and global search.
 
-Buat 5 models berikut di `src/models/`:
+## Endpoint Groups
 
-1. **Return.ts** - Model untuk customer returns
-2. **ReturnItem.ts** - Detail items yang di-return
-3. **Exchange.ts** - Model untuk product exchanges
-4. **ExchangeItem.ts** - Detail items yang di-exchange
-5. **FinanceSource.ts** - Sumber keuangan (TikTok, Shopee, dll)
-6. **FinanceTransaction.ts** - Transaksi keuangan
+Semua endpoint di bawah `API_PREFIX`, default `/api/v1`.
 
-Contoh struktur ada di dokumentasi: `05_implementation_guides.md`
-
-Update `src/models/index.ts` untuk menambahkan associations.
-
-### Prioritas 2: Migrations
-
-Buat migrations untuk semua 17 tabel di `src/migrations/` menggunakan Sequelize CLI:
-
-```bash
-npx sequelize-cli migration:generate --name create-roles-table
-npx sequelize-cli migration:generate --name create-users-table
-# dst...
+```text
+/auth
+/products
+/categories
+/suppliers
+/purchases
+/sales
+/stock
+/product-requests
+/sale-requests
+/change-requests
+/users
+/platforms
+/audit-logs
+/settlements
+/financial-summary
+/finance
+/expenses
+/shipping-services
+/other-incomes
+/search
+/variant-options
+/complaints
+/upload
 ```
 
-Urutan migrations (dependency order):
-1. roles
-2. users
-3. refresh_tokens
-4. audit_logs
-5. categories
-6. suppliers
-7. products
-8. stock_movements
-9. purchases
-10. purchase_items
-11. sales
-12. sales_items
-13. returns
-14. return_items
-15. exchanges
-16. exchange_items
-17. finance_sources
-18. finance_transactions
+`/finance` adalah alias untuk route financial yang sama dengan `/financial-summary`.
 
-### Prioritas 3: Seeders
+## Role
 
-Buat seeder untuk roles:
+- `SUPER_ADMIN`: akses penuh, termasuk user management dan operasi finance sensitif.
+- `ADMIN`: akses operasional luas tanpa beberapa aksi khusus super admin.
+- `USER`: akses operasional terbatas dan beberapa aksi masuk approval/request.
+- `TCP`: fokus proses penjualan, pengiriman, pelunasan tertentu, dan komplen.
+- `TESTING`: role khusus yang di frontend diperlakukan sebagai mode testing/simulasi.
 
-```bash
-npx sequelize-cli seed:generate --name seed-roles
-```
+## Workflow Penting
 
-Isi dengan 3 roles: SUPER_ADMIN, ADMIN, USER
+- Create sale langsung mengurangi stok product dan variant, lalu mencatat `StockMovement OUT`.
+- Reject/delete/cancel sale pada flow tertentu mengembalikan stok dan mencatat `StockMovement IN`.
+- Sale baru masuk status `WAITING_APPROVAL`.
+- TCP/admin dapat process sale; status menjadi `PROCESSED`.
+- Settlement hanya bisa dibuat untuk sale `PROCESSED`; setelah settlement dibuat, sale menjadi `SETTLED`.
+- Finance summary menghitung piutang, pelunasan, selisih/platform fee, saldo awal piutang, historical settlement, dan other income.
+- Complaint dibuat untuk sale yang sudah `PROCESSED`, `COMPLETED`, atau `SETTLED`; TCP dapat claim dan mark handled.
 
-### Prioritas 4: Services
+## Realtime
 
-Buat services di `src/services/`:
-- auth.service.ts (login, refresh, logout)
-- user.service.ts
-- product.service.ts
-- purchase.service.ts (dengan transaction + stock movements)
-- sale.service.ts (dengan stock validation + transaction)
-- stock.service.ts (getCurrentStock, getAllProductsStock)
-- return.service.ts
-- exchange.service.ts
-- finance.service.ts (dengan reports)
+Socket.IO memakai JWT access token dari handshake auth.
 
-Contoh implementasi ada di `04_code_examples.md`
+Room yang dipakai:
 
-### Prioritas 5: Controllers & Routes
+- `user:{id}` untuk notifikasi user spesifik.
+- `admins` untuk `ADMIN` dan `SUPER_ADMIN`.
+- `tcp` untuk role `TCP`.
 
-Buat controllers dan routes untuk semua endpoint sesuai `03_api_specifications.md`
+Event umum:
 
-### Prioritas 6: Validators
+- `notification:new`
+- `approval:pending`
+- `shipping:ready`
+- `data:refresh`
 
-Buat Zod schemas untuk validasi request di `src/validators/`
+Frontend mendengar `data:refresh` dan melakukan invalidasi React Query cache agar UI otomatis mengambil data terbaru.
 
-### Prioritas 7: Swagger Documentation
+## Uploads
 
-Setup Swagger untuk API documentation
+File upload disajikan dari `/uploads`.
 
-## 📚 Dokumentasi Lengkap
+- Product image: `/uploads/products/...`
+- Proof document: `/uploads/proofs/...`
+- Shipping document: sesuai middleware upload dokumen.
+- Complaint photos/receipts/videos: `/uploads/complaints/...`
 
-Semua dokumentasi teknis ada di folder artifacts:
+PDF di `/uploads` disajikan inline dengan header cache dasar.
 
-1. **01_architecture.md** - Arsitektur & folder structure
-2. **02_database_design.md** - Database schema (17 tabel)
-3. **03_api_specifications.md** - API endpoints (50+)
-4. **04_code_examples.md** - Contoh kode production-ready
-5. **05_implementation_guides.md** - Best practices & security
+## Catatan Maintenance
 
-## 🔧 Commands
+- `dist/` adalah output build dari TypeScript.
+- `node_modules/`, file temp/debug, dan upload runtime tidak seharusnya dijadikan sumber kebenaran.
+- `PROJECT_MODULE_MAP.md` di root berisi peta end-to-end backend ke frontend yang lebih detail.
+- Beberapa script di root backend adalah utilitas lokal/debug/import; cek isinya sebelum menjalankan terhadap database produksi.
 
-```bash
-# Development
-npm run dev              # Start dev server with hot reload
-
-# Build
-npm run build            # Compile TypeScript to JavaScript
-npm start                # Run production build
-
-# Database
-npm run migrate          # Run migrations
-npm run migrate:undo     # Rollback last migration
-npm run seed             # Run seeders
-
-# Testing
-npm test                 # Run tests
-npm run test:watch       # Run tests in watch mode
-
-# Code Quality
-npm run lint             # Run ESLint
-npm run format           # Format code with Prettier
-```
-
-## 🔐 Security Features
-
-- ✅ Helmet (security headers)
-- ✅ CORS configuration
-- ✅ Rate limiting
-- ✅ JWT authentication (access + refresh tokens)
-- ✅ Bcrypt password hashing
-- ✅ RBAC (Role-Based Access Control)
-- ✅ Input validation (Zod)
-- ✅ Audit logging
-- ✅ Error handling
-
-## 📊 Database Schema
-
-17 tabel:
-- **Auth**: roles, users, refresh_tokens
-- **Audit**: audit_logs
-- **Master Data**: categories, suppliers, products
-- **Stock**: stock_movements (ledger-based)
-- **Transactions**: purchases, purchase_items, sales, sales_items
-- **Returns**: returns, return_items
-- **Exchanges**: exchanges, exchange_items
-- **Finance**: finance_sources, finance_transactions
-
-## 🎯 API Endpoints
-
-50+ endpoints across 9 modules:
-- Authentication (login, refresh, logout, me)
-- Products (CRUD)
-- Categories (CRUD)
-- Suppliers (CRUD)
-- Purchases (CRUD + receive + cancel)
-- Sales (CRUD + ship + cancel)
-- Returns (create, approve, reject)
-- Exchanges (create, process)
-- Stock (current stock, movements, adjust)
-- Finance (sources, transactions, reports)
-
-## 🤝 Contributing
-
-Untuk melanjutkan implementasi, ikuti langkah-langkah di atas sesuai prioritas.
-
-## 📄 License
+## License
 
 MIT
