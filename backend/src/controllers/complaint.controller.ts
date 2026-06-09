@@ -8,7 +8,6 @@ import {
   ComplaintStatus,
   Sale,
   SaleStatus,
-  User,
   AuditAction,
 } from '../models';
 import { successResponse } from '../utils/response';
@@ -32,6 +31,14 @@ function generateComplaintNumber() {
   const d = String(date.getDate()).padStart(2, '0');
   const random = Math.floor(1000 + Math.random() * 9000);
   return `CMP-${y}${m}${d}-${random}`;
+}
+
+function sanitizeComplaintSalesInformation(value: string) {
+  return value
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*by\s*:/i.test(line))
+    .join('\n')
+    .trim();
 }
 
 export const complaintController = {
@@ -97,7 +104,7 @@ export const complaintController = {
 
       const { saleId, reason } = req.body;
       let { complaintDate } = req.body;
-      const salesInformation = String(req.body.salesInformation || '').trim();
+      const salesInformation = sanitizeComplaintSalesInformation(String(req.body.salesInformation || ''));
       const receiptSource = String(req.body.receiptSource || 'GENERATED');
       const recipientName = String(req.body.recipientName || '').trim();
       const recipientPhone = String(req.body.recipientPhone || '').trim();
@@ -258,29 +265,7 @@ export const complaintController = {
           {
             model: Sale,
             as: 'sale',
-            attributes: ['id', 'saleNumber', 'saleDate', 'status', 'customerName', 'createdBy'],
-            include: [
-              {
-                model: User,
-                as: 'creator',
-                attributes: ['id', 'fullName', 'username'],
-              },
-            ],
-          },
-          {
-            model: User,
-            as: 'creator',
-            attributes: ['id', 'fullName', 'username'],
-          },
-          {
-            model: User,
-            as: 'reviewer',
-            attributes: ['id', 'fullName', 'username'],
-          },
-          {
-            model: User,
-            as: 'shipper',
-            attributes: ['id', 'fullName', 'username'],
+            attributes: ['id', 'saleNumber', 'saleDate', 'status', 'customerName'],
           },
         ],
         limit: Number(limit),

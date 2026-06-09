@@ -67,6 +67,14 @@ function statusBadgeClass(status: ComplaintStatus) {
   }
 }
 
+function sanitizeComplaintSalesInformation(value: string) {
+  return value
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*by\s*:/i.test(line))
+    .join('\n')
+    .trim();
+}
+
 function createSalesInfoPdf(params: {
   sale: Sale;
   complaintDate: string;
@@ -120,7 +128,7 @@ function createSalesInfoPdf(params: {
   }
 
   doc.text('Informasi Penjualan:', 15, infoStartY);
-  const infoLines = doc.splitTextToSize(salesInformation, 180);
+  const infoLines = doc.splitTextToSize(sanitizeComplaintSalesInformation(salesInformation), 180);
   doc.text(infoLines, 15, infoStartY + 6);
 
   const pdfBlob = doc.output('blob');
@@ -209,7 +217,8 @@ export default function ComplaintsPage() {
   }, [selectedSale, eligibleSales, saleQuery]);
 
   const effectiveComplaintDate = isUser ? today : complaintDate;
-  const hasValidReceipt = salesInformation.trim().length >= 10;
+  const cleanSalesInformation = sanitizeComplaintSalesInformation(salesInformation);
+  const hasValidReceipt = cleanSalesInformation.length >= 10;
   const hasValidRecipientDetails =
     recipientName.trim().length >= 2 &&
     recipientPhone.trim().length >= 8 &&
@@ -242,7 +251,7 @@ export default function ComplaintsPage() {
       sale: selectedSale,
       complaintDate: effectiveComplaintDate,
       reason: reason.trim(),
-      salesInformation: salesInformation.trim(),
+      salesInformation: cleanSalesInformation,
       recipientName: recipientName.trim(),
       recipientPhone: recipientPhone.trim(),
       recipientAddress: recipientAddress.trim(),
@@ -255,7 +264,7 @@ export default function ComplaintsPage() {
     formData.append('complaintDate', effectiveComplaintDate);
     formData.append('receiptSource', 'GENERATED');
     formData.append('complaintReceiptPdf', receiptPdfFile);
-    formData.append('salesInformation', salesInformation.trim());
+    formData.append('salesInformation', cleanSalesInformation);
     formData.append('recipientName', recipientName.trim());
     formData.append('recipientPhone', recipientPhone.trim());
     formData.append('recipientAddress', recipientAddress.trim());
@@ -584,7 +593,10 @@ export default function ComplaintsPage() {
                         <p className="text-sm text-muted-foreground">{complaint.reason}</p>
                         {complaint.salesInformation && (
                           <p className="text-sm">
-                            Informasi Penjualan: <span className="text-muted-foreground">{complaint.salesInformation}</span>
+                            Informasi Penjualan:{' '}
+                            <span className="text-muted-foreground">
+                              {sanitizeComplaintSalesInformation(complaint.salesInformation)}
+                            </span>
                           </p>
                         )}
                         <div className="text-sm rounded-md bg-muted/30 border p-2 space-y-1">
@@ -602,11 +614,6 @@ export default function ComplaintsPage() {
                         <p className="text-xs text-muted-foreground">
                           Tanggal komplen: {new Date(complaint.complaintDate).toLocaleDateString('id-ID')}
                         </p>
-                        {complaint.sale?.creator && (
-                          <p className="text-xs text-muted-foreground">
-                            Penanggung jawab pesanan: {complaint.sale.creator.fullName}
-                          </p>
-                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2">
@@ -733,9 +740,6 @@ export default function ComplaintsPage() {
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Pesanan</p>
                   <p>No Pesanan: <strong>{detailComplaint.saleNumberSnapshot}</strong></p>
                   <p>Customer Sale: <strong>{detailComplaint.customerNameSnapshot || '-'}</strong></p>
-                  {detailComplaint.sale?.creator && (
-                    <p>PIC Pesanan: <strong>{detailComplaint.sale.creator.fullName}</strong></p>
-                  )}
                 </div>
               </div>
 
@@ -762,7 +766,9 @@ export default function ComplaintsPage() {
                 {detailComplaint.salesInformation && (
                   <>
                     <p>Informasi Penjualan:</p>
-                    <p className="whitespace-pre-wrap rounded bg-muted/40 p-2">{detailComplaint.salesInformation}</p>
+                    <p className="whitespace-pre-wrap rounded bg-muted/40 p-2">
+                      {sanitizeComplaintSalesInformation(detailComplaint.salesInformation)}
+                    </p>
                   </>
                 )}
               </div>
@@ -836,7 +842,7 @@ export default function ComplaintsPage() {
             </div>
             <p>Alasan: {reason}</p>
             <p>Resi PDF: <strong>Auto Generate dari Informasi Penjualan</strong></p>
-            {salesInformation.trim() && <p>Informasi Penjualan: {salesInformation}</p>}
+            {cleanSalesInformation && <p>Informasi Penjualan: {cleanSalesInformation}</p>}
             {previewPhotoUrls.length > 0 && (
               <div className="grid grid-cols-2 gap-2">
                 {previewPhotoUrls.map((url, index) => (
