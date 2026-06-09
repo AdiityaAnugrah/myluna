@@ -43,6 +43,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 
 const EXPENSE_CATEGORIES = [
   { value: 'SHIPPING', label: 'Ongkir', color: 'bg-blue-100 text-blue-800' },
@@ -55,6 +56,7 @@ const EXPENSE_CATEGORIES = [
 
 export default function ExpensesPage() {
   const { user } = useAuth();
+  const isUser = user?.role === 'USER';
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<any>(null);
@@ -106,7 +108,7 @@ export default function ExpensesPage() {
         category: expense.category,
         description: expense.description,
         amount: expense.amount,
-        expenseDate: expense.expenseDate,
+        expenseDate: isUser ? getTodayDateInputValue() : expense.expenseDate,
         notes: expense.notes || '',
       });
     } else {
@@ -115,13 +117,7 @@ export default function ExpensesPage() {
         category: '',
         description: '',
         amount: '',
-        expenseDate: (() => {
-          const d = new Date();
-          const y = d.getFullYear();
-          const m = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          return `${y}-${m}-${day}`;
-        })(),
+        expenseDate: getTodayDateInputValue(),
         notes: '',
       });
     }
@@ -138,6 +134,7 @@ export default function ExpensesPage() {
 
     const submitData = {
       ...formData,
+      expenseDate: isUser ? getTodayDateInputValue() : formData.expenseDate,
       amount: parseFloat(formData.amount),
     };
 
@@ -406,8 +403,11 @@ export default function ExpensesPage() {
               <Input
                 id="expenseDate"
                 type="date"
-                value={formData.expenseDate}
-                onChange={(e) => setFormData({ ...formData, expenseDate: e.target.value })}
+                value={isUser ? getTodayDateInputValue() : formData.expenseDate}
+                onChange={(e) => {
+                  if (!isUser) setFormData({ ...formData, expenseDate: e.target.value });
+                }}
+                {...getUserTodayDateInputProps(isUser)}
                 required
               />
             </div>

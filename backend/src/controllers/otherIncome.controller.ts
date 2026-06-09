@@ -7,6 +7,7 @@ import { Op } from 'sequelize';
 import { auditService } from '../services/audit.service';
 import { AuditAction } from '../models/AuditLog';
 import { socketService } from '../services/socket.service';
+import { assertUserDateIsToday } from '../utils/dateGuard';
 
 export const otherIncomeController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
@@ -95,13 +96,7 @@ export const otherIncomeController = {
         throw new AppError('Jumlah transaksi harus lebih dari 0', 400);
       }
 
-      // For USER role: only allow today's date
-      if (req.user?.roleName === 'USER') {
-        const today = new Date().toISOString().split('T')[0];
-        if (transactionDate !== today) {
-          throw new AppError('Tanggal transaksi hanya boleh hari ini', 400);
-        }
-      }
+      assertUserDateIsToday(req.user?.roleName, transactionDate, 'Tanggal transaksi');
 
       let proofDocument: string | null = null;
       if (req.file) {
@@ -165,6 +160,9 @@ export const otherIncomeController = {
 
       // Only replace proofDocument if new file uploaded
       const proofDocument = req.file ? req.file.filename : otherIncome.proofDocument;
+      if (transactionDate) {
+        assertUserDateIsToday(req.user?.roleName, transactionDate, 'Tanggal transaksi');
+      }
 
       await otherIncome.update({
         transactionDate: transactionDate ? new Date(transactionDate) : otherIncome.transactionDate,

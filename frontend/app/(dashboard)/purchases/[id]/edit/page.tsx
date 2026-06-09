@@ -5,6 +5,7 @@ import { useState, useEffect, use, useMemo } from 'react';
 
 import { useRouter } from 'next/navigation';
 import { usePurchase, useUpdatePurchase } from '@/lib/hooks/usePurchases';
+import { useAuthStore } from '@/lib/stores/auth';
 import { useSuppliers } from '@/lib/hooks/useSuppliers';
 import { useProducts } from '@/lib/hooks/useProducts';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { useConfirmPageLeave } from '@/lib/hooks/useConfirmPageLeave';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 
 
 
@@ -50,6 +52,7 @@ interface PurchaseItem {
 export default function EditPurchasePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const { user } = useAuthStore();
   const { data: purchaseData, isLoading: loadingPurchase } = usePurchase(id);
   const updateMutation = useUpdatePurchase();
   const { data: suppliersData } = useSuppliers();
@@ -58,6 +61,7 @@ export default function EditPurchasePage({ params }: { params: Promise<{ id: str
   const suppliers = suppliersData?.data?.suppliers || [];
   const products = productsData?.data?.products || [];
   const purchase = purchaseData?.data;
+  const isUser = user?.role === 'USER';
 
   const [supplierId, setSupplierId] = useState('');
   const [purchaseDate, setPurchaseDate] = useState('');
@@ -169,7 +173,7 @@ export default function EditPurchasePage({ params }: { params: Promise<{ id: str
         id,
         data: {
           supplierId,
-          purchaseDate,
+          purchaseDate: isUser ? getTodayDateInputValue() : purchaseDate,
           notes,
           items: items.map((item) => ({
             productId: item.productId,
@@ -268,9 +272,12 @@ export default function EditPurchasePage({ params }: { params: Promise<{ id: str
                 <Input
                   id="purchaseDate"
                   type="date"
-                  value={purchaseDate}
-                  onChange={(e) => setPurchaseDate(e.target.value)}
+                  value={isUser ? getTodayDateInputValue() : purchaseDate}
+                  onChange={(e) => {
+                    if (!isUser) setPurchaseDate(e.target.value);
+                  }}
                   disabled={isPending}
+                  {...getUserTodayDateInputProps(isUser)}
                 />
               </div>
             </div>

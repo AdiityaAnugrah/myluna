@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 
 const BANK_OPTIONS = [
   { value: 'BCA', label: 'BCA' },
@@ -64,7 +65,8 @@ function useCreateOtherIncome() {
 
 export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncomeDialogProps) {
   const { user } = useAuthStore();
-  const today = new Date().toISOString().split('T')[0];
+  const isUser = user?.role === 'USER';
+  const today = getTodayDateInputValue();
 
   const [transactionDate, setTransactionDate] = useState(today);
   const [bankOption, setBankOption] = useState('');
@@ -128,7 +130,7 @@ export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncome
     if (!isFormValid) return;
 
     const formData = new FormData();
-    formData.append('transactionDate', transactionDate);
+    formData.append('transactionDate', isUser ? today : transactionDate);
     formData.append('bankName', effectiveBank.trim());
     formData.append('buyerName', buyerName.trim());
     formData.append('amount', amount);
@@ -164,11 +166,11 @@ export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncome
               <Input
                 id="transactionDate"
                 type="date"
-                value={transactionDate}
-                onChange={(e) => setTransactionDate(e.target.value)}
-                min={user?.role === 'USER' ? today : undefined}
-                max={user?.role === 'USER' ? today : undefined}
-                readOnly={user?.role === 'USER'}
+                value={isUser ? today : transactionDate}
+                onChange={(e) => {
+                  if (!isUser) setTransactionDate(e.target.value);
+                }}
+                {...getUserTodayDateInputProps(isUser)}
                 required
               />
             </div>

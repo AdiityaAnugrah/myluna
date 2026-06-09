@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { getImageUrl } from '@/lib/utils/url';
+import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import { notify } from '@/lib/notify';
 import { Complaint, ComplaintStatus, Sale } from '@/types';
 import { CheckCircle2, Eye, FileText, Loader2, Printer, Search, Send, Video } from 'lucide-react';
@@ -140,7 +141,7 @@ export default function ComplaintsPage() {
   const canCreate = isUser || isAdmin || isSuperAdmin;
   const canTcpProcess = isTcp || isSuperAdmin || isAdmin;
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayDateInputValue();
 
   const [saleQuery, setSaleQuery] = useState('');
   const [debouncedSaleQuery, setDebouncedSaleQuery] = useState('');
@@ -524,9 +525,7 @@ export default function ComplaintsPage() {
                 onChange={(e) => {
                   if (!isUser) setComplaintDate(e.target.value);
                 }}
-                readOnly={isUser}
-                min={isUser ? today : undefined}
-                max={isUser ? today : undefined}
+                {...getUserTodayDateInputProps(isUser)}
               />
               {isUser && <p className="text-xs text-muted-foreground">Role USER hanya boleh tanggal hari ini.</p>}
             </div>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useCreateSettlement } from '@/lib/hooks/useSettlements';
 import { useAuthStore } from '@/lib/stores/auth';
 import { notify } from '@/lib/notify';
+import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import {
   Dialog,
   DialogContent,
@@ -41,13 +42,12 @@ export function SettlementFormDialog({
   onSuccess,
 }: SettlementFormDialogProps) {
   const [netAmount, setNetAmount] = useState('');
-  const [settlementDate, setSettlementDate] = useState(
-    new Date().toISOString().split('T')[0]
-  );
+  const [settlementDate, setSettlementDate] = useState(getTodayDateInputValue());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const createMutation = useCreateSettlement();
   const { user } = useAuthStore();
-  const today = new Date().toISOString().split('T')[0];
+  const isUser = user?.role === 'USER';
+  const today = getTodayDateInputValue();
 
   // Format currency for display
   const formatCurrency = (value: string | number) => {
@@ -114,13 +114,13 @@ export function SettlementFormDialog({
     formData.append('saleId', sale.id);
     formData.append('invoiceNumber', sale.saleNumber || '');
     formData.append('netAmount', netAmount);
-    formData.append('settlementDate', settlementDate);
+    formData.append('settlementDate', isUser ? today : settlementDate);
 
     createMutation.mutate(formData, {
       onSuccess: () => {
         // Reset form
         setNetAmount('');
-        setSettlementDate(new Date().toISOString().split('T')[0]);
+        setSettlementDate(getTodayDateInputValue());
         setConfirmOpen(false);
         
         if (onSuccess) {
@@ -211,11 +211,11 @@ export function SettlementFormDialog({
               <Input
                 id="settlementDate"
                 type="date"
-                value={settlementDate}
-                onChange={(e) => setSettlementDate(e.target.value)}
-                min={user?.role === 'USER' ? today : undefined}
-                max={user?.role === 'USER' ? today : undefined}
-                readOnly={user?.role === 'USER'}
+                value={isUser ? today : settlementDate}
+                onChange={(e) => {
+                  if (!isUser) setSettlementDate(e.target.value);
+                }}
+                {...getUserTodayDateInputProps(isUser)}
                 required
               />
             </div>

@@ -38,6 +38,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ProductSelector } from '@/components/sales/ProductSelector';
 import { BulkProductSelector } from '@/components/sales/BulkProductSelector';
 import { formatCurrency, getVariants } from '@/lib/utils/sales';
+import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 
 interface PurchaseItem {
   productId: string;
@@ -57,15 +58,10 @@ export default function NewPurchasePage() {
 
   const suppliers = suppliersData?.data?.suppliers || [];
   const products = productsData?.data?.products || [];
+  const isUser = user?.role === 'USER';
 
   const [supplierId, setSupplierId] = useState('');
-  const [purchaseDate, setPurchaseDate] = useState(() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  });
+  const [purchaseDate, setPurchaseDate] = useState(() => getTodayDateInputValue());
   const [items, setItems] = useState<PurchaseItem[]>([]);
 
   if (user?.role === 'TCP') {
@@ -220,7 +216,7 @@ export default function NewPurchasePage() {
     createMutation.mutate(
       {
         supplierId,
-        purchaseDate,
+        purchaseDate: isUser ? getTodayDateInputValue() : purchaseDate,
         duration: durationSeconds,
         items: items.map((item) => ({
           productId: item.productId,
@@ -285,9 +281,12 @@ export default function NewPurchasePage() {
                 <Input
                   id="purchaseDate"
                   type="date"
-                  value={purchaseDate}
-                  onChange={(e) => setPurchaseDate(e.target.value)}
-                  disabled={isPending || user?.role === 'USER'}
+                  value={isUser ? getTodayDateInputValue() : purchaseDate}
+                  onChange={(e) => {
+                    if (!isUser) setPurchaseDate(e.target.value);
+                  }}
+                  disabled={isPending}
+                  {...getUserTodayDateInputProps(isUser)}
                 />
               </div>
             </div>

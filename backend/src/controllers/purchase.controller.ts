@@ -5,6 +5,7 @@ import { AppError } from '../utils/errors';
 import { sequelize } from '../config/database';
 import { Op } from 'sequelize';
 import { auditService } from '../services/audit.service';
+import { assertUserDateIsToday } from '../utils/dateGuard';
 
 export const purchaseController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
@@ -128,6 +129,8 @@ export const purchaseController = {
         items,
         notes,
       } = req.body;
+
+      assertUserDateIsToday(req.user?.roleName, purchaseDate, 'Tanggal pembelian');
 
       // Validate supplier
       const supplier = await Supplier.findByPk(supplierId);

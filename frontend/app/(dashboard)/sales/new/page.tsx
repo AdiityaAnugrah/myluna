@@ -41,6 +41,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ProductSelector } from '@/components/sales/ProductSelector';
 import { BulkProductSelector } from '@/components/sales/BulkProductSelector';
 import { formatCurrency, getVariants } from '@/lib/utils/sales';
+import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 
 interface SaleItem {
   productId: string;
@@ -59,6 +60,7 @@ export default function NewSalePage() {
   const { data: shippingServices, isLoading: shippingLoading } = useShippingServices({ enabled: user?.role !== 'TCP' });
 
   const products = productsData?.data?.products || [];
+  const isUser = user?.role === 'USER';
 
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -101,13 +103,7 @@ export default function NewSalePage() {
         </div>
     );
   }
-  const [saleDate, setSaleDate] = useState(() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  });
+  const [saleDate, setSaleDate] = useState(() => getTodayDateInputValue());
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<SaleItem[]>([]);
 
@@ -328,7 +324,7 @@ export default function NewSalePage() {
     if (customerPhone) formData.append('customerPhone', customerPhone);
     formData.append('paymentMethod', paymentMethod);
     formData.append('platform', platform);
-    formData.append('saleDate', saleDate);
+    formData.append('saleDate', isUser ? getTodayDateInputValue() : saleDate);
     if (!isDocumentRequired && notes) formData.append('notes', notes);
     
     formData.append('items', JSON.stringify(items.map((item) => ({
@@ -447,9 +443,12 @@ export default function NewSalePage() {
                 <Input
                   id="saleDate"
                   type="date"
-                  value={saleDate}
-                  onChange={(e) => setSaleDate(e.target.value)}
+                  value={isUser ? getTodayDateInputValue() : saleDate}
+                  onChange={(e) => {
+                    if (!isUser) setSaleDate(e.target.value);
+                  }}
                   disabled={isPending}
+                  {...getUserTodayDateInputProps(isUser)}
                 />
               </div>
 

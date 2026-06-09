@@ -6,6 +6,7 @@ import { successResponse } from '../utils/response';
 import { AppError } from '../utils/errors';
 import { sequelize } from '../config/database';
 import { Op } from 'sequelize';
+import { assertUserDateIsToday } from '../utils/dateGuard';
 
 export const saleController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
@@ -305,6 +306,8 @@ export const saleController = {
         shippingService,
         shippingAddress
       } = req.body;
+
+      assertUserDateIsToday(req.user.roleName, saleDate, 'Tanggal penjualan');
 
       if (!Array.isArray(items) || items.length === 0) {
         throw new AppError('Items must be a non-empty array', 400);

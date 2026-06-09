@@ -6,6 +6,7 @@ import { sequelize } from '../config/database';
 import { auditService } from '../services/audit.service';
 import { AuditAction } from '../models/AuditLog';
 import { socketService } from '../services/socket.service';
+import { assertUserDateIsToday } from '../utils/dateGuard';
 
 export const expenseController = {
   // Get all expenses with filters
@@ -90,6 +91,8 @@ export const expenseController = {
     try {
       const { category, description, amount, expenseDate, notes } = req.body;
 
+      assertUserDateIsToday(req.user?.roleName, expenseDate, 'Tanggal pengeluaran');
+
       const expense = await Expense.create({
         category,
         description,
@@ -132,6 +135,8 @@ export const expenseController = {
     try {
       const { id } = req.params;
       const { category, description, amount, expenseDate, notes } = req.body;
+
+      assertUserDateIsToday(req.user?.roleName, expenseDate, 'Tanggal pengeluaran');
 
       const expense = await Expense.findByPk(id, { transaction: t });
 

@@ -5,6 +5,7 @@ import { AppError } from '../utils/errors';
 import { sequelize } from '../config/database';
 import { Op } from 'sequelize';
 import { auditService } from '../services/audit.service';
+import { assertUserDateIsToday } from '../utils/dateGuard';
 
 export const settlementController = {
   async getAll(req: Request, res: Response, next: NextFunction): Promise<any> {
@@ -207,6 +208,8 @@ export const settlementController = {
 
     try {
       const { saleId, netAmount, settlementDate, notes } = req.body;
+
+      assertUserDateIsToday(req.user?.roleName, settlementDate, 'Tanggal pelunasan');
 
       // Validate sale exists and is PROCESSED
       const sale = await Sale.findByPk(saleId, { transaction });
