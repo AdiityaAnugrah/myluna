@@ -1,5 +1,5 @@
 import apiClient from './client';
-import { Complaint, ApiResponse, ComplaintListData, ComplaintVideoMetadata, Sale } from '@/types';
+import { Complaint, ApiResponse, ComplaintListData, Sale } from '@/types';
 
 export const complaintsApi = {
   getEligibleSales: async (q: string) => {
@@ -25,11 +25,6 @@ export const complaintsApi = {
     search?: string;
   }) => {
     const response = await apiClient.get<ApiResponse<ComplaintListData>>('/complaints', { params });
-    return response.data;
-  },
-
-  getVideoMetadata: async (id: string) => {
-    const response = await apiClient.get<ApiResponse<ComplaintVideoMetadata>>(`/complaints/${id}/video-metadata`);
     return response.data;
   },
 

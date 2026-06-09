@@ -15,8 +15,7 @@ import { successResponse } from '../utils/response';
 import { AppError } from '../utils/errors';
 import { auditService } from '../services/audit.service';
 import { socketService } from '../services/socket.service';
-import { complaintReceiptDir, complaintVideoDir } from '../middlewares/uploadComplaint';
-import { compressComplaintVideoBuffer } from '../utils/videoProcessor';
+import { complaintReceiptDir } from '../middlewares/uploadComplaint';
 import { getLocalDateString } from '../utils/dateGuard';
 
 const complaintPhotoDir = path.join(process.cwd(), 'uploads/complaints/photos');
@@ -77,7 +76,6 @@ export const complaintController = {
       const filesMap = (req.files as { [fieldname: string]: Express.Multer.File[] } | undefined) || {};
       const uploadedPhotos = filesMap.complaintPhotos || [];
       const uploadedReceiptPdf = filesMap.complaintReceiptPdf?.[0];
-      const uploadedVideo = filesMap.complaintVideo?.[0];
 
       if (!uploadedPhotos.length) {
         throw new AppError('Minimal 1 foto komplen wajib diunggah', 400);
@@ -96,14 +94,11 @@ export const complaintController = {
       if (uploadedReceiptPdf.size > 5 * 1024 * 1024) {
         throw new AppError('PDF resi komplen maksimal 5MB', 400);
       }
-      if (uploadedVideo && uploadedVideo.size > 25 * 1024 * 1024) {
-        throw new AppError('Video komplen maksimal 25MB', 400);
-      }
 
       const { saleId, reason } = req.body;
       let { complaintDate } = req.body;
       const salesInformation = String(req.body.salesInformation || '').trim();
-      const receiptSource = String(req.body.receiptSource || 'UPLOAD');
+      const receiptSource = String(req.body.receiptSource || 'GENERATED');
       const recipientName = String(req.body.recipientName || '').trim();
       const recipientPhone = String(req.body.recipientPhone || '').trim();
       const recipientAddress = String(req.body.recipientAddress || '').trim();
@@ -121,7 +116,10 @@ export const complaintController = {
       if (recipientAddress.length < 15) {
         throw new AppError('Alamat lengkap penerima wajib diisi minimal 15 karakter', 400);
       }
-      if (receiptSource === 'GENERATED' && salesInformation.length < 10) {
+      if (receiptSource !== 'GENERATED') {
+        throw new AppError('Resi komplen hanya boleh dibuat otomatis dari informasi penjualan', 400);
+      }
+      if (salesInformation.length < 10) {
         throw new AppError('Informasi Penjualan wajib diisi minimal 10 karakter', 400);
       }
 
@@ -182,22 +180,6 @@ export const complaintController = {
       await fs.writeFile(receiptAbsolutePath, uploadedReceiptPdf.buffer);
       const complaintReceiptPdf = `/uploads/complaints/receipts/${receiptFilename}`;
 
-      let complaintVideo: string | null = null;
-      let complaintVideoOriginalSize: number | null = null;
-      let complaintVideoCompressedSize: number | null = null;
-      if (uploadedVideo) {
-        const videoFilename = `complaint-video-${Date.now()}-${Math.round(Math.random() * 1e9)}.mp4`;
-        const compressedResult = await compressComplaintVideoBuffer({
-          inputBuffer: uploadedVideo.buffer,
-          outputDir: complaintVideoDir,
-          outputFilename: videoFilename,
-        });
-        void compressedResult.outputPath;
-        complaintVideo = `/uploads/complaints/videos/${videoFilename}`;
-        complaintVideoOriginalSize = uploadedVideo.size;
-        complaintVideoCompressedSize = compressedResult.outputBytes;
-      }
-
       const complaint = await Complaint.create({
         complaintNumber: generateComplaintNumber(),
         saleId,
@@ -213,9 +195,9 @@ export const complaintController = {
         complaintPhotos: storedPhotos,
         salesInformation: salesInformation || null,
         complaintReceiptPdf,
-        complaintVideo,
-        complaintVideoOriginalSize,
-        complaintVideoCompressedSize,
+        complaintVideo: null,
+        complaintVideoOriginalSize: null,
+        complaintVideoCompressedSize: null,
         createdBy: req.user.id,
       });
 
@@ -427,48 +409,4 @@ export const complaintController = {
     }
   },
 
-  async getVideoMetadata(req: Request, res: Response, next: NextFunction) {
-    try {
-      if (!req.user) {
-        throw new AppError('Authentication required', 401);
-      }
-
-      const { id } = req.params;
-      const complaint = await Complaint.findByPk(id);
-      if (!complaint) {
-        throw new AppError('Komplen tidak ditemukan', 404);
-      }
-
-      if (req.user.roleName === 'USER' && complaint.createdBy !== req.user.id) {
-        throw new AppError('Anda tidak memiliki akses ke metadata video ini', 403);
-      }
-
-      if (!complaint.complaintVideo) {
-        throw new AppError('Komplen ini tidak memiliki video', 404);
-      }
-
-      const originalBytes = complaint.complaintVideoOriginalSize || 0;
-      const compressedBytes = complaint.complaintVideoCompressedSize || 0;
-      const savedBytes = Math.max(0, originalBytes - compressedBytes);
-      const savedPercent =
-        originalBytes > 0 ? Number(((savedBytes / originalBytes) * 100).toFixed(2)) : 0;
-
-      return successResponse(
-        res,
-        {
-          complaintId: complaint.id,
-          complaintNumber: complaint.complaintNumber,
-          videoPath: complaint.complaintVideo,
-          originalBytes,
-          compressedBytes,
-          savedBytes,
-          savedPercent,
-        },
-        'Metadata kompresi video berhasil diambil',
-        200
-      );
-    } catch (error) {
-      return next(error);
-    }
-  },
 };

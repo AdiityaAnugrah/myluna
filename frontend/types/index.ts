@@ -283,9 +283,6 @@ export interface Complaint {
   complaintPhotos?: string[] | null;
   salesInformation?: string | null;
   complaintReceiptPdf?: string | null;
-  complaintVideo?: string | null;
-  complaintVideoOriginalSize?: number | null;
-  complaintVideoCompressedSize?: number | null;
   status: ComplaintStatus;
   reviewedBy: string | null;
   reviewedAt: string | null;
@@ -328,16 +325,6 @@ export interface ComplaintListData {
     limit: number;
     totalPages: number;
   };
-}
-
-export interface ComplaintVideoMetadata {
-  complaintId: string;
-  complaintNumber: string;
-  videoPath: string;
-  originalBytes: number;
-  compressedBytes: number;
-  savedBytes: number;
-  savedPercent: number;
 }
 
 export interface PaginatedListResponse<T> {

@@ -6,9 +6,8 @@ import { AppError } from '../utils/errors';
 
 const complaintPhotoDir = path.join(process.cwd(), 'uploads/complaints/photos');
 const complaintReceiptDir = path.join(process.cwd(), 'uploads/complaints/receipts');
-const complaintVideoDir = path.join(process.cwd(), 'uploads/complaints/videos');
 
-[complaintPhotoDir, complaintReceiptDir, complaintVideoDir].forEach((dir) => {
+[complaintPhotoDir, complaintReceiptDir].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -17,8 +16,8 @@ const complaintVideoDir = path.join(process.cwd(), 'uploads/complaints/videos');
 const complaintUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    files: 7, // max 5 photos + 1 pdf + 1 video
-    fileSize: 25 * 1024 * 1024, // allow optional video upload
+    files: 6, // max 5 photos + 1 generated pdf
+    fileSize: 5 * 1024 * 1024,
   },
   fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     if (file.fieldname === 'complaintPhotos') {
@@ -40,16 +39,6 @@ const complaintUpload = multer({
       return;
     }
 
-    if (file.fieldname === 'complaintVideo') {
-      const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
-      if (!allowedVideoTypes.includes(file.mimetype)) {
-        cb(new AppError('Video komplen hanya mendukung MP4/WEBM/MOV', 400) as any);
-        return;
-      }
-      cb(null, true);
-      return;
-    }
-
     cb(new AppError('Field upload tidak dikenali', 400) as any);
   },
 });
@@ -57,7 +46,6 @@ const complaintUpload = multer({
 export const uploadComplaintSubmission = complaintUpload.fields([
   { name: 'complaintPhotos', maxCount: 5 },
   { name: 'complaintReceiptPdf', maxCount: 1 },
-  { name: 'complaintVideo', maxCount: 1 },
 ]);
 
-export { complaintReceiptDir, complaintVideoDir };
+export { complaintReceiptDir };

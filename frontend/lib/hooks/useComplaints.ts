@@ -33,14 +33,6 @@ export function useComplaints(params?: {
   });
 }
 
-export function useComplaintVideoMetadata(id?: string, options?: { enabled?: boolean }) {
-  return useQuery({
-    queryKey: ['complaints', 'video-metadata', id],
-    queryFn: () => complaintsApi.getVideoMetadata(id as string),
-    enabled: !!id && (options?.enabled ?? true),
-  });
-}
-
 export function useCreateComplaint() {
   const queryClient = useQueryClient();
 

@@ -444,7 +444,6 @@ Endpoint:
 
 - `/complaints/eligible-sales`
 - `/complaints`
-- `/complaints/:id/video-metadata`
 - `/complaints/:id/claim`
 - `/complaints/:id/mark-handled`
 
@@ -464,11 +463,12 @@ Status complaint:
 Alur penting:
 
 1. Complaint hanya bisa dibuat untuk sale `PROCESSED`, `COMPLETED`, atau `SETTLED`.
-2. User/admin membuat complaint dengan foto, PDF resi, opsional video/info penjualan.
+2. User/admin membuat complaint dengan foto bukti dan informasi penjualan. Upload video dan upload PDF manual sudah dihapus dari UI.
 3. Create complaint wajib menyimpan detail penerima pengganti: `recipientName`, `recipientPhone`, `recipientAddress`, dan opsional `recipientAddressNote`.
-4. TCP/admin menekan `Terima`, melihat popup detail lengkap, lalu konfirmasi agar status menjadi `ACCEPTED_BY_TCP`.
-5. Tombol `Print` di TCP disabled saat status masih `PENDING_TCP_REVIEW`; setelah diterima tombol aktif dan membuka PDF resi untuk diproses/cetak.
-6. Backend memakai upload middleware khusus complaint dan utilitas video processor.
+4. Frontend selalu membuat PDF resi otomatis dari informasi penjualan dan mengirimnya sebagai `complaintReceiptPdf` dengan `receiptSource=GENERATED`.
+5. TCP/admin menekan `Terima`, melihat popup detail lengkap, lalu konfirmasi agar status menjadi `ACCEPTED_BY_TCP`.
+6. Tombol `Print` di TCP disabled saat status masih `PENDING_TCP_REVIEW`; setelah diterima tombol aktif dan membuka PDF resi untuk diproses/cetak.
+7. Backend upload middleware complaint hanya menerima `complaintPhotos` dan PDF resi hasil generate. Kolom video lama tetap ada di database/model untuk histori, tapi tidak dipakai untuk data baru.
 
 ### Audit dan Aktivitas
 

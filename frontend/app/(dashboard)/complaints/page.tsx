@@ -35,9 +35,7 @@ import { getImageUrl } from '@/lib/utils/url';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import { notify } from '@/lib/notify';
 import { Complaint, ComplaintStatus, Sale } from '@/types';
-import { CheckCircle2, Eye, FileText, Loader2, Printer, Search, Send, Video } from 'lucide-react';
-
-type ReceiptMode = 'UPLOAD' | 'GENERATED';
+import { CheckCircle2, Eye, FileText, Loader2, Printer, Search, Send } from 'lucide-react';
 
 function statusLabel(status: ComplaintStatus) {
   switch (status) {
@@ -154,9 +152,6 @@ export default function ComplaintsPage() {
   const [salesInformation, setSalesInformation] = useState('');
   const [complaintDate, setComplaintDate] = useState(today);
   const [complaintPhotos, setComplaintPhotos] = useState<File[]>([]);
-  const [complaintVideo, setComplaintVideo] = useState<File | null>(null);
-  const [receiptMode, setReceiptMode] = useState<ReceiptMode>('UPLOAD');
-  const [uploadedReceiptPdf, setUploadedReceiptPdf] = useState<File | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [detailComplaint, setDetailComplaint] = useState<Complaint | null>(null);
   const [detailMode, setDetailMode] = useState<'view' | 'accept'>('view');
@@ -214,8 +209,7 @@ export default function ComplaintsPage() {
   }, [selectedSale, eligibleSales, saleQuery]);
 
   const effectiveComplaintDate = isUser ? today : complaintDate;
-  const hasValidReceipt =
-    receiptMode === 'UPLOAD' ? !!uploadedReceiptPdf : salesInformation.trim().length >= 10;
+  const hasValidReceipt = salesInformation.trim().length >= 10;
   const hasValidRecipientDetails =
     recipientName.trim().length >= 2 &&
     recipientPhone.trim().length >= 8 &&
@@ -244,27 +238,22 @@ export default function ComplaintsPage() {
   const submitComplaint = async () => {
     if (!selectedSale || complaintPhotos.length === 0) return;
 
-    let receiptPdfFile = uploadedReceiptPdf;
-    if (receiptMode === 'GENERATED') {
-      receiptPdfFile = createSalesInfoPdf({
-        sale: selectedSale,
-        complaintDate: effectiveComplaintDate,
-        reason: reason.trim(),
-        salesInformation: salesInformation.trim(),
-        recipientName: recipientName.trim(),
-        recipientPhone: recipientPhone.trim(),
-        recipientAddress: recipientAddress.trim(),
-        recipientAddressNote: recipientAddressNote.trim(),
-      });
-    }
-
-    if (!receiptPdfFile) return;
+    const receiptPdfFile = createSalesInfoPdf({
+      sale: selectedSale,
+      complaintDate: effectiveComplaintDate,
+      reason: reason.trim(),
+      salesInformation: salesInformation.trim(),
+      recipientName: recipientName.trim(),
+      recipientPhone: recipientPhone.trim(),
+      recipientAddress: recipientAddress.trim(),
+      recipientAddressNote: recipientAddressNote.trim(),
+    });
 
     const formData = new FormData();
     formData.append('saleId', selectedSale.id);
     formData.append('reason', reason.trim());
     formData.append('complaintDate', effectiveComplaintDate);
-    formData.append('receiptSource', receiptMode);
+    formData.append('receiptSource', 'GENERATED');
     formData.append('complaintReceiptPdf', receiptPdfFile);
     formData.append('salesInformation', salesInformation.trim());
     formData.append('recipientName', recipientName.trim());
@@ -274,10 +263,6 @@ export default function ComplaintsPage() {
     complaintPhotos.forEach((file) => {
       formData.append('complaintPhotos', file);
     });
-    if (complaintVideo) {
-      formData.append('complaintVideo', complaintVideo);
-    }
-
     createComplaint.mutate(formData, {
       onSuccess: () => {
         setPreviewOpen(false);
@@ -290,9 +275,6 @@ export default function ComplaintsPage() {
         setSalesInformation('');
         setComplaintDate(today);
         setComplaintPhotos([]);
-        setComplaintVideo(null);
-        setUploadedReceiptPdf(null);
-        setReceiptMode('UPLOAD');
         setSaleQuery('');
         setDebouncedSaleQuery('');
       },
@@ -446,7 +428,7 @@ export default function ComplaintsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
               <div className="space-y-2">
                 <Label>Upload Foto Komplen (1-5 foto, maks 1MB/foto) *</Label>
                 <Input
@@ -485,36 +467,6 @@ export default function ComplaintsPage() {
                   </div>
                 )}
               </div>
-
-              <div className="space-y-2">
-                <Label>Video Komplen (Opsional, maks 25MB)</Label>
-                <Input
-                  type="file"
-                  accept="video/mp4,video/webm,video/quicktime"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) {
-                      setComplaintVideo(null);
-                      return;
-                    }
-                    if (file.size > 25 * 1024 * 1024) {
-                      notify.error('Video terlalu besar', {
-                        description: 'Ukuran video maksimal 25MB. Kompres video lalu unggah kembali.',
-                      });
-                      return;
-                    }
-                    setComplaintVideo(file);
-                  }}
-                />
-                {complaintVideo && (
-                  <p className="text-xs text-muted-foreground">
-                    {complaintVideo.name} ({Math.round(complaintVideo.size / 1024 / 1024)} MB)
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Disarankan upload video yang sudah dikompres dari perangkat.
-                </p>
-              </div>
             </div>
 
             <div className="space-y-2">
@@ -541,65 +493,17 @@ export default function ComplaintsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Sumber Resi Komplen (PDF) *</Label>
-              <Select value={receiptMode} onValueChange={(value: ReceiptMode) => setReceiptMode(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="UPLOAD">Upload PDF Resi dari User</SelectItem>
-                  <SelectItem value="GENERATED">Input Informasi Penjualan lalu Auto-PDF</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Informasi Penjualan untuk PDF Resi *</Label>
+              <Textarea
+                placeholder="Isi detail penjualan: alamat, no hp, akun buyer, kronologi, dan informasi lain yang dibutuhkan TCP"
+                rows={5}
+                value={salesInformation}
+                onChange={(e) => setSalesInformation(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Minimal 10 karakter. Sistem akan generate PDF resi otomatis saat kirim komplen.
+              </p>
             </div>
-
-            {receiptMode === 'UPLOAD' ? (
-              <div className="space-y-2">
-                <Label>Upload PDF Resi Komplen (maks 5MB) *</Label>
-                <Input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) {
-                      setUploadedReceiptPdf(null);
-                      return;
-                    }
-                    if (file.type !== 'application/pdf') {
-                      notify.error('Format file tidak sesuai', {
-                        description: 'Resi komplen wajib memakai file PDF.',
-                      });
-                      return;
-                    }
-                    if (file.size > 5 * 1024 * 1024) {
-                      notify.error('PDF terlalu besar', {
-                        description: 'Ukuran PDF maksimal 5MB. Kompres file lalu unggah kembali.',
-                      });
-                      return;
-                    }
-                    setUploadedReceiptPdf(file);
-                  }}
-                />
-                {uploadedReceiptPdf && (
-                  <p className="text-xs text-muted-foreground">
-                    {uploadedReceiptPdf.name} ({Math.round(uploadedReceiptPdf.size / 1024)} KB)
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label>Informasi Penjualan (akan diubah jadi PDF) *</Label>
-                <Textarea
-                  placeholder="Isi detail penjualan: alamat, no hp, akun buyer, kronologi, dan informasi lain yang dibutuhkan TCP"
-                  rows={5}
-                  value={salesInformation}
-                  onChange={(e) => setSalesInformation(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Minimal 10 karakter. Sistem akan generate PDF resi otomatis saat kirim komplen.
-                </p>
-              </div>
-            )}
 
             <div className="flex justify-end">
               <Button onClick={() => setPreviewOpen(true)} disabled={!canSubmitComplaint}>
@@ -720,15 +624,6 @@ export default function ComplaintsPage() {
                             <Button size="sm" variant="outline">
                               <FileText className="h-4 w-4 mr-1" />
                               Lihat PDF Resi
-                            </Button>
-                          </a>
-                        )}
-
-                        {complaint.complaintVideo && (
-                          <a href={getImageUrl(complaint.complaintVideo)} target="_blank" rel="noreferrer">
-                            <Button size="sm" variant="outline">
-                              <Video className="h-4 w-4 mr-1" />
-                              Lihat Video
                             </Button>
                           </a>
                         )}
@@ -889,14 +784,6 @@ export default function ComplaintsPage() {
                     </Button>
                   </a>
                 )}
-                {detailComplaint.complaintVideo && (
-                  <a href={getImageUrl(detailComplaint.complaintVideo)} target="_blank" rel="noreferrer">
-                    <Button size="sm" variant="outline">
-                      <Video className="h-4 w-4 mr-1" />
-                      Lihat Video
-                    </Button>
-                  </a>
-                )}
               </div>
             </div>
           )}
@@ -948,13 +835,8 @@ export default function ComplaintsPage() {
               {recipientAddressNote.trim() && <p>Catatan: {recipientAddressNote}</p>}
             </div>
             <p>Alasan: {reason}</p>
-            <p>Mode Resi PDF: <strong>{receiptMode === 'UPLOAD' ? 'Upload PDF' : 'Auto Generate dari Informasi Penjualan'}</strong></p>
-            {receiptMode === 'GENERATED' && salesInformation.trim() && (
-              <p>Informasi Penjualan: {salesInformation}</p>
-            )}
-            {complaintVideo && (
-              <p>Video: {complaintVideo.name}</p>
-            )}
+            <p>Resi PDF: <strong>Auto Generate dari Informasi Penjualan</strong></p>
+            {salesInformation.trim() && <p>Informasi Penjualan: {salesInformation}</p>}
             {previewPhotoUrls.length > 0 && (
               <div className="grid grid-cols-2 gap-2">
                 {previewPhotoUrls.map((url, index) => (
