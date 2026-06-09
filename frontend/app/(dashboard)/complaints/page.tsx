@@ -163,6 +163,7 @@ export default function ComplaintsPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [detailComplaint, setDetailComplaint] = useState<Complaint | null>(null);
   const [detailMode, setDetailMode] = useState<'view' | 'accept'>('view');
+  const [acceptedComplaintIds, setAcceptedComplaintIds] = useState<Set<string>>(new Set());
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchFilter, setSearchFilter] = useState('');
@@ -300,22 +301,70 @@ export default function ComplaintsPage() {
       { id: complaint.id },
       {
         onSuccess: () => {
+          setAcceptedComplaintIds((prev) => new Set(prev).add(complaint.id));
           setDetailComplaint(null);
           setDetailMode('view');
+          void complaintsQuery.refetch();
         },
       }
     );
   };
 
   const handlePrintComplaint = (complaint: Complaint) => {
+    const canPrint =
+      ['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED'].includes(complaint.status) ||
+      acceptedComplaintIds.has(complaint.id);
+
+    if (!canPrint) {
+      notify.warning('Terima komplen dulu sebelum print');
+      return;
+    }
+
     const pdfUrl = complaint.complaintReceiptPdf
       ? getImageUrl(complaint.complaintReceiptPdf)
       : complaint.replacementProofDocument
         ? getImageUrl(complaint.replacementProofDocument)
         : '';
 
-    if (!pdfUrl) return;
-    window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+    if (pdfUrl) {
+      window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    if (!complaint.salesInformation) {
+      notify.error('PDF resi belum tersedia', {
+        description: 'Data informasi penjualan tidak cukup untuk membuat ulang PDF.',
+      });
+      return;
+    }
+
+    const fallbackPdf = createSalesInfoPdf({
+      sale: {
+        id: complaint.saleId,
+        saleNumber: complaint.saleNumberSnapshot,
+        saleDate: complaint.sale?.saleDate || complaint.complaintDate,
+        customerName: complaint.customerNameSnapshot,
+        customerPhone: null,
+        paymentMethod: 'TRANSFER',
+        platform: '-',
+        totalAmount: '0',
+        status: 'PROCESSED',
+        notes: null,
+        createdBy: complaint.createdBy,
+        createdAt: complaint.createdAt,
+        updatedAt: complaint.updatedAt,
+      } as Sale,
+      complaintDate: complaint.complaintDate,
+      reason: complaint.reason,
+      salesInformation: complaint.salesInformation,
+      recipientName: complaint.recipientName || '-',
+      recipientPhone: complaint.recipientPhone || '-',
+      recipientAddress: complaint.recipientAddress || '-',
+      recipientAddressNote: complaint.recipientAddressNote || '',
+    });
+    const objectUrl = URL.createObjectURL(fallbackPdf);
+    window.open(objectUrl, '_blank', 'noopener,noreferrer');
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
   };
 
   return (
@@ -576,6 +625,10 @@ export default function ComplaintsPage() {
             <div className="space-y-3">
               {complaints.map((complaint) => {
                 const receiptPdfPath = complaint.complaintReceiptPdf || complaint.replacementProofDocument;
+                const isAcceptedForPrint =
+                  ['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED'].includes(complaint.status) ||
+                  acceptedComplaintIds.has(complaint.id);
+                const isPendingReview = complaint.status === 'PENDING_TCP_REVIEW' && !acceptedComplaintIds.has(complaint.id);
                 return (
                   <div key={complaint.id} className="rounded-lg border p-3">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -639,11 +692,11 @@ export default function ComplaintsPage() {
                           <>
                             <Button
                               size="sm"
-                              variant={complaint.status === 'PENDING_TCP_REVIEW' ? 'default' : 'outline'}
-                              onClick={() => openComplaintDetail(complaint, complaint.status === 'PENDING_TCP_REVIEW' ? 'accept' : 'view')}
+                              variant={isPendingReview ? 'default' : 'outline'}
+                              onClick={() => openComplaintDetail(complaint, isPendingReview ? 'accept' : 'view')}
                               disabled={claimComplaint.isPending && detailComplaint?.id === complaint.id}
                             >
-                              {complaint.status === 'PENDING_TCP_REVIEW' ? (
+                              {isPendingReview ? (
                                 <>
                                   <CheckCircle2 className="h-4 w-4 mr-1" />
                                   Terima
@@ -660,12 +713,9 @@ export default function ComplaintsPage() {
                               size="sm"
                               variant="outline"
                               onClick={() => handlePrintComplaint(complaint)}
-                              disabled={
-                                !['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED'].includes(complaint.status) ||
-                                !receiptPdfPath
-                              }
+                              disabled={!isAcceptedForPrint}
                               title={
-                                complaint.status === 'PENDING_TCP_REVIEW'
+                                !isAcceptedForPrint
                                   ? 'Terima komplen dulu sebelum print'
                                   : undefined
                               }
