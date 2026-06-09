@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useCreateSettlement } from '@/lib/hooks/useSettlements';
 import { useAuthStore } from '@/lib/stores/auth';
+import { notify } from '@/lib/notify';
 import {
   Dialog,
   DialogContent,
@@ -83,18 +84,24 @@ export function SettlementFormDialog({
     e.preventDefault();
 
     if (!netAmount || parseFloat(netAmount) <= 0) {
-      alert('Dana bersih harus lebih dari 0');
+      notify.error('Dana bersih belum valid', {
+        description: 'Masukkan nominal dana bersih yang lebih besar dari 0.',
+      });
       return;
     }
 
     if (!settlementDate) {
-      alert('Tanggal pelunasan wajib diisi');
+      notify.error('Tanggal pelunasan wajib diisi', {
+        description: 'Pilih tanggal saat dana pelunasan diterima.',
+      });
       return;
     }
 
     const totalAmountNum = parseFloat(sale.totalAmount || '0');
     if (parseFloat(netAmount) > totalAmountNum) {
-      alert('Dana bersih tidak boleh melebihi Total Penjualan kotor');
+      notify.warning('Dana bersih melebihi total penjualan', {
+        description: 'Periksa kembali nominal yang diterima sebelum menyimpan pelunasan.',
+      });
       return;
     }
 

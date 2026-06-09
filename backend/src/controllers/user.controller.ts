@@ -5,6 +5,15 @@ import { AppError } from '../utils/errors';
 import { successResponse } from '../utils/response';
 import { auditService } from '../services/audit.service';
 
+type PrimaryColor = 'umber' | 'blue' | 'green' | 'violet' | 'orange' | 'pink' | 'rose' | 'amber' | 'slate';
+
+const primaryColors: PrimaryColor[] = ['umber', 'blue', 'green', 'violet', 'orange', 'pink', 'rose', 'amber', 'slate'];
+
+const normalizePrimaryColor = (color?: string): PrimaryColor => {
+  if (!color || color === 'red' || color === 'sage') return 'umber';
+  return primaryColors.includes(color as PrimaryColor) ? (color as PrimaryColor) : 'umber';
+};
+
 export const userController = {
   // Get all roles
   async getRoles(_req: Request, res: Response, next: NextFunction) {
@@ -274,7 +283,7 @@ export const userController = {
         settings: {
           theme: theme || user.settings?.theme || 'system',
           fontSize: fontSize || user.settings?.fontSize || 'medium',
-          primaryColor: primaryColor || user.settings?.primaryColor || 'red',
+          primaryColor: normalizePrimaryColor(primaryColor || user.settings?.primaryColor),
         },
       });
 

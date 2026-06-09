@@ -14,6 +14,10 @@ interface ComplaintAttributes {
   saleId: string;
   saleNumberSnapshot: string;
   customerNameSnapshot: string | null;
+  recipientName: string | null;
+  recipientPhone: string | null;
+  recipientAddress: string | null;
+  recipientAddressNote: string | null;
   reason: string;
   complaintDate: Date;
   complaintPhoto: string;
@@ -40,6 +44,10 @@ interface ComplaintCreationAttributes
     ComplaintAttributes,
     | 'id'
     | 'customerNameSnapshot'
+    | 'recipientName'
+    | 'recipientPhone'
+    | 'recipientAddress'
+    | 'recipientAddressNote'
     | 'complaintPhotos'
     | 'salesInformation'
     | 'complaintReceiptPdf'
@@ -66,6 +74,10 @@ class Complaint
   declare saleId: string;
   declare saleNumberSnapshot: string;
   declare customerNameSnapshot: string | null;
+  declare recipientName: string | null;
+  declare recipientPhone: string | null;
+  declare recipientAddress: string | null;
+  declare recipientAddressNote: string | null;
   declare reason: string;
   declare complaintDate: Date;
   declare complaintPhoto: string;
@@ -113,6 +125,22 @@ Complaint.init(
     },
     customerNameSnapshot: {
       type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    recipientName: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    recipientPhone: {
+      type: DataTypes.STRING(30),
+      allowNull: true,
+    },
+    recipientAddress: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    recipientAddressNote: {
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     reason: {

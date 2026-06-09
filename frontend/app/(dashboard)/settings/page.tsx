@@ -6,6 +6,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSettingsStore } from '@/lib/stores/settings';
+import type { PrimaryColor } from '@/lib/stores/settings';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTheme } from 'next-themes';
 import { Moon, Sun, Laptop, Type, Info, Code, Cpu, ExternalLink, ShieldCheck, Heart, Palette, Printer } from 'lucide-react';
@@ -39,20 +40,20 @@ export default function SettingsPage() {
   };
 
   const handleColorChange = (value: string) => {
-    const newColor = value as 'red' | 'blue' | 'green' | 'violet' | 'orange';
+    const newColor = value as PrimaryColor;
     setPrimaryColor(newColor);
   };
 
   const colorOptions = [
-    { label: 'Merah', value: 'red', color: 'bg-red-500' },
-    { label: 'Biru', value: 'blue', color: 'bg-blue-500' },
-    { label: 'Hijau', value: 'green', color: 'bg-emerald-500' },
-    { label: 'Ungu', value: 'violet', color: 'bg-violet-500' },
-    { label: 'Jingga', value: 'orange', color: 'bg-orange-500' },
-    { label: 'Pink', value: 'pink', color: 'bg-pink-500' },
-    { label: 'Rose', value: 'rose', color: 'bg-rose-500' },
-    { label: 'Amber', value: 'amber', color: 'bg-amber-500' },
-    { label: 'Slate', value: 'slate', color: 'bg-slate-500' },
+    { label: 'Umber', value: 'umber', color: '#956818' },
+    { label: 'Slate', value: 'slate', color: '#64748b' },
+    { label: 'Biru', value: 'blue', color: '#3b82f6' },
+    { label: 'Hijau', value: 'green', color: '#10b981' },
+    { label: 'Ungu', value: 'violet', color: '#8b5cf6' },
+    { label: 'Jingga', value: 'orange', color: '#f97316' },
+    { label: 'Pink', value: 'pink', color: '#ec4899' },
+    { label: 'Rose', value: 'rose', color: '#f43f5e' },
+    { label: 'Amber', value: 'amber', color: '#f59e0b' },
   ];
 
   return (
@@ -107,7 +108,7 @@ export default function SettingsPage() {
                       "flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-muted bg-card p-4 hover:bg-accent cursor-pointer transition-all duration-200 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5",
                     )}
                   >
-                    <div className={cn("h-6 w-6 rounded-full shadow-sm", option.color)} />
+                    <div className="h-6 w-6 rounded-full shadow-sm" style={{ backgroundColor: option.color }} />
                     <span className="text-sm font-medium">{option.label}</span>
                   </Label>
                 </div>

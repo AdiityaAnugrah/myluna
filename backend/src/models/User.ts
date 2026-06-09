@@ -14,7 +14,7 @@ interface UserAttributes {
   settings?: {
     theme: 'light' | 'dark' | 'system';
     fontSize: 'small' | 'medium' | 'large';
-    primaryColor: 'red' | 'blue' | 'green' | 'violet' | 'orange' | 'pink' | 'rose' | 'amber' | 'slate';
+    primaryColor: 'umber' | 'blue' | 'green' | 'violet' | 'orange' | 'pink' | 'rose' | 'amber' | 'slate';
   };
   lastLoginAt: Date | null;
   lastActivityAt: Date | null;
@@ -36,7 +36,7 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
   declare settings: {
     theme: 'light' | 'dark' | 'system';
     fontSize: 'small' | 'medium' | 'large';
-    primaryColor: 'red' | 'blue' | 'green' | 'violet' | 'orange' | 'pink' | 'rose' | 'amber' | 'slate';
+    primaryColor: 'umber' | 'blue' | 'green' | 'violet' | 'orange' | 'pink' | 'rose' | 'amber' | 'slate';
   };
   declare lastLoginAt: Date | null;
   declare lastActivityAt: Date | null;
@@ -101,7 +101,7 @@ User.init(
       defaultValue: {
         theme: 'system',
         fontSize: 'medium',
-        primaryColor: 'red'
+        primaryColor: 'umber'
       },
     },
     lastLoginAt: {

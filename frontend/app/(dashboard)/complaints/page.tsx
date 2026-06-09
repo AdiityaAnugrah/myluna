@@ -8,7 +8,6 @@ import {
   useComplaints,
   useCreateComplaint,
   useEligibleComplaintSales,
-  useMarkComplaintHandled,
 } from '@/lib/hooks/useComplaints';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,15 +32,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { getImageUrl } from '@/lib/utils/url';
+import { notify } from '@/lib/notify';
 import { Complaint, ComplaintStatus, Sale } from '@/types';
-import { CheckCircle2, Download, FileText, Loader2, Search, Send, Video } from 'lucide-react';
+import { CheckCircle2, Eye, FileText, Loader2, Printer, Search, Send, Video } from 'lucide-react';
 
 type ReceiptMode = 'UPLOAD' | 'GENERATED';
 
 function statusLabel(status: ComplaintStatus) {
   switch (status) {
     case 'PENDING_TCP_REVIEW':
-      return 'Menunggu Klaim TCP';
+      return 'Menunggu Diterima TCP';
     case 'REJECTED_BY_TCP':
       return 'Ditolak TCP';
     case 'ACCEPTED_BY_TCP':
@@ -73,8 +73,21 @@ function createSalesInfoPdf(params: {
   complaintDate: string;
   reason: string;
   salesInformation: string;
+  recipientName: string;
+  recipientPhone: string;
+  recipientAddress: string;
+  recipientAddressNote: string;
 }) {
-  const { sale, complaintDate, reason, salesInformation } = params;
+  const {
+    sale,
+    complaintDate,
+    reason,
+    salesInformation,
+    recipientName,
+    recipientPhone,
+    recipientAddress,
+    recipientAddressNote,
+  } = params;
   const doc = new jsPDF({
     unit: 'mm',
     format: 'a4',
@@ -93,7 +106,20 @@ function createSalesInfoPdf(params: {
   const reasonLines = doc.splitTextToSize(reason, 180);
   doc.text(reasonLines, 15, 60);
 
-  const infoStartY = 70 + reasonLines.length * 5;
+  const addressStartY = 70 + reasonLines.length * 5;
+  doc.text('Detail Penerima Pengganti:', 15, addressStartY);
+  doc.text(`Nama: ${recipientName}`, 15, addressStartY + 6);
+  doc.text(`No HP: ${recipientPhone}`, 15, addressStartY + 12);
+  const addressLines = doc.splitTextToSize(`Alamat: ${recipientAddress}`, 180);
+  doc.text(addressLines, 15, addressStartY + 18);
+
+  let infoStartY = addressStartY + 28 + addressLines.length * 5;
+  if (recipientAddressNote) {
+    const noteLines = doc.splitTextToSize(`Catatan Alamat: ${recipientAddressNote}`, 180);
+    doc.text(noteLines, 15, infoStartY);
+    infoStartY += 6 + noteLines.length * 5;
+  }
+
   doc.text('Informasi Penjualan:', 15, infoStartY);
   const infoLines = doc.splitTextToSize(salesInformation, 180);
   doc.text(infoLines, 15, infoStartY + 6);
@@ -120,6 +146,10 @@ export default function ComplaintsPage() {
   const [debouncedSaleQuery, setDebouncedSaleQuery] = useState('');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [reason, setReason] = useState('');
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientPhone, setRecipientPhone] = useState('');
+  const [recipientAddress, setRecipientAddress] = useState('');
+  const [recipientAddressNote, setRecipientAddressNote] = useState('');
   const [salesInformation, setSalesInformation] = useState('');
   const [complaintDate, setComplaintDate] = useState(today);
   const [complaintPhotos, setComplaintPhotos] = useState<File[]>([]);
@@ -127,6 +157,8 @@ export default function ComplaintsPage() {
   const [receiptMode, setReceiptMode] = useState<ReceiptMode>('UPLOAD');
   const [uploadedReceiptPdf, setUploadedReceiptPdf] = useState<File | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [detailComplaint, setDetailComplaint] = useState<Complaint | null>(null);
+  const [detailMode, setDetailMode] = useState<'view' | 'accept'>('view');
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchFilter, setSearchFilter] = useState('');
@@ -136,7 +168,6 @@ export default function ComplaintsPage() {
 
   const createComplaint = useCreateComplaint();
   const claimComplaint = useClaimComplaint();
-  const markHandledComplaint = useMarkComplaintHandled();
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSaleQuery(saleQuery), 350);
@@ -184,11 +215,16 @@ export default function ComplaintsPage() {
   const effectiveComplaintDate = isUser ? today : complaintDate;
   const hasValidReceipt =
     receiptMode === 'UPLOAD' ? !!uploadedReceiptPdf : salesInformation.trim().length >= 10;
+  const hasValidRecipientDetails =
+    recipientName.trim().length >= 2 &&
+    recipientPhone.trim().length >= 8 &&
+    recipientAddress.trim().length >= 15;
 
   const canSubmitComplaint =
     !!selectedSale &&
     complaintPhotos.length > 0 &&
     reason.trim().length >= 5 &&
+    hasValidRecipientDetails &&
     hasValidReceipt &&
     selectedSaleStillExists &&
     !createComplaint.isPending;
@@ -214,6 +250,10 @@ export default function ComplaintsPage() {
         complaintDate: effectiveComplaintDate,
         reason: reason.trim(),
         salesInformation: salesInformation.trim(),
+        recipientName: recipientName.trim(),
+        recipientPhone: recipientPhone.trim(),
+        recipientAddress: recipientAddress.trim(),
+        recipientAddressNote: recipientAddressNote.trim(),
       });
     }
 
@@ -226,6 +266,10 @@ export default function ComplaintsPage() {
     formData.append('receiptSource', receiptMode);
     formData.append('complaintReceiptPdf', receiptPdfFile);
     formData.append('salesInformation', salesInformation.trim());
+    formData.append('recipientName', recipientName.trim());
+    formData.append('recipientPhone', recipientPhone.trim());
+    formData.append('recipientAddress', recipientAddress.trim());
+    formData.append('recipientAddressNote', recipientAddressNote.trim());
     complaintPhotos.forEach((file) => {
       formData.append('complaintPhotos', file);
     });
@@ -238,6 +282,10 @@ export default function ComplaintsPage() {
         setPreviewOpen(false);
         setSelectedSale(null);
         setReason('');
+        setRecipientName('');
+        setRecipientPhone('');
+        setRecipientAddress('');
+        setRecipientAddressNote('');
         setSalesInformation('');
         setComplaintDate(today);
         setComplaintPhotos([]);
@@ -250,11 +298,24 @@ export default function ComplaintsPage() {
     });
   };
 
-  const handleClaim = (complaintId: string) => {
-    claimComplaint.mutate({ id: complaintId });
+  const openComplaintDetail = (complaint: Complaint, mode: 'view' | 'accept' = 'view') => {
+    setDetailComplaint(complaint);
+    setDetailMode(mode);
   };
 
-  const handleMarkHandledAndOpenPdf = (complaint: Complaint) => {
+  const handleClaim = (complaint: Complaint) => {
+    claimComplaint.mutate(
+      { id: complaint.id },
+      {
+        onSuccess: () => {
+          setDetailComplaint(null);
+          setDetailMode('view');
+        },
+      }
+    );
+  };
+
+  const handlePrintComplaint = (complaint: Complaint) => {
     const pdfUrl = complaint.complaintReceiptPdf
       ? getImageUrl(complaint.complaintReceiptPdf)
       : complaint.replacementProofDocument
@@ -262,15 +323,7 @@ export default function ComplaintsPage() {
         : '';
 
     if (!pdfUrl) return;
-
-    markHandledComplaint.mutate(
-      { id: complaint.id },
-      {
-        onSuccess: () => {
-          window.open(pdfUrl, '_blank', 'noopener,noreferrer');
-        },
-      }
-    );
+    window.open(pdfUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -310,7 +363,11 @@ export default function ComplaintsPage() {
                       <button
                         type="button"
                         key={sale.id}
-                        onClick={() => setSelectedSale(sale)}
+                        onClick={() => {
+                          setSelectedSale(sale);
+                          if (!recipientName.trim()) setRecipientName(sale.customerName || '');
+                          if (!recipientPhone.trim()) setRecipientPhone(sale.customerPhone || '');
+                        }}
                         className={`w-full text-left px-3 py-2 border-b last:border-b-0 hover:bg-muted/40 ${
                           selectedSale?.id === sale.id ? 'bg-primary/10' : ''
                         }`}
@@ -337,6 +394,57 @@ export default function ComplaintsPage() {
               </div>
             )}
 
+            <div className="rounded-lg border p-4 space-y-4">
+              <div>
+                <p className="text-sm font-semibold">Detail Penerima & Alamat Pengganti *</p>
+                <p className="text-xs text-muted-foreground">
+                  Isi data tujuan dengan jelas agar TCP bisa memproses pengiriman pengganti tanpa menebak dari alasan komplen.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nama Penerima *</Label>
+                  <Input
+                    placeholder="Nama lengkap penerima"
+                    value={recipientName}
+                    onChange={(e) => setRecipientName(e.target.value)}
+                    autoComplete="name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nomor HP Penerima *</Label>
+                  <Input
+                    placeholder="Contoh: 081234567890"
+                    value={recipientPhone}
+                    onChange={(e) => setRecipientPhone(e.target.value)}
+                    autoComplete="tel"
+                    inputMode="tel"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Alamat Lengkap Penerima *</Label>
+                <Textarea
+                  placeholder="Nama jalan, nomor rumah, RT/RW, kelurahan, kecamatan, kota/kabupaten, provinsi, kode pos"
+                  rows={4}
+                  value={recipientAddress}
+                  onChange={(e) => setRecipientAddress(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Minimal 15 karakter. Cantumkan detail area yang memudahkan kurir.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Catatan Alamat (Opsional)</Label>
+                <Textarea
+                  placeholder="Contoh: pagar hitam, patokan dekat masjid, titip satpam, jam penerimaan paket"
+                  rows={2}
+                  value={recipientAddressNote}
+                  onChange={(e) => setRecipientAddressNote(e.target.value)}
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Upload Foto Komplen (1-5 foto, maks 1MB/foto) *</Label>
@@ -351,12 +459,16 @@ export default function ComplaintsPage() {
                       return;
                     }
                     if (files.length > 5) {
-                      alert('Maksimal 5 foto');
+                      notify.warning('Maksimal 5 foto', {
+                        description: 'Pilih ulang foto komplen dengan jumlah paling banyak 5 file.',
+                      });
                       return;
                     }
                     const oversizeFile = files.find((file) => file.size > 1024 * 1024);
                     if (oversizeFile) {
-                      alert(`Ukuran foto maksimal 1MB: ${oversizeFile.name}`);
+                      notify.error('Ukuran foto terlalu besar', {
+                        description: `${oversizeFile.name} melebihi batas 1MB. Kompres foto lalu unggah kembali.`,
+                      });
                       return;
                     }
                     setComplaintPhotos(files);
@@ -385,7 +497,9 @@ export default function ComplaintsPage() {
                       return;
                     }
                     if (file.size > 25 * 1024 * 1024) {
-                      alert('Video maksimal 25MB');
+                      notify.error('Video terlalu besar', {
+                        description: 'Ukuran video maksimal 25MB. Kompres video lalu unggah kembali.',
+                      });
                       return;
                     }
                     setComplaintVideo(file);
@@ -453,11 +567,15 @@ export default function ComplaintsPage() {
                       return;
                     }
                     if (file.type !== 'application/pdf') {
-                      alert('File wajib PDF');
+                      notify.error('Format file tidak sesuai', {
+                        description: 'Resi komplen wajib memakai file PDF.',
+                      });
                       return;
                     }
                     if (file.size > 5 * 1024 * 1024) {
-                      alert('Ukuran PDF maksimal 5MB');
+                      notify.error('PDF terlalu besar', {
+                        description: 'Ukuran PDF maksimal 5MB. Kompres file lalu unggah kembali.',
+                      });
                       return;
                     }
                     setUploadedReceiptPdf(file);
@@ -513,7 +631,7 @@ export default function ComplaintsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua Status</SelectItem>
-                <SelectItem value="PENDING_TCP_REVIEW">Menunggu Klaim TCP</SelectItem>
+                <SelectItem value="PENDING_TCP_REVIEW">Menunggu Diterima TCP</SelectItem>
                 <SelectItem value="ACCEPTED_BY_TCP">Sedang Diproses TCP</SelectItem>
                 <SelectItem value="REPLACEMENT_SHIPPED">Sudah Diurus TCP</SelectItem>
                 <SelectItem value="REJECTED_BY_TCP">Ditolak TCP</SelectItem>
@@ -566,6 +684,15 @@ export default function ComplaintsPage() {
                             Informasi Penjualan: <span className="text-muted-foreground">{complaint.salesInformation}</span>
                           </p>
                         )}
+                        <div className="text-sm rounded-md bg-muted/30 border p-2 space-y-1">
+                          <p>
+                            Penerima: <strong>{complaint.recipientName || '-'}</strong>
+                            {complaint.recipientPhone ? ` - ${complaint.recipientPhone}` : ''}
+                          </p>
+                          <p className="text-muted-foreground">
+                            Alamat: {complaint.recipientAddress || '-'}
+                          </p>
+                        </div>
                         {complaint.rejectionReason && (
                           <p className="text-sm text-red-600">Alasan ditolak: {complaint.rejectionReason}</p>
                         )}
@@ -607,26 +734,45 @@ export default function ComplaintsPage() {
                           </a>
                         )}
 
-                        {canTcpProcess && complaint.status === 'PENDING_TCP_REVIEW' && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleClaim(complaint.id)}
-                            disabled={claimComplaint.isPending}
-                          >
-                            <CheckCircle2 className="h-4 w-4 mr-1" />
-                            Klaim Komplen
-                          </Button>
-                        )}
+                        {canTcpProcess && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant={complaint.status === 'PENDING_TCP_REVIEW' ? 'default' : 'outline'}
+                              onClick={() => openComplaintDetail(complaint, complaint.status === 'PENDING_TCP_REVIEW' ? 'accept' : 'view')}
+                              disabled={claimComplaint.isPending && detailComplaint?.id === complaint.id}
+                            >
+                              {complaint.status === 'PENDING_TCP_REVIEW' ? (
+                                <>
+                                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                                  Terima
+                                </>
+                              ) : (
+                                <>
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  Detail
+                                </>
+                              )}
+                            </Button>
 
-                        {canTcpProcess && complaint.status === 'ACCEPTED_BY_TCP' && receiptPdfPath && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleMarkHandledAndOpenPdf(complaint)}
-                            disabled={markHandledComplaint.isPending}
-                          >
-                            <Download className="h-4 w-4 mr-1" />
-                            Download/Cetak & Selesai
-                          </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handlePrintComplaint(complaint)}
+                              disabled={
+                                !['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED'].includes(complaint.status) ||
+                                !receiptPdfPath
+                              }
+                              title={
+                                complaint.status === 'PENDING_TCP_REVIEW'
+                                  ? 'Terima komplen dulu sebelum print'
+                                  : undefined
+                              }
+                            >
+                              <Printer className="h-4 w-4 mr-1" />
+                              Print
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -661,6 +807,130 @@ export default function ComplaintsPage() {
         </CardContent>
       </Card>
 
+      <Dialog
+        open={!!detailComplaint}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailComplaint(null);
+            setDetailMode('view');
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[85dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {detailMode === 'accept' ? 'Terima Komplen' : 'Detail Komplen'}
+            </DialogTitle>
+            <DialogDescription>
+              Periksa detail pesanan, alasan, foto, dan alamat penerima sebelum diproses TCP.
+            </DialogDescription>
+          </DialogHeader>
+
+          {detailComplaint && (
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-md border p-3 space-y-1">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Komplen</p>
+                  <p>No Komplen: <strong>{detailComplaint.complaintNumber}</strong></p>
+                  <p>Status: <Badge variant="outline" className={statusBadgeClass(detailComplaint.status)}>{statusLabel(detailComplaint.status)}</Badge></p>
+                  <p>Tanggal: <strong>{new Date(detailComplaint.complaintDate).toLocaleDateString('id-ID')}</strong></p>
+                </div>
+                <div className="rounded-md border p-3 space-y-1">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Pesanan</p>
+                  <p>No Pesanan: <strong>{detailComplaint.saleNumberSnapshot}</strong></p>
+                  <p>Customer Sale: <strong>{detailComplaint.customerNameSnapshot || '-'}</strong></p>
+                  {detailComplaint.sale?.creator && (
+                    <p>PIC Pesanan: <strong>{detailComplaint.sale.creator.fullName}</strong></p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Detail Penerima Pengganti</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <p>Nama: <strong>{detailComplaint.recipientName || '-'}</strong></p>
+                  <p>No HP: <strong>{detailComplaint.recipientPhone || '-'}</strong></p>
+                </div>
+                <p>Alamat Lengkap:</p>
+                <p className="whitespace-pre-wrap rounded bg-muted/40 p-2">{detailComplaint.recipientAddress || '-'}</p>
+                {detailComplaint.recipientAddressNote && (
+                  <>
+                    <p>Catatan Alamat:</p>
+                    <p className="whitespace-pre-wrap rounded bg-muted/40 p-2">{detailComplaint.recipientAddressNote}</p>
+                  </>
+                )}
+              </div>
+
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Alasan & Informasi</p>
+                <p>Alasan Komplen:</p>
+                <p className="whitespace-pre-wrap rounded bg-muted/40 p-2">{detailComplaint.reason}</p>
+                {detailComplaint.salesInformation && (
+                  <>
+                    <p>Informasi Penjualan:</p>
+                    <p className="whitespace-pre-wrap rounded bg-muted/40 p-2">{detailComplaint.salesInformation}</p>
+                  </>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {(detailComplaint.complaintPhotos && detailComplaint.complaintPhotos.length > 0
+                  ? detailComplaint.complaintPhotos
+                  : [detailComplaint.complaintPhoto]
+                ).map((photo, index) => (
+                  <a key={`${detailComplaint.id}-detail-photo-${index}`} href={getImageUrl(photo)} target="_blank" rel="noreferrer">
+                    <Button size="sm" variant="outline">Lihat Foto {index + 1}</Button>
+                  </a>
+                ))}
+                {detailComplaint.complaintReceiptPdf && (
+                  <a href={getImageUrl(detailComplaint.complaintReceiptPdf)} target="_blank" rel="noreferrer">
+                    <Button size="sm" variant="outline">
+                      <FileText className="h-4 w-4 mr-1" />
+                      Lihat PDF Resi
+                    </Button>
+                  </a>
+                )}
+                {detailComplaint.complaintVideo && (
+                  <a href={getImageUrl(detailComplaint.complaintVideo)} target="_blank" rel="noreferrer">
+                    <Button size="sm" variant="outline">
+                      <Video className="h-4 w-4 mr-1" />
+                      Lihat Video
+                    </Button>
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDetailComplaint(null);
+                setDetailMode('view');
+              }}
+            >
+              Tutup
+            </Button>
+            {detailComplaint && detailMode === 'accept' && detailComplaint.status === 'PENDING_TCP_REVIEW' && (
+              <Button onClick={() => handleClaim(detailComplaint)} disabled={claimComplaint.isPending}>
+                {claimComplaint.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Memproses...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Terima Komplen
+                  </>
+                )}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
@@ -671,6 +941,13 @@ export default function ComplaintsPage() {
             <p>No Pesanan: <strong>{selectedSale?.saleNumber}</strong></p>
             <p>Nama: <strong>{selectedSale?.customerName || '-'}</strong></p>
             <p>Tanggal Komplen: <strong>{new Date(effectiveComplaintDate).toLocaleDateString('id-ID')}</strong></p>
+            <div className="rounded-md border p-3 space-y-1">
+              <p className="font-semibold">Detail Penerima Pengganti</p>
+              <p>Nama Penerima: <strong>{recipientName || '-'}</strong></p>
+              <p>No HP: <strong>{recipientPhone || '-'}</strong></p>
+              <p>Alamat: {recipientAddress || '-'}</p>
+              {recipientAddressNote.trim() && <p>Catatan: {recipientAddressNote}</p>}
+            </div>
             <p>Alasan: {reason}</p>
             <p>Mode Resi PDF: <strong>{receiptMode === 'UPLOAD' ? 'Upload PDF' : 'Auto Generate dari Informasi Penjualan'}</strong></p>
             {receiptMode === 'GENERATED' && salesInformation.trim() && (

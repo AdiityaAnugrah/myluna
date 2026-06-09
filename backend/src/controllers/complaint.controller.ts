@@ -110,9 +110,22 @@ export const complaintController = {
       let { complaintDate } = req.body;
       const salesInformation = String(req.body.salesInformation || '').trim();
       const receiptSource = String(req.body.receiptSource || 'UPLOAD');
+      const recipientName = String(req.body.recipientName || '').trim();
+      const recipientPhone = String(req.body.recipientPhone || '').trim();
+      const recipientAddress = String(req.body.recipientAddress || '').trim();
+      const recipientAddressNote = String(req.body.recipientAddressNote || '').trim();
 
       if (!saleId || !reason || String(reason).trim().length < 5) {
         throw new AppError('Pesanan dan alasan komplen wajib diisi', 400);
+      }
+      if (recipientName.length < 2) {
+        throw new AppError('Nama penerima wajib diisi dengan jelas', 400);
+      }
+      if (recipientPhone.length < 8) {
+        throw new AppError('Nomor HP penerima wajib diisi dengan benar', 400);
+      }
+      if (recipientAddress.length < 15) {
+        throw new AppError('Alamat lengkap penerima wajib diisi minimal 15 karakter', 400);
       }
       if (receiptSource === 'GENERATED' && salesInformation.length < 10) {
         throw new AppError('Informasi Penjualan wajib diisi minimal 10 karakter', 400);
@@ -196,6 +209,10 @@ export const complaintController = {
         saleId,
         saleNumberSnapshot: sale.saleNumber,
         customerNameSnapshot: sale.customerName || null,
+        recipientName,
+        recipientPhone,
+        recipientAddress,
+        recipientAddressNote: recipientAddressNote || null,
         reason: String(reason).trim(),
         complaintDate: new Date(complaintDate),
         complaintPhoto: storedPhotos[0],

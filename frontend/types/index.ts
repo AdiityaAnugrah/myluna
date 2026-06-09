@@ -273,6 +273,10 @@ export interface Complaint {
   saleId: string;
   saleNumberSnapshot: string;
   customerNameSnapshot: string | null;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  recipientAddress?: string | null;
+  recipientAddressNote?: string | null;
   reason: string;
   complaintDate: string;
   complaintPhoto: string;

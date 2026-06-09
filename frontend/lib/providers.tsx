@@ -28,7 +28,7 @@ function SettingsSync() {
   }, [fontSize]);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme-color', primaryColor || 'red');
+    document.documentElement.setAttribute('data-theme-color', primaryColor || 'umber');
   }, [primaryColor]);
 
   return null;
