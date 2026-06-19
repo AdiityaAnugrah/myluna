@@ -93,23 +93,39 @@ export default function FinancialSummaryPage() {
   const summary = (data as any)?.data?.summary || {};
   const sales = useMemo(() => salesData?.data?.sales || [], [salesData]);
 
-  // Mapping enum lama → nama tampilan baru
-  // Kalau nama platform di /platforms sudah diubah (misal "Toko Offline"),
-  // tambahkan juga di sini supaya keduanya tergabung dalam satu baris
-  const PLATFORM_DISPLAY_NAMES: Record<string, string> = {
-    OFFLINE_STORE: 'Toko Offline',
-    TOKOPEDIA: 'Tokopedia',
-    SHOPEE: 'Shopee',
-    TIKTOK_SHOP: 'TikTok Shop',
-    LAZADA: 'Lazada',
-    OTHER: 'Lainnya',
+  const platformNamesByKey = useMemo(() => {
+    const result = new Map<string, string>();
+    for (const platform of platformsData?.data || []) {
+      if (!platform.isActive) continue;
+      const key = String(platform.name).trim().replace(/[\s-]+/g, '_').toUpperCase();
+      result.set(key, platform.name);
+    }
+    return result;
+  }, [platformsData]);
+
+  const getPlatformDisplayName = (raw: string) => {
+    const key = String(raw || '').trim().replace(/[\s-]+/g, '_').toUpperCase();
+    const exactMasterName = platformNamesByKey.get(key);
+    if (exactMasterName) return exactMasterName;
+
+    if (key === 'OFFLINE_STORE' || key === 'TOKO_OFFLINE') {
+      return platformNamesByKey.get('WEBSITE')
+        || platformNamesByKey.get('TOKO_OFFLINE')
+        || 'Toko Offline';
+    }
+
+    const legacyNames: Record<string, string> = {
+      TOKOPEDIA: 'Tokopedia',
+      SHOPEE: 'Shopee',
+      TIKTOK_SHOP: 'TikTok Shop',
+      LAZADA: 'Lazada',
+      OTHER: 'Lainnya',
+    };
+    return legacyNames[key] || raw;
   };
-  const getPlatformDisplayName = (raw: string) =>
-    PLATFORM_DISPLAY_NAMES[raw] ?? raw;
 
   // Platform breakdown — exclude CANCELLED & REJECTED agar konsisten dengan omset
-  // Group by display name supaya enum lama (OFFLINE_STORE) dan nama baru (Toko Offline)
-  // tidak muncul sebagai dua baris terpisah
+  // Group by current master name so legacy values do not create duplicate rows.
   const platformStats = useMemo(() => {
     const statsMap: Record<string, { revenue: number; count: number }> = {};
     sales
@@ -127,7 +143,7 @@ export default function FinancialSummaryPage() {
         count: data.count,
       }))
       .sort((a, b) => b.value - a.value);
-  }, [sales]);
+  }, [sales, platformNamesByKey]);
 
   const totalRevenue = useMemo(() => platformStats.reduce((sum, p) => sum + p.value, 0), [platformStats]);
 
