@@ -5,6 +5,8 @@ export interface SalesAnalyticsParams {
   startDate: string;
   endDate: string;
   regionLevel: 'province' | 'regency' | 'district' | 'village';
+  scopeLevel?: 'province' | 'regency' | 'district' | 'village';
+  scopeRegionId?: number;
   limit?: number;
 }
 

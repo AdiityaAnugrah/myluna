@@ -285,6 +285,10 @@ export interface SalesAnalytics {
     endDate: string;
   };
   regionLevel: 'province' | 'regency' | 'district' | 'village';
+  scope: {
+    level: 'province' | 'regency' | 'district' | 'village';
+    regionId: number;
+  } | null;
   summary: {
     totalSales: number;
     totalRevenue: number;

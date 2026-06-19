@@ -12,6 +12,11 @@ const regionConfig: Record<RegionLevel, { saleColumn: string; table: string; ali
   village: { saleColumn: 'shippingVillageId', table: 'kelurahan', alias: 'r' },
 };
 
+function parseRegionLevel(value: unknown): RegionLevel | null {
+  const level = String(value || '') as RegionLevel;
+  return regionConfig[level] ? level : null;
+}
+
 function normalizeDate(value: unknown, fallback: string) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : fallback;
 }
@@ -25,16 +30,24 @@ export const analyticsController = {
       const defaultEnd = now.toISOString().slice(0, 10);
       const startDate = normalizeDate(req.query.startDate, defaultStart);
       const endDate = normalizeDate(req.query.endDate, defaultEnd);
-      const requestedLevel = String(req.query.regionLevel || 'province') as RegionLevel;
-      const regionLevel = regionConfig[requestedLevel] ? requestedLevel : 'province';
+      const regionLevel = parseRegionLevel(req.query.regionLevel) || 'province';
+      const scopeLevel = parseRegionLevel(req.query.scopeLevel);
+      const parsedScopeRegionId = Number(req.query.scopeRegionId);
+      const scopeRegionId = Number.isInteger(parsedScopeRegionId) && parsedScopeRegionId > 0
+        ? parsedScopeRegionId
+        : null;
       const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
       const region = regionConfig[regionLevel];
 
-      const replacements = { startDate, endDate, limit };
+      const replacements = { startDate, endDate, limit, scopeRegionId };
+      const scopeWhere = scopeLevel && scopeRegionId
+        ? `AND s.${regionConfig[scopeLevel].saleColumn} = :scopeRegionId`
+        : '';
       const activeSaleWhere = `
         s.isInitialBalance = 0
         AND s.status NOT IN ('CANCELLED', 'REJECTED')
         AND DATE(s.saleDate) BETWEEN :startDate AND :endDate
+        ${scopeWhere}
       `;
 
       const [summaryRows, productRows, regionRows] = await Promise.all([
@@ -43,7 +56,7 @@ export const analyticsController = {
             SELECT
               COUNT(DISTINCT s.id) AS totalSales,
               COALESCE(SUM(s.totalAmount), 0) AS totalRevenue,
-              COUNT(DISTINCT CASE WHEN s.shippingProvinceId IS NOT NULL THEN s.id END) AS mappedSales
+              COUNT(DISTINCT CASE WHEN s.${region.saleColumn} IS NOT NULL THEN s.id END) AS mappedSales
             FROM sales s
             WHERE ${activeSaleWhere}
           `,
@@ -102,6 +115,9 @@ export const analyticsController = {
         {
           period: { startDate, endDate },
           regionLevel,
+          scope: scopeLevel && scopeRegionId
+            ? { level: scopeLevel, regionId: scopeRegionId }
+            : null,
           summary: {
             totalSales,
             totalRevenue: Number(rawSummary.totalRevenue || 0),
