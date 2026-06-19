@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '../config/database';
 import { successResponse } from '../utils/response';
+import { createPlatformNameResolver } from '../utils/platformName';
 
 type RegionLevel = 'province' | 'regency' | 'district' | 'village';
 
@@ -68,7 +69,7 @@ export const analyticsController = {
         ${scopeWhere}
       `;
 
-      const [summaryRows, productRows, regionRows] = await Promise.all([
+      const [summaryRows, productRows, regionRows, rawPlatformRows, masterPlatformRows] = await Promise.all([
         sequelize.query(
           `
             SELECT
@@ -126,11 +127,70 @@ export const analyticsController = {
           `,
           { replacements, type: QueryTypes.SELECT }
         ),
+        sequelize.query(
+          `
+            SELECT
+              s.platform AS platformName,
+              COUNT(DISTINCT s.id) AS orderCount,
+              COALESCE(SUM(s.totalAmount), 0) AS revenue,
+              COALESCE(SUM(si.quantity), 0) AS quantitySold
+            FROM sales s
+            LEFT JOIN (
+              SELECT saleId, SUM(quantity) AS quantity
+              FROM sale_items
+              GROUP BY saleId
+            ) si ON si.saleId = s.id
+            WHERE ${activeSaleWhere}
+            GROUP BY s.platform
+            ORDER BY orderCount DESC, revenue DESC
+          `,
+          { replacements, type: QueryTypes.SELECT }
+        ),
+        sequelize.query(
+          `SELECT name FROM platforms WHERE isActive = 1 ORDER BY name ASC`,
+          { type: QueryTypes.SELECT }
+        ),
       ]);
 
       const rawSummary = (summaryRows[0] || {}) as any;
       const totalSales = Number(rawSummary.totalSales || 0);
       const mappedSales = Number(rawSummary.mappedSales || 0);
+      const resolvePlatformName = createPlatformNameResolver(
+        masterPlatformRows.map((row: any) => String(row.name))
+      );
+      const platformsByName = new Map<string, {
+        platformName: string;
+        orderCount: number;
+        revenue: number;
+        quantitySold: number;
+      }>();
+
+      for (const row of rawPlatformRows as any[]) {
+        const platformName = resolvePlatformName(row.platformName);
+        const current = platformsByName.get(platformName) || {
+          platformName,
+          orderCount: 0,
+          revenue: 0,
+          quantitySold: 0,
+        };
+        current.orderCount += Number(row.orderCount || 0);
+        current.revenue += Number(row.revenue || 0);
+        current.quantitySold += Number(row.quantitySold || 0);
+        platformsByName.set(platformName, current);
+      }
+
+      const topPlatforms = Array.from(platformsByName.values())
+        .sort((left, right) => right.orderCount - left.orderCount || right.revenue - left.revenue)
+        .slice(0, limit)
+        .map((platform) => ({
+          ...platform,
+          averageOrderValue: platform.orderCount > 0
+            ? Math.round((platform.revenue / platform.orderCount) * 100) / 100
+            : 0,
+          revenueShare: totalSales > 0 && Number(rawSummary.totalRevenue || 0) > 0
+            ? Math.round((platform.revenue / Number(rawSummary.totalRevenue)) * 10000) / 100
+            : 0,
+        }));
 
       successResponse(
         res,
@@ -159,6 +219,7 @@ export const analyticsController = {
             revenue: Number(row.revenue || 0),
             quantityPurchased: Number(row.quantityPurchased || 0),
           })),
+          topPlatforms,
         },
         'Sales analytics retrieved successfully'
       );

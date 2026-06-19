@@ -330,7 +330,7 @@ Frontend:
 - `frontend/components/sales/RegionAddressFields.tsx`
 - `frontend/app/(dashboard)/analytics/page.tsx`
 
-Analisa menampilkan produk terlaris dan wilayah pembeli terbanyak berdasarkan periode. Wilayah dapat ditelusuri dari provinsi sampai kelurahan/desa. Angka penjualan belum terpetakan membuka diagnosis alamat, kode pos, alasan kegagalan, dan kandidat wilayah. Akses halaman dibatasi untuk `SUPER_ADMIN` dan `ADMIN`.
+Analisa menampilkan produk terlaris, kontribusi penjualan per platform, dan wilayah pembeli terbanyak berdasarkan periode. Data platform lama seperti `OFFLINE_STORE`/`TOKO OFFLINE` digabung ke nama master aktif `Website`. Wilayah dapat ditelusuri dari provinsi sampai kelurahan/desa. Angka penjualan belum terpetakan membuka diagnosis alamat, kode pos, alasan kegagalan, dan kandidat wilayah. Akses halaman dibatasi untuk `SUPER_ADMIN` dan `ADMIN`.
 
 Master aktif berasal dari CSV `datawilayah/v2` pada commit sumber yang dipin di `SOURCE.md`, lalu dimuat oleh `20260620000001-seed-regions-v2-from-csv.js`. Jumlah aktif: 38 provinsi, 514 kabupaten/kota, 7.285 kecamatan, dan 83.762 desa/kelurahan. Data lama tidak dihapus, tetapi wilayah yang tidak ada di sumber v2 ditandai nonaktif.
 

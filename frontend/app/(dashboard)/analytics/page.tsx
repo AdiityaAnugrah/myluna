@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { ArrowLeft, BarChart3, Boxes, ChevronRight, MapPin, ReceiptText } from 'lucide-react';
+import { ArrowLeft, BarChart3, Boxes, ChevronRight, MapPin, ReceiptText, Store } from 'lucide-react';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -82,8 +82,10 @@ export default function AnalyticsPage() {
   const analytics = analyticsQuery.data?.data;
   const chartProducts = analytics?.topProducts.slice(0, 6) || [];
   const chartRegions = analytics?.topRegions.slice(0, 6) || [];
+  const chartPlatforms = analytics?.topPlatforms || [];
   const maxProductQuantity = Math.max(...(chartProducts.map((item) => item.quantitySold) || [0]), 1);
   const maxRegionOrders = Math.max(...(chartRegions.map((item) => item.orderCount) || [0]), 1);
+  const maxPlatformOrders = Math.max(...(chartPlatforms.map((item) => item.orderCount) || [0]), 1);
 
   const selectRegion = (region: AnalyticsRegion) => {
     if (!canDrillDown) return;
@@ -104,7 +106,7 @@ export default function AnalyticsPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Analisa Penjualan</h1>
         <p className="mt-1 text-muted-foreground">
-          Perbandingan produk terlaris dan persebaran wilayah pembeli.
+          Perbandingan produk, platform, dan persebaran wilayah pembeli.
         </p>
       </div>
 
@@ -443,6 +445,104 @@ export default function AnalyticsPage() {
                               <td className="py-2.5 text-right tabular-nums">{item.orderCount}</td>
                               <td className="hidden py-2.5 text-right tabular-nums md:table-cell">{item.quantityPurchased}</td>
                               <td className="hidden py-2.5 text-right tabular-nums sm:table-cell">{formatCurrency(item.revenue)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="xl:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle>Penjualan per Platform</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {activeScope ? `Dalam ${activeScope.name}` : 'Seluruh Indonesia'}
+                </p>
+              </CardHeader>
+              <CardContent>
+                {analyticsQuery.isLoading || !analytics ? (
+                  <SkeletonChart />
+                ) : analytics.topPlatforms.length === 0 ? (
+                  <EmptyState
+                    icon={Store}
+                    title="Belum ada data platform"
+                    description="Tidak ada penjualan aktif pada periode ini."
+                  />
+                ) : (
+                  <>
+                    <p className="sr-only">
+                      Platform dengan transaksi terbanyak adalah{' '}
+                      {analytics.topPlatforms[0].platformName} dengan{' '}
+                      {analytics.topPlatforms[0].orderCount} transaksi.
+                    </p>
+                    <div className="h-[320px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={chartPlatforms}
+                          margin={{ top: 28, right: 8, bottom: 16, left: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                          <XAxis
+                            type="category"
+                            dataKey="platformName"
+                            interval={0}
+                            height={44}
+                            tickMargin={8}
+                            tick={{ fontSize: 10 }}
+                            tickFormatter={(value) => shortenLabel(value, 12)}
+                          />
+                          <YAxis type="number" domain={[0, maxPlatformOrders]} allowDecimals={false} width={42} />
+                          <Tooltip
+                            formatter={(value) => [`${value} transaksi`, 'Penjualan']}
+                            contentStyle={{
+                              backgroundColor: 'var(--card)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 6,
+                            }}
+                          />
+                          <Bar
+                            dataKey="orderCount"
+                            name="Penjualan"
+                            fill="var(--info)"
+                            maxBarSize={56}
+                            radius={[4, 4, 0, 0]}
+                          >
+                            <LabelList
+                              dataKey="orderCount"
+                              position="top"
+                              className="fill-foreground"
+                              fontSize={11}
+                            />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="mt-4 overflow-x-auto">
+                      <table className="w-full min-w-[680px] table-fixed text-sm">
+                        <thead>
+                          <tr className="border-b text-left text-muted-foreground">
+                            <th className="w-[28%] py-2 font-medium">Platform</th>
+                            <th className="py-2 text-right font-medium">Transaksi</th>
+                            <th className="py-2 text-right font-medium">Unit</th>
+                            <th className="py-2 text-right font-medium">Nilai</th>
+                            <th className="py-2 text-right font-medium">Rata-rata</th>
+                            <th className="py-2 text-right font-medium">Kontribusi</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {analytics.topPlatforms.map((item) => (
+                            <tr key={item.platformName} className="border-b last:border-0">
+                              <td className="break-words py-2.5 font-medium">{item.platformName}</td>
+                              <td className="py-2.5 text-right tabular-nums">{item.orderCount}</td>
+                              <td className="py-2.5 text-right tabular-nums">{item.quantitySold}</td>
+                              <td className="py-2.5 text-right tabular-nums">{formatCurrency(item.revenue)}</td>
+                              <td className="py-2.5 text-right tabular-nums">
+                                {formatCurrency(item.averageOrderValue)}
+                              </td>
+                              <td className="py-2.5 text-right tabular-nums">{item.revenueShare}%</td>
                             </tr>
                           ))}
                         </tbody>

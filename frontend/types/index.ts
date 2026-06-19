@@ -311,6 +311,14 @@ export interface SalesAnalytics {
     revenue: number;
     quantityPurchased: number;
   }>;
+  topPlatforms: Array<{
+    platformName: string;
+    orderCount: number;
+    revenue: number;
+    quantitySold: number;
+    averageOrderValue: number;
+    revenueShare: number;
+  }>;
 }
 
 export interface UnmappedSalesDiagnostics {
