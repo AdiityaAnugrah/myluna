@@ -34,10 +34,10 @@ async function resolveShippingRegion(input: {
   }
 
   const [province, regency, district, village] = await Promise.all([
-    Province.findByPk(provinceId),
-    Regency.findOne({ where: { id: regencyId, provinceId } }),
-    District.findOne({ where: { id: districtId, provinceId, regencyId } }),
-    Village.findOne({ where: { id: villageId, provinceId, regencyId, districtId } }),
+    Province.findOne({ where: { id: provinceId, isActive: true } }),
+    Regency.findOne({ where: { id: regencyId, provinceId, isActive: true } }),
+    District.findOne({ where: { id: districtId, provinceId, regencyId, isActive: true } }),
+    Village.findOne({ where: { id: villageId, provinceId, regencyId, districtId, isActive: true } }),
   ]);
 
   if (!province || !regency || !district || !village) {

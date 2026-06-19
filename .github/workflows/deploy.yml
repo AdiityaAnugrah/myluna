@@ -31,8 +31,8 @@ jobs:
             npm install --production=false
             npm run build
             npm run migrate:production
-            npm run seed:regions:production
-            npm run backfill:regions:production
+            npm run seed:regions:v2:production
+            npm run reconcile:regions:v2:production
             pm2 restart app_background_lunarea --update-env
 
             echo "=== Build Frontend ==="

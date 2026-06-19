@@ -308,7 +308,7 @@ Alamat pengiriman penjualan baru memakai pilihan wilayah berjenjang:
 - `shippingPostalCode`
 - `shippingAddressDetail`
 
-Backend memvalidasi hierarki wilayah dan tetap membentuk `shippingAddress` lengkap untuk kompatibilitas tampilan/resi lama. Data lama yang hanya memiliki `shippingAddress` tetap dapat dibaca, tetapi belum masuk analisa wilayah.
+Backend memvalidasi hierarki wilayah aktif dan tetap membentuk `shippingAddress` lengkap untuk kompatibilitas tampilan/resi lama. Data lama tetap dapat dibaca dan dapat dipetakan ulang dengan rekonsiliasi v2.
 
 ### Analisa Penjualan
 
@@ -332,19 +332,19 @@ Frontend:
 
 Analisa menampilkan produk terlaris dan wilayah pembeli terbanyak berdasarkan periode. Wilayah dapat ditelusuri dari provinsi sampai kelurahan/desa. Angka penjualan belum terpetakan membuka diagnosis alamat, kode pos, alasan kegagalan, dan kandidat wilayah. Akses halaman dibatasi untuk `SUPER_ADMIN` dan `ADMIN`.
 
-Dataset wilayah berasal dari `datawilayah/datawilayah.sql` dan dimuat melalui seeder `20260619000001-seed-regions-from-sql.js`. Dump saat ini berisi 34 provinsi.
+Master aktif berasal dari CSV `datawilayah/v2` pada commit sumber yang dipin di `SOURCE.md`, lalu dimuat oleh `20260620000001-seed-regions-v2-from-csv.js`. Jumlah aktif: 38 provinsi, 514 kabupaten/kota, 7.285 kecamatan, dan 83.762 desa/kelurahan. Data lama tidak dihapus, tetapi wilayah yang tidak ada di sumber v2 ditandai nonaktif.
 
 Pasangan label kabupaten/kota yang identik dinormalisasi oleh migration `20260619000002-normalize-duplicate-regency-labels.ts`, misalnya `Kabupaten Semarang` dan `Kota Semarang`. Seeder menjalankan normalisasi yang sama untuk instalasi database baru.
 
-Backfill alamat penjualan lama:
+Rekonsiliasi alamat penjualan lama:
 
 ```bash
 cd backend
-npm run backfill:regions
-npm run backfill:regions:apply
+npm run reconcile:regions:v2
+npm run reconcile:regions:v2:apply
 ```
 
-Command pertama adalah dry-run. Backfill memprioritaskan kode pos, lalu nama wilayah eksplisit pada `shippingAddress`.
+Command pertama adalah dry-run. Rekonsiliasi memprioritaskan kode pos aktif, lalu nama wilayah eksplisit pada `shippingAddress`. Teks alamat asli tidak diubah. CI/CD hanya menjalankan dry-run; penerapan produksi dilakukan melalui workflow manual `Rekonsiliasi Wilayah Penjualan`.
 
 ### Stok
 

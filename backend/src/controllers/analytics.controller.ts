@@ -74,8 +74,11 @@ export const analyticsController = {
             SELECT
               COUNT(DISTINCT s.id) AS totalSales,
               COALESCE(SUM(s.totalAmount), 0) AS totalRevenue,
-              COUNT(DISTINCT CASE WHEN s.${region.saleColumn} IS NOT NULL THEN s.id END) AS mappedSales
+              COUNT(DISTINCT CASE WHEN mapped.id IS NOT NULL THEN s.id END) AS mappedSales
             FROM sales s
+            LEFT JOIN ${region.table} mapped
+              ON mapped.id = s.${region.saleColumn}
+              AND mapped.isActive = 1
             WHERE ${activeSaleWhere}
           `,
           { replacements, type: QueryTypes.SELECT }
@@ -110,6 +113,7 @@ export const analyticsController = {
             FROM sales s
             INNER JOIN ${region.table} ${region.alias}
               ON ${region.alias}.id = s.${region.saleColumn}
+              AND ${region.alias}.isActive = 1
             LEFT JOIN (
               SELECT saleId, SUM(quantity) AS quantity
               FROM sale_items
@@ -180,10 +184,13 @@ export const analyticsController = {
           `
             SELECT COUNT(*) AS total
             FROM sales s
+            LEFT JOIN ${region.table} mapped
+              ON mapped.id = s.${region.saleColumn}
+              AND mapped.isActive = 1
             WHERE s.isInitialBalance = 0
               AND s.status NOT IN ('CANCELLED', 'REJECTED')
               AND DATE(s.saleDate) BETWEEN :startDate AND :endDate
-              AND s.${region.saleColumn} IS NULL
+              AND mapped.id IS NULL
               ${scopeWhere}
           `,
           { replacements, type: QueryTypes.SELECT }
@@ -198,10 +205,13 @@ export const analyticsController = {
               s.shippingAddress,
               s.shippingPostalCode
             FROM sales s
+            LEFT JOIN ${region.table} mapped
+              ON mapped.id = s.${region.saleColumn}
+              AND mapped.isActive = 1
             WHERE s.isInitialBalance = 0
               AND s.status NOT IN ('CANCELLED', 'REJECTED')
               AND DATE(s.saleDate) BETWEEN :startDate AND :endDate
-              AND s.${region.saleColumn} IS NULL
+              AND mapped.id IS NULL
               ${scopeWhere}
             ORDER BY s.saleDate DESC, s.saleNumber ASC
             LIMIT :limit
@@ -238,6 +248,10 @@ export const analyticsController = {
             INNER JOIN kabupaten k ON k.id = v.kabupaten_id
             INNER JOIN provinsi p ON p.id = v.provinsi_id
             WHERE v.kodepos IN (:postalCodes)
+              AND v.isActive = 1
+              AND d.isActive = 1
+              AND k.isActive = 1
+              AND p.isActive = 1
           `,
           { replacements: { postalCodes }, type: QueryTypes.SELECT }
         ) as Array<{

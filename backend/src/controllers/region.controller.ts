@@ -15,6 +15,7 @@ export const regionController = {
   async getProvinces(_req: Request, res: Response, next: NextFunction) {
     try {
       const provinces = await Province.findAll({
+        where: { isActive: true },
         attributes: ['id', 'label'],
         order: [['label', 'ASC']],
       });
@@ -28,7 +29,7 @@ export const regionController = {
     try {
       const provinceId = requiredId(req.query.provinceId, 'Provinsi');
       const regencies = await Regency.findAll({
-        where: { provinceId },
+        where: { provinceId, isActive: true },
         attributes: ['id', 'provinceId', 'label'],
         order: [['label', 'ASC']],
       });
@@ -42,7 +43,7 @@ export const regionController = {
     try {
       const regencyId = requiredId(req.query.regencyId, 'Kabupaten/kota');
       const districts = await District.findAll({
-        where: { regencyId },
+        where: { regencyId, isActive: true },
         attributes: ['id', 'provinceId', 'regencyId', 'label'],
         order: [['label', 'ASC']],
       });
@@ -56,7 +57,7 @@ export const regionController = {
     try {
       const districtId = requiredId(req.query.districtId, 'Kecamatan');
       const villages = await Village.findAll({
-        where: { districtId },
+        where: { districtId, isActive: true },
         attributes: ['id', 'provinceId', 'regencyId', 'districtId', 'label', 'postalCode'],
         order: [['label', 'ASC']],
       });

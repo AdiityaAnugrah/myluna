@@ -1,4 +1,4 @@
-name: Backfill Wilayah Penjualan
+name: Rekonsiliasi Wilayah Penjualan
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ jobs:
   backfill:
     runs-on: ubuntu-latest
     steps:
-      - name: Backfill regions via SSH
+      - name: Reconcile regions via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -30,8 +30,8 @@ jobs:
             export PATH=$PATH:/root/.nvm/versions/node/v22.13.0/bin:/usr/local/bin:/usr/bin
 
             cd /mine/myluna.web.id/backend
-            npm run backfill:regions:production
+            npm run reconcile:regions:v2:production
 
             if [ "${{ inputs.mode }}" = "apply" ]; then
-              npm run backfill:regions:production:apply
+              npm run reconcile:regions:v2:production:apply
             fi

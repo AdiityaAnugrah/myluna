@@ -3,14 +3,18 @@ import { sequelize } from '../config/database';
 
 interface RegencyAttributes {
   id: number;
+  code: string | null;
   provinceId: number;
   label: string;
+  isActive: boolean;
 }
 
 class Regency extends Model<RegencyAttributes> implements RegencyAttributes {
   declare id: number;
+  declare code: string | null;
   declare provinceId: number;
   declare label: string;
+  declare isActive: boolean;
 }
 
 Regency.init(
@@ -20,6 +24,11 @@ Regency.init(
       primaryKey: true,
       allowNull: false,
     },
+    code: {
+      type: DataTypes.STRING(4),
+      allowNull: true,
+      unique: true,
+    },
     provinceId: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -28,6 +37,11 @@ Regency.init(
     label: {
       type: DataTypes.STRING(255),
       allowNull: false,
+    },
+    isActive: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
     },
   },
   {

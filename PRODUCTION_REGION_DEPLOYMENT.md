@@ -1,13 +1,13 @@
 # Deploy Fitur Wilayah dan Analisa ke Produksi
 
 Proses ini bersifat aditif. Data penjualan lama dan kolom `shippingAddress`
-tidak dihapus. Kolom wilayah baru dibuat nullable, kemudian diisi oleh proses
-backfill berdasarkan alamat lama.
+tidak dihapus. Master lama tetap disimpan; baris yang tidak ada dalam dataset
+v2 hanya diberi `isActive = false` agar foreign key transaksi tetap valid.
 
 ## 1. Persiapan
 
 1. Buat backup database produksi dan pastikan backup dapat dipulihkan.
-2. Deploy seluruh source terbaru, termasuk `datawilayah/datawilayah.sql`.
+2. Deploy seluruh source terbaru, termasuk `datawilayah/v2`.
 3. Pastikan `.env` di server menunjuk ke database produksi yang benar.
 4. Jalankan instalasi dependency dan build backend/frontend seperti proses
    deploy yang sudah digunakan server.
@@ -22,53 +22,57 @@ Push ke branch `main` akan menjalankan langkah berikut secara otomatis melalui
 
 ```powershell
 npm run migrate:production
-npm run seed:regions:production
-npm run backfill:regions:production
+npm run seed:regions:v2:production
+npm run reconcile:regions:v2:production
 ```
 
 Langkah terakhir adalah dry-run dan tidak mengubah penjualan lama.
 
-Seeder wilayah menggunakan `INSERT IGNORE`, sehingga aman dijalankan ulang
-apabila proses deploy terputus.
+Importer v2 mempertahankan ID internal yang dapat dicocokkan, menambahkan ID
+baru untuk wilayah baru, dan tidak menghapus wilayah lama. Importer aman
+dijalankan ulang; checksum CSV dan jumlah baris divalidasi sebelum transaksi.
 
 Periksa jumlah data:
 
 ```sql
-SELECT COUNT(*) AS provinces FROM provinsi;
-SELECT COUNT(*) AS regencies FROM kabupaten;
-SELECT COUNT(*) AS districts FROM kecamatan;
-SELECT COUNT(*) AS villages FROM kelurahan;
+SELECT COUNT(*) AS provinces FROM provinsi WHERE isActive = 1;
+SELECT COUNT(*) AS regencies FROM kabupaten WHERE isActive = 1;
+SELECT COUNT(*) AS districts FROM kecamatan WHERE isActive = 1;
+SELECT COUNT(*) AS villages FROM kelurahan WHERE isActive = 1;
 ```
 
-Dataset saat ini seharusnya menghasilkan 34 provinsi, 501 kabupaten/kota,
-6.994 kecamatan, dan 187.878 kelurahan/desa.
+Dataset saat ini menghasilkan 38 provinsi, 514 kabupaten/kota, 7.285
+kecamatan, dan 83.762 desa/kelurahan aktif. Sumber dan checksum tercatat di
+`datawilayah/v2/SOURCE.md`. Data kode pos berasal dari dataset komunitas, jadi
+hasil ambigu tetap perlu diverifikasi.
 
-## 3. Backfill Penjualan Lama
+## 3. Rekonsiliasi Penjualan Lama
 
 Build backend lebih dahulu, lalu jalankan dry-run:
 
 ```powershell
 npm run build
-npm run backfill:regions:production
+npm run reconcile:regions:v2:production
 ```
 
 Dry-run hanya membaca data. Periksa nilai `mappedProvinces`,
 `mappedRegencies`, `mappedDistricts`, `mappedVillages`, dan contoh
-`unmatched`. Simpan output ini sebagai catatan deploy.
+`unmatched`, dan `changes`. Simpan output ini sebagai catatan deploy.
 
 Jika hasilnya masuk akal, buka GitHub Actions, pilih workflow
-`Backfill Wilayah Penjualan`, klik `Run workflow`, lalu pilih mode `apply`.
+`Rekonsiliasi Wilayah Penjualan`, klik `Run workflow`, lalu pilih mode `apply`.
 Workflow akan melakukan dry-run sekali lagi sebelum menerapkan perubahan.
 
 Command ekuivalen jika perlu dijalankan langsung di VPS:
 
 ```powershell
-npm run backfill:regions:production:apply
+npm run reconcile:regions:v2:production:apply
 ```
 
-Backfill hanya memproses penjualan yang belum memiliki `shippingProvinceId`.
-Karena itu proses dapat dilanjutkan atau dijalankan ulang tanpa menimpa hasil
-yang sudah tersimpan. Semua update dalam satu eksekusi memakai transaction.
+Rekonsiliasi memeriksa semua penjualan beralamat, termasuk ID lama yang kini
+menunjuk wilayah nonaktif. Teks `shippingAddress` tidak diubah. Hanya baris
+yang hasil pemetaannya berbeda yang diperbarui dan seluruh update memakai satu
+transaction. Jalankan dry-run lagi setelah `apply`; nilai `changes` harus 0.
 
 ## 4. Urutan Aktivasi Aplikasi
 
@@ -76,8 +80,8 @@ yang sudah tersimpan. Semua update dalam satu eksekusi memakai transaction.
 2. Aktifkan backend versi baru.
 3. Pastikan endpoint region dan analytics merespons normal.
 4. Aktifkan frontend versi baru.
-5. Jalankan backfill; halaman Analisa akan bertambah cakupannya setelah proses
-   selesai.
+5. Jalankan rekonsiliasi manual; halaman Analisa akan bertambah cakupannya
+   setelah proses selesai.
 
 Urutan ini menjaga form penjualan lama tetap bekerja selama deployment dan
 mencegah frontend baru meminta endpoint yang belum tersedia.
