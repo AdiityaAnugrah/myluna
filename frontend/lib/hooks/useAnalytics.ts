@@ -7,3 +7,14 @@ export function useSalesAnalytics(params: SalesAnalyticsParams) {
     queryFn: () => analyticsApi.getSales(params),
   });
 }
+
+export function useUnmappedSalesDiagnostics(
+  params: SalesAnalyticsParams,
+  enabled: boolean
+) {
+  return useQuery({
+    queryKey: ['analytics', 'unmapped-sales', params],
+    queryFn: () => analyticsApi.getUnmappedSales(params),
+    enabled,
+  });
+}

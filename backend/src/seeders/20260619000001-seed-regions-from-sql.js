@@ -52,6 +52,36 @@ function extractRegionInsertStatements(sql) {
   return statements;
 }
 
+async function normalizeDuplicateRegencyLabels(queryInterface) {
+  const duplicates = await queryInterface.sequelize.query(
+    `
+      SELECT
+        label,
+        MIN(id) AS kabupatenId,
+        MAX(id) AS kotaId
+      FROM kabupaten
+      WHERE label NOT LIKE 'Kabupaten %'
+        AND label NOT LIKE 'Kota %'
+      GROUP BY provinsi_id, label
+      HAVING COUNT(*) = 2
+    `,
+    { type: QueryTypes.SELECT }
+  );
+
+  for (const duplicate of duplicates) {
+    await queryInterface.bulkUpdate(
+      'kabupaten',
+      { label: `Kabupaten ${duplicate.label}` },
+      { id: duplicate.kabupatenId }
+    );
+    await queryInterface.bulkUpdate(
+      'kabupaten',
+      { label: `Kota ${duplicate.label}` },
+      { id: duplicate.kotaId }
+    );
+  }
+}
+
 module.exports = {
   async up(queryInterface) {
     const counts = {};
@@ -68,6 +98,7 @@ module.exports = {
     );
 
     if (dataIsComplete) {
+      await normalizeDuplicateRegencyLabels(queryInterface);
       console.log('Data wilayah sudah lengkap, import dilewati.', counts);
       return;
     }
@@ -94,6 +125,8 @@ module.exports = {
         );
       }
     }
+
+    await normalizeDuplicateRegencyLabels(queryInterface);
   },
 
   async down(queryInterface) {

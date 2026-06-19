@@ -22,6 +22,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useSalesAnalytics } from '@/lib/hooks/useAnalytics';
 import { SalesAnalytics } from '@/types';
+import { UnmappedSalesDialog } from '@/components/analytics/UnmappedSalesDialog';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('id-ID', {
@@ -52,7 +53,7 @@ const shortenLabel = (value: string, length = 10) =>
   value.length > length ? `${value.slice(0, length - 1)}...` : value;
 
 const formatRegionChartLabel = (value: string) =>
-  shortenLabel(value.replace(/^(KABUPATEN|KOTA)\s+/i, ''), 10);
+  shortenLabel(value.replace(/^Kabupaten\s+/i, 'Kab. '), 14);
 
 export default function AnalyticsPage() {
   const today = useMemo(() => new Date(), []);
@@ -61,11 +62,12 @@ export default function AnalyticsPage() {
   );
   const [endDate, setEndDate] = useState(() => today.toISOString().slice(0, 10));
   const [regionPath, setRegionPath] = useState<RegionPathItem[]>([]);
+  const [unmappedDialogOpen, setUnmappedDialogOpen] = useState(false);
   const regionLevel = regionLevels[Math.min(regionPath.length, regionLevels.length - 1)];
   const activeScope = regionPath.at(-1);
   const canDrillDown = regionLevel !== 'village';
 
-  const analyticsQuery = useSalesAnalytics({
+  const analyticsParams = {
     startDate,
     endDate,
     regionLevel,
@@ -74,7 +76,8 @@ export default function AnalyticsPage() {
       scopeRegionId: activeScope.id,
     }),
     limit: 10,
-  });
+  };
+  const analyticsQuery = useSalesAnalytics(analyticsParams);
 
   const analytics = analyticsQuery.data?.data;
   const chartProducts = analytics?.topProducts.slice(0, 6) || [];
@@ -224,6 +227,17 @@ export default function AnalyticsPage() {
                       <p className="text-xs text-muted-foreground">
                         {analytics.summary.unmappedSales} penjualan belum terpetakan
                       </p>
+                      {analytics.summary.unmappedSales > 0 && (
+                        <Button
+                          type="button"
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 text-xs"
+                          onClick={() => setUnmappedDialogOpen(true)}
+                        >
+                          Lihat rincian
+                        </Button>
+                      )}
                     </div>
                     <Boxes className="h-6 w-6 text-warning" />
                   </CardContent>
@@ -441,6 +455,13 @@ export default function AnalyticsPage() {
           </div>
         </>
       )}
+
+      <UnmappedSalesDialog
+        open={unmappedDialogOpen}
+        onOpenChange={setUnmappedDialogOpen}
+        params={analyticsParams}
+        targetLabel={regionLabels[regionLevel]}
+      />
     </div>
   );
 }

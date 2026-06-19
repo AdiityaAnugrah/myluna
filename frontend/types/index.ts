@@ -313,6 +313,23 @@ export interface SalesAnalytics {
   }>;
 }
 
+export interface UnmappedSalesDiagnostics {
+  regionLevel: 'province' | 'regency' | 'district' | 'village';
+  total: number;
+  shown: number;
+  items: Array<{
+    id: string;
+    saleNumber: string;
+    saleDate: string;
+    customerName: string | null;
+    shippingAddress: string | null;
+    shippingPostalCode: string | null;
+    postalCode: string | null;
+    reason: string;
+    candidates: string[];
+  }>;
+}
+
 export type ComplaintStatus =
   | 'PENDING_TCP_REVIEW'
   | 'REJECTED_BY_TCP'

@@ -315,6 +315,7 @@ Backend memvalidasi hierarki wilayah dan tetap membentuk `shippingAddress` lengk
 Endpoint:
 
 - `/analytics/sales`
+- `/analytics/unmapped-sales`
 - `/regions/provinces`
 - `/regions/regencies?provinceId=...`
 - `/regions/districts?regencyId=...`
@@ -329,9 +330,11 @@ Frontend:
 - `frontend/components/sales/RegionAddressFields.tsx`
 - `frontend/app/(dashboard)/analytics/page.tsx`
 
-Analisa menampilkan produk terlaris dan wilayah pembeli terbanyak berdasarkan periode. Akses halaman dibatasi untuk `SUPER_ADMIN` dan `ADMIN`.
+Analisa menampilkan produk terlaris dan wilayah pembeli terbanyak berdasarkan periode. Wilayah dapat ditelusuri dari provinsi sampai kelurahan/desa. Angka penjualan belum terpetakan membuka diagnosis alamat, kode pos, alasan kegagalan, dan kandidat wilayah. Akses halaman dibatasi untuk `SUPER_ADMIN` dan `ADMIN`.
 
 Dataset wilayah berasal dari `datawilayah/datawilayah.sql` dan dimuat melalui seeder `20260619000001-seed-regions-from-sql.js`. Dump saat ini berisi 34 provinsi.
+
+Pasangan label kabupaten/kota yang identik dinormalisasi oleh migration `20260619000002-normalize-duplicate-regency-labels.ts`, misalnya `Kabupaten Semarang` dan `Kota Semarang`. Seeder menjalankan normalisasi yang sama untuk instalasi database baru.
 
 Backfill alamat penjualan lama:
 

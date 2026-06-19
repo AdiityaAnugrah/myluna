@@ -1,5 +1,5 @@
 import apiClient from './client';
-import { ApiResponse, SalesAnalytics } from '@/types';
+import { ApiResponse, SalesAnalytics, UnmappedSalesDiagnostics } from '@/types';
 
 export interface SalesAnalyticsParams {
   startDate: string;
@@ -13,6 +13,13 @@ export interface SalesAnalyticsParams {
 export const analyticsApi = {
   getSales: async (params: SalesAnalyticsParams) => {
     const response = await apiClient.get<ApiResponse<SalesAnalytics>>('/analytics/sales', { params });
+    return response.data;
+  },
+  getUnmappedSales: async (params: SalesAnalyticsParams) => {
+    const response = await apiClient.get<ApiResponse<UnmappedSalesDiagnostics>>(
+      '/analytics/unmapped-sales',
+      { params: { ...params, limit: 100 } }
+    );
     return response.data;
   },
 };

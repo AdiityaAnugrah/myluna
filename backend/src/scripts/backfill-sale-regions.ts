@@ -52,6 +52,10 @@ function getProvinceAliases(label: string) {
   return provinceAliases[normalizedLabel] || [normalizedLabel];
 }
 
+function getRegencyAliases(label: string) {
+  return [label, label.replace(/^(Kabupaten|Kota)\s+/i, '')];
+}
+
 async function main() {
   const applyChanges = process.argv.includes('--apply');
 
@@ -108,7 +112,9 @@ async function main() {
       const regency = regencies.find((item) => item.id === village.regencyId);
       const province = provinces.find((item) => item.id === village.provinceId);
       if (district && includesLabel(address, district.label)) score += 6;
-      if (regency && includesLabel(address, regency.label)) score += 4;
+      if (regency && getRegencyAliases(regency.label).some((alias) => includesLabel(address, alias))) {
+        score += 4;
+      }
       if (province && getProvinceAliases(province.label).some((alias) => includesLabel(address, alias))) {
         score += 3;
       }
@@ -155,7 +161,7 @@ async function main() {
     const provinceRegencies = regenciesByProvince.get(province.id) || [];
     const provinceDistricts = districtsByProvince.get(province.id) || [];
     const district = provinceDistricts
-      .filter((item) => includesLabel(address, item.label))
+      .filter((item) => getRegencyAliases(item.label).some((alias) => includesLabel(address, alias)))
       .sort((a, b) => b.label.length - a.label.length)[0];
 
     const regencyCandidates = provinceRegencies
