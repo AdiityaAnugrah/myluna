@@ -41,6 +41,9 @@ const regionLabels = {
   village: 'Kelurahan/Desa',
 };
 
+const formatChartLabel = (value: string) =>
+  value.length > 16 ? `${value.slice(0, 15)}...` : value;
+
 export default function AnalyticsPage() {
   const today = useMemo(() => new Date(), []);
   const [startDate, setStartDate] = useState(
@@ -193,17 +196,21 @@ export default function AnalyticsPage() {
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={analytics.topProducts}
-                          layout="vertical"
-                          margin={{ top: 8, right: 16, bottom: 8, left: 12 }}
+                          margin={{ top: 8, right: 12, bottom: 64, left: 0 }}
                         >
-                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
-                          <XAxis type="number" domain={[0, maxProductQuantity]} allowDecimals={false} />
-                          <YAxis
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                          <XAxis
                             type="category"
                             dataKey="productName"
-                            width={120}
-                            tick={{ fontSize: 12 }}
+                            interval="preserveStartEnd"
+                            minTickGap={12}
+                            angle={-30}
+                            textAnchor="end"
+                            height={72}
+                            tick={{ fontSize: 11 }}
+                            tickFormatter={formatChartLabel}
                           />
+                          <YAxis type="number" domain={[0, maxProductQuantity]} allowDecimals={false} width={42} />
                           <Tooltip
                             formatter={(value, name) => [
                               name === 'quantitySold' ? `${value} unit` : value,
@@ -215,7 +222,13 @@ export default function AnalyticsPage() {
                               borderRadius: 6,
                             }}
                           />
-                          <Bar dataKey="quantitySold" name="Terjual" fill="var(--primary)" radius={[0, 4, 4, 0]} />
+                          <Bar
+                            dataKey="quantitySold"
+                            name="Terjual"
+                            fill="var(--primary)"
+                            maxBarSize={48}
+                            radius={[4, 4, 0, 0]}
+                          />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -272,17 +285,21 @@ export default function AnalyticsPage() {
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={analytics.topRegions}
-                          layout="vertical"
-                          margin={{ top: 8, right: 16, bottom: 8, left: 12 }}
+                          margin={{ top: 8, right: 12, bottom: 64, left: 0 }}
                         >
-                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
-                          <XAxis type="number" domain={[0, maxRegionOrders]} allowDecimals={false} />
-                          <YAxis
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                          <XAxis
                             type="category"
                             dataKey="regionName"
-                            width={120}
-                            tick={{ fontSize: 12 }}
+                            interval="preserveStartEnd"
+                            minTickGap={12}
+                            angle={-30}
+                            textAnchor="end"
+                            height={72}
+                            tick={{ fontSize: 11 }}
+                            tickFormatter={formatChartLabel}
                           />
+                          <YAxis type="number" domain={[0, maxRegionOrders]} allowDecimals={false} width={42} />
                           <Tooltip
                             formatter={(value) => [`${value} transaksi`, 'Pembelian']}
                             contentStyle={{
@@ -291,7 +308,13 @@ export default function AnalyticsPage() {
                               borderRadius: 6,
                             }}
                           />
-                          <Bar dataKey="orderCount" name="Pembelian" fill="var(--success)" radius={[0, 4, 4, 0]} />
+                          <Bar
+                            dataKey="orderCount"
+                            name="Pembelian"
+                            fill="var(--success)"
+                            maxBarSize={48}
+                            radius={[4, 4, 0, 0]}
+                          />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
