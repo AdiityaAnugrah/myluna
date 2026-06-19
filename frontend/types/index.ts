@@ -114,6 +114,12 @@ export interface Sale {
   notes: string | null;
   shippingService?: string | null;
   shippingAddress?: string | null;
+  shippingAddressDetail?: string | null;
+  shippingProvinceId?: number | null;
+  shippingRegencyId?: number | null;
+  shippingDistrictId?: number | null;
+  shippingVillageId?: number | null;
+  shippingPostalCode?: string | null;
   shippingDocument?: string | null;
   processedAt?: string | null;
   createdBy: string;
@@ -259,6 +265,48 @@ export interface Settlement {
   updatedAt: string;
   sale?: Sale;
   creator?: User;
+}
+
+export interface RegionOption {
+  id: number;
+  label: string;
+  provinceId?: number;
+  regencyId?: number;
+  districtId?: number;
+}
+
+export interface VillageOption extends RegionOption {
+  postalCode: string | null;
+}
+
+export interface SalesAnalytics {
+  period: {
+    startDate: string;
+    endDate: string;
+  };
+  regionLevel: 'province' | 'regency' | 'district' | 'village';
+  summary: {
+    totalSales: number;
+    totalRevenue: number;
+    mappedSales: number;
+    unmappedSales: number;
+    mappingCoverage: number;
+  };
+  topProducts: Array<{
+    productId: string;
+    productName: string;
+    sku: string;
+    quantitySold: number;
+    orderCount: number;
+    revenue: number;
+  }>;
+  topRegions: Array<{
+    regionId: number;
+    regionName: string;
+    orderCount: number;
+    revenue: number;
+    quantityPurchased: number;
+  }>;
 }
 
 export type ComplaintStatus =

@@ -18,10 +18,14 @@ module.exports = {
     
     const superAdminRoleId = roles[0].id;
     
-    // Force cleanup of any existing admin user to avoid unique constraint errors
-    await queryInterface.sequelize.query(
-      "DELETE FROM users WHERE username = 'admin' OR email IN ('admin@wms.com', 'admin@luna.com')"
+    const existingAdmins = await queryInterface.sequelize.query(
+      "SELECT id FROM users WHERE username = 'admin' OR email IN ('admin@wms.com', 'admin@luna.com') LIMIT 1",
+      { type: Sequelize.QueryTypes.SELECT }
     );
+
+    if (existingAdmins.length > 0) {
+      return;
+    }
     
     // Hash password
     const hashedPassword = await bcrypt.hash('admin123', 10);

@@ -43,6 +43,12 @@ interface SaleAttributes {
   notes: string | null;
   shippingService: string | null;
   shippingAddress: string | null;
+  shippingAddressDetail: string | null;
+  shippingProvinceId: number | null;
+  shippingRegencyId: number | null;
+  shippingDistrictId: number | null;
+  shippingVillageId: number | null;
+  shippingPostalCode: string | null;
   shippingDocument: string | null;
   processedAt: Date | null;
   isInitialBalance: boolean;
@@ -51,7 +57,7 @@ interface SaleAttributes {
   updatedAt: Date;
 }
 
-interface SaleCreationAttributes extends Optional<SaleAttributes, 'id' | 'customerName' | 'customerPhone' | 'notes' | 'shippingService' | 'shippingAddress' | 'shippingDocument' | 'processedAt' | 'isInitialBalance' | 'createdAt' | 'updatedAt'> {}
+interface SaleCreationAttributes extends Optional<SaleAttributes, 'id' | 'customerName' | 'customerPhone' | 'notes' | 'shippingService' | 'shippingAddress' | 'shippingAddressDetail' | 'shippingProvinceId' | 'shippingRegencyId' | 'shippingDistrictId' | 'shippingVillageId' | 'shippingPostalCode' | 'shippingDocument' | 'processedAt' | 'isInitialBalance' | 'createdAt' | 'updatedAt'> {}
 
 class Sale extends Model<SaleAttributes, SaleCreationAttributes> implements SaleAttributes {
   declare id: string;
@@ -66,6 +72,12 @@ class Sale extends Model<SaleAttributes, SaleCreationAttributes> implements Sale
   declare notes: string | null;
   declare shippingService: string | null;
   declare shippingAddress: string | null;
+  declare shippingAddressDetail: string | null;
+  declare shippingProvinceId: number | null;
+  declare shippingRegencyId: number | null;
+  declare shippingDistrictId: number | null;
+  declare shippingVillageId: number | null;
+  declare shippingPostalCode: string | null;
   declare shippingDocument: string | null;
   declare processedAt: Date | null;
   declare isInitialBalance: boolean;
@@ -132,6 +144,30 @@ Sale.init(
     },
     shippingAddress: {
       type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    shippingAddressDetail: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    shippingProvinceId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    shippingRegencyId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    shippingDistrictId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    shippingVillageId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    shippingPostalCode: {
+      type: DataTypes.STRING(10),
       allowNull: true,
     },
     shippingDocument: {

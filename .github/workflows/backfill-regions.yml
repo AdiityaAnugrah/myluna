@@ -1,0 +1,37 @@
+name: Backfill Wilayah Penjualan
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Jalankan pemeriksaan saja atau terapkan hasil ke produksi
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - apply
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Backfill regions via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            export PATH=$PATH:/root/.nvm/versions/node/v22.13.0/bin:/usr/local/bin:/usr/bin
+
+            cd /mine/myluna.web.id/backend
+            npm run backfill:regions:production
+
+            if [ "${{ inputs.mode }}" = "apply" ]; then
+              npm run backfill:regions:production:apply
+            fi

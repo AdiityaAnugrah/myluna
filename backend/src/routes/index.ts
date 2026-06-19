@@ -21,6 +21,8 @@ import otherIncomeRoutes from './otherIncome.routes';
 import searchRoutes from './search.routes';
 import variantOptionRoutes from './variantOption.routes';
 import complaintRoutes from './complaint.routes';
+import regionRoutes from './region.routes';
+import analyticsRoutes from './analytics.routes';
 
 const router = Router();
 
@@ -47,5 +49,7 @@ router.use('/search', searchRoutes);
 router.use('/finance', financialRoutes);
 router.use('/variant-options', variantOptionRoutes);
 router.use('/complaints', complaintRoutes);
+router.use('/regions', regionRoutes);
+router.use('/analytics', analyticsRoutes);
 
 export default router;

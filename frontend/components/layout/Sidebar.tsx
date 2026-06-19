@@ -44,6 +44,7 @@ const navigationGroups: NavigationGroup[] = [
     title: 'Ringkasan',
     items: [
       { name: 'Dasbor', href: '/', icon: LayoutDashboard },
+      { name: 'Analisa', href: '/analytics', icon: BarChart3 },
     ]
   },
   {
@@ -114,6 +115,13 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
         return { ...group, items: [] };
       }
 
+      if (group.title === 'Ringkasan') {
+        return {
+          ...group,
+          items: group.items.filter(item => item.href === '/')
+        };
+      }
+
       // Special handling for Keuangan group for USER - only show Pelunasan
       if (group.title === 'Keuangan') {
         return {
@@ -151,6 +159,13 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
         
         if (!allowedGroups.includes(group.title)) {
             return { ...group, items: [] };
+        }
+
+        if (group.title === 'Ringkasan') {
+            return {
+                ...group,
+                items: group.items.filter(item => item.href === '/')
+            };
         }
 
         if (group.title === 'Penjualan') {

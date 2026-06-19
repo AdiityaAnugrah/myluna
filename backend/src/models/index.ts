@@ -23,6 +23,10 @@ import OtherIncome from './OtherIncome';
 import HistoricalSettlement from './HistoricalSettlement';
 import VariantOption from './VariantOption';
 import Complaint, { ComplaintStatus } from './Complaint';
+import Province from './Province';
+import Regency from './Regency';
+import District from './District';
+import Village from './Village';
 
 // Define associations
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -120,6 +124,27 @@ User.hasMany(Complaint, { foreignKey: 'reviewedBy', as: 'reviewedComplaints' });
 Complaint.belongsTo(User, { foreignKey: 'shippedBy', as: 'shipper' });
 User.hasMany(Complaint, { foreignKey: 'shippedBy', as: 'shippedComplaints' });
 
+// Indonesian administrative regions
+Province.hasMany(Regency, { foreignKey: 'provinceId', as: 'regencies' });
+Regency.belongsTo(Province, { foreignKey: 'provinceId', as: 'province' });
+
+Province.hasMany(District, { foreignKey: 'provinceId', as: 'districts' });
+District.belongsTo(Province, { foreignKey: 'provinceId', as: 'province' });
+Regency.hasMany(District, { foreignKey: 'regencyId', as: 'districts' });
+District.belongsTo(Regency, { foreignKey: 'regencyId', as: 'regency' });
+
+Province.hasMany(Village, { foreignKey: 'provinceId', as: 'villages' });
+Village.belongsTo(Province, { foreignKey: 'provinceId', as: 'province' });
+Regency.hasMany(Village, { foreignKey: 'regencyId', as: 'villages' });
+Village.belongsTo(Regency, { foreignKey: 'regencyId', as: 'regency' });
+District.hasMany(Village, { foreignKey: 'districtId', as: 'villages' });
+Village.belongsTo(District, { foreignKey: 'districtId', as: 'district' });
+
+Sale.belongsTo(Province, { foreignKey: 'shippingProvinceId', as: 'shippingProvince' });
+Sale.belongsTo(Regency, { foreignKey: 'shippingRegencyId', as: 'shippingRegency' });
+Sale.belongsTo(District, { foreignKey: 'shippingDistrictId', as: 'shippingDistrict' });
+Sale.belongsTo(Village, { foreignKey: 'shippingVillageId', as: 'shippingVillage' });
+
 export {
   Role,
   User,
@@ -156,4 +181,8 @@ export {
   VariantOption,
   Complaint,
   ComplaintStatus,
+  Province,
+  Regency,
+  District,
+  Village,
 };

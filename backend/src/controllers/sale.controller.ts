@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { Sale, SaleItem, Product, ProductVariant, User, StockMovement, MovementType, ChangeRequest, Settlement, ShippingService } from '../models';
+import { Sale, SaleItem, Product, ProductVariant, User, StockMovement, MovementType, ChangeRequest, Settlement, ShippingService, Province, Regency, District, Village } from '../models';
 import { auditService } from '../services/audit.service';
 import { socketService } from '../services/socket.service';
 import { successResponse } from '../utils/response';
@@ -7,6 +7,65 @@ import { AppError } from '../utils/errors';
 import { sequelize } from '../config/database';
 import { Op } from 'sequelize';
 import { assertUserDateIsToday } from '../utils/dateGuard';
+
+async function resolveShippingRegion(input: {
+  provinceId?: unknown;
+  regencyId?: unknown;
+  districtId?: unknown;
+  villageId?: unknown;
+  addressDetail?: unknown;
+}) {
+  const hasStructuredRegion = [
+    input.provinceId,
+    input.regencyId,
+    input.districtId,
+    input.villageId,
+  ].some((value) => value !== undefined && value !== null && value !== '');
+
+  if (!hasStructuredRegion) return null;
+
+  const provinceId = Number(input.provinceId);
+  const regencyId = Number(input.regencyId);
+  const districtId = Number(input.districtId);
+  const villageId = Number(input.villageId);
+
+  if (![provinceId, regencyId, districtId, villageId].every((id) => Number.isInteger(id) && id > 0)) {
+    throw new AppError('Provinsi, kabupaten/kota, kecamatan, dan kelurahan wajib dipilih', 400);
+  }
+
+  const [province, regency, district, village] = await Promise.all([
+    Province.findByPk(provinceId),
+    Regency.findOne({ where: { id: regencyId, provinceId } }),
+    District.findOne({ where: { id: districtId, provinceId, regencyId } }),
+    Village.findOne({ where: { id: villageId, provinceId, regencyId, districtId } }),
+  ]);
+
+  if (!province || !regency || !district || !village) {
+    throw new AppError('Kombinasi wilayah pengiriman tidak valid', 400);
+  }
+
+  const addressDetail = String(input.addressDetail || '').trim();
+  if (!addressDetail) {
+    throw new AppError('Detail alamat jalan/nomor rumah wajib diisi', 400);
+  }
+
+  return {
+    shippingAddress: [
+      addressDetail,
+      village.label,
+      district.label,
+      regency.label,
+      province.label,
+      village.postalCode,
+    ].filter(Boolean).join(', '),
+    shippingAddressDetail: addressDetail,
+    shippingProvinceId: provinceId,
+    shippingRegencyId: regencyId,
+    shippingDistrictId: districtId,
+    shippingVillageId: villageId,
+    shippingPostalCode: village.postalCode,
+  };
+}
 
 export const saleController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
@@ -304,7 +363,12 @@ export const saleController = {
         items,
         notes,
         shippingService,
-        shippingAddress
+        shippingAddress,
+        shippingAddressDetail,
+        shippingProvinceId,
+        shippingRegencyId,
+        shippingDistrictId,
+        shippingVillageId
       } = req.body;
 
       assertUserDateIsToday(req.user.roleName, saleDate, 'Tanggal penjualan');
@@ -331,6 +395,14 @@ export const saleController = {
             throw new AppError(`Dokumen PDF wajib diunggah untuk ${shippingService}`, 400);
          }
       }
+
+      const structuredShippingRegion = await resolveShippingRegion({
+        provinceId: shippingProvinceId,
+        regencyId: shippingRegencyId,
+        districtId: shippingDistrictId,
+        villageId: shippingVillageId,
+        addressDetail: shippingAddressDetail,
+      });
 
       // Validate invoice number
       if (!invoiceNumber || invoiceNumber.trim() === '') {
@@ -413,7 +485,13 @@ export const saleController = {
           status: 'WAITING_APPROVAL' as any, // Default status
           notes: isDocumentRequired ? null : notes,
           shippingService,
-          shippingAddress,
+          shippingAddress: structuredShippingRegion?.shippingAddress || shippingAddress,
+          shippingAddressDetail: structuredShippingRegion?.shippingAddressDetail || null,
+          shippingProvinceId: structuredShippingRegion?.shippingProvinceId || null,
+          shippingRegencyId: structuredShippingRegion?.shippingRegencyId || null,
+          shippingDistrictId: structuredShippingRegion?.shippingDistrictId || null,
+          shippingVillageId: structuredShippingRegion?.shippingVillageId || null,
+          shippingPostalCode: structuredShippingRegion?.shippingPostalCode || null,
           shippingDocument,
           createdBy: req.user.id,
         },

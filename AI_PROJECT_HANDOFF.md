@@ -106,6 +106,8 @@ Route group aktif:
 - `/variant-options`
 - `/complaints`
 - `/upload`
+- `/regions`
+- `/analytics`
 
 ## Frontend Layering
 
@@ -296,6 +298,50 @@ Alur penting:
 5. Process sale bisa dilakukan dari `WAITING_APPROVAL` atau `APPROVED`; jika masih waiting, backend auto-approve.
 6. Process sale mengubah status ke `PROCESSED` dan mengisi `processedAt`.
 7. Settlement mengubah sale menjadi `SETTLED`.
+
+Alamat pengiriman penjualan baru memakai pilihan wilayah berjenjang:
+
+- `shippingProvinceId`
+- `shippingRegencyId`
+- `shippingDistrictId`
+- `shippingVillageId`
+- `shippingPostalCode`
+- `shippingAddressDetail`
+
+Backend memvalidasi hierarki wilayah dan tetap membentuk `shippingAddress` lengkap untuk kompatibilitas tampilan/resi lama. Data lama yang hanya memiliki `shippingAddress` tetap dapat dibaca, tetapi belum masuk analisa wilayah.
+
+### Analisa Penjualan
+
+Endpoint:
+
+- `/analytics/sales`
+- `/regions/provinces`
+- `/regions/regencies?provinceId=...`
+- `/regions/districts?regencyId=...`
+- `/regions/villages?districtId=...`
+
+Frontend:
+
+- `frontend/lib/api/analytics.ts`
+- `frontend/lib/hooks/useAnalytics.ts`
+- `frontend/lib/api/regions.ts`
+- `frontend/lib/hooks/useRegions.ts`
+- `frontend/components/sales/RegionAddressFields.tsx`
+- `frontend/app/(dashboard)/analytics/page.tsx`
+
+Analisa menampilkan produk terlaris dan wilayah pembeli terbanyak berdasarkan periode. Akses halaman dibatasi untuk `SUPER_ADMIN` dan `ADMIN`.
+
+Dataset wilayah berasal dari `datawilayah/datawilayah.sql` dan dimuat melalui seeder `20260619000001-seed-regions-from-sql.js`. Dump saat ini berisi 34 provinsi.
+
+Backfill alamat penjualan lama:
+
+```bash
+cd backend
+npm run backfill:regions
+npm run backfill:regions:apply
+```
+
+Command pertama adalah dry-run. Backfill memprioritaskan kode pos, lalu nama wilayah eksplisit pada `shippingAddress`.
 
 ### Stok
 

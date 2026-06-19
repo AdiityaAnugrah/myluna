@@ -5,6 +5,13 @@ module.exports = {
     const tables = await queryInterface.showAllTables();
     if (tables.includes('complaints')) return;
 
+    const [salesIndexes, userIndexes] = await Promise.all([
+      queryInterface.showIndex('sales'),
+      queryInterface.showIndex('users'),
+    ]);
+    const salesHasPrimaryKey = (salesIndexes as any[]).some((index: any) => index.primary);
+    const usersHasPrimaryKey = (userIndexes as any[]).some((index: any) => index.primary);
+
     await queryInterface.createTable('complaints', {
       id: {
         type: DataTypes.UUID,
@@ -19,10 +26,14 @@ module.exports = {
       saleId: {
         type: DataTypes.UUID,
         allowNull: false,
-        references: {
-          model: 'sales',
-          key: 'id',
-        },
+        ...(salesHasPrimaryKey
+          ? {
+              references: {
+                model: 'sales',
+                key: 'id',
+              },
+            }
+          : {}),
         onUpdate: 'CASCADE',
         onDelete: 'RESTRICT',
       },
@@ -83,10 +94,14 @@ module.exports = {
       reviewedBy: {
         type: DataTypes.UUID,
         allowNull: true,
-        references: {
-          model: 'users',
-          key: 'id',
-        },
+        ...(usersHasPrimaryKey
+          ? {
+              references: {
+                model: 'users',
+                key: 'id',
+              },
+            }
+          : {}),
       },
       reviewedAt: {
         type: DataTypes.DATE,
@@ -103,10 +118,14 @@ module.exports = {
       shippedBy: {
         type: DataTypes.UUID,
         allowNull: true,
-        references: {
-          model: 'users',
-          key: 'id',
-        },
+        ...(usersHasPrimaryKey
+          ? {
+              references: {
+                model: 'users',
+                key: 'id',
+              },
+            }
+          : {}),
       },
       shippedAt: {
         type: DataTypes.DATE,
@@ -115,10 +134,14 @@ module.exports = {
       createdBy: {
         type: DataTypes.UUID,
         allowNull: false,
-        references: {
-          model: 'users',
-          key: 'id',
-        },
+        ...(usersHasPrimaryKey
+          ? {
+              references: {
+                model: 'users',
+                key: 'id',
+              },
+            }
+          : {}),
       },
       createdAt: {
         type: DataTypes.DATE,

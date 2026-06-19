@@ -42,6 +42,10 @@ import { ProductSelector } from '@/components/sales/ProductSelector';
 import { BulkProductSelector } from '@/components/sales/BulkProductSelector';
 import { formatCurrency, getVariants } from '@/lib/utils/sales';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
+import {
+  RegionAddressFields,
+  ShippingAddressValue,
+} from '@/components/sales/RegionAddressFields';
 
 interface SaleItem {
   productId: string;
@@ -115,7 +119,14 @@ export default function NewSalePage() {
     return service?.requiresDocument || false;
   }, [shippingService, shippingServices]);
 
-  const [shippingAddress, setShippingAddress] = useState('');
+  const [shippingAddress, setShippingAddress] = useState<ShippingAddressValue>({
+    addressDetail: '',
+    provinceId: '',
+    regencyId: '',
+    districtId: '',
+    villageId: '',
+    postalCode: '',
+  });
   const [shippingDocument, setShippingDocument] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formStartTime = useRef<number>(Date.now()); // track how long form was open
@@ -145,7 +156,19 @@ export default function NewSalePage() {
     return Number(product.stock) || 0;
   };
 
-  const isFormValid = invoiceNumber.trim() !== '' && shippingService !== '' && items.length > 0 && items.every((item) => {
+  const hasCompleteShippingAddress = Boolean(
+    shippingAddress.addressDetail.trim()
+    && shippingAddress.provinceId
+    && shippingAddress.regencyId
+    && shippingAddress.districtId
+    && shippingAddress.villageId
+  );
+
+  const isFormValid = invoiceNumber.trim() !== ''
+    && shippingService !== ''
+    && hasCompleteShippingAddress
+    && items.length > 0
+    && items.every((item) => {
     if (!item.productId) return false;
     if (item.quantity <= 0) return false;
     if (item.price < 0) return false;
@@ -162,7 +185,13 @@ export default function NewSalePage() {
     return true;
   });
 
-  const isDirty = invoiceNumber !== '' || customerName !== '' || customerPhone !== '' || items.length > 0 || notes !== '' || shippingAddress !== '';
+  const isDirty = invoiceNumber !== ''
+    || customerName !== ''
+    || customerPhone !== ''
+    || items.length > 0
+    || notes !== ''
+    || shippingAddress.addressDetail !== ''
+    || shippingAddress.provinceId !== '';
   useConfirmPageLeave(isDirty, () => {
     setNextPath(null);
     setLeaveConfirmOpen(true);
@@ -313,6 +342,11 @@ export default function NewSalePage() {
         return;
     }
 
+    if (!hasCompleteShippingAddress) {
+        toast.error('Mohon lengkapi wilayah dan detail alamat pengiriman');
+        return;
+    }
+
     if (isDocumentRequired && !shippingDocument) {
         toast.error(`Mohon unggah dokumen PDF untuk ${shippingService}`);
         return;
@@ -337,7 +371,11 @@ export default function NewSalePage() {
 
     if (shippingService) {
         formData.append('shippingService', shippingService);
-        if (shippingAddress) formData.append('shippingAddress', shippingAddress);
+        formData.append('shippingAddressDetail', shippingAddress.addressDetail.trim());
+        formData.append('shippingProvinceId', shippingAddress.provinceId);
+        formData.append('shippingRegencyId', shippingAddress.regencyId);
+        formData.append('shippingDistrictId', shippingAddress.districtId);
+        formData.append('shippingVillageId', shippingAddress.villageId);
         if (isDocumentRequired && shippingDocument) {
             formData.append('shippingDocument', shippingDocument);
         }
@@ -480,7 +518,7 @@ export default function NewSalePage() {
             {/* Shipping Section */}
             <div className="space-y-4 pt-4 border-t">
                 <h3 className="text-lg font-medium">Pengiriman</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                    <div className="space-y-2">
                     <Label htmlFor="shippingService">Jasa Pengiriman</Label>
                     <Select
@@ -521,19 +559,13 @@ export default function NewSalePage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="shippingAddress">Alamat Pengiriman</Label>
-                    <Textarea
-                        id="shippingAddress"
-                        value={shippingAddress}
-                        onChange={(e) => setShippingAddress(e.target.value)}
-                        disabled={isPending}
-                        rows={2}
-                        placeholder="Alamat lengkap tujuan..."
-                    />
-                  </div>
                 </div>
+
+                <RegionAddressFields
+                  value={shippingAddress}
+                  onChange={setShippingAddress}
+                  disabled={isPending}
+                />
 
                 {isDocumentRequired ? (
                     <div className="space-y-2">
