@@ -3,6 +3,7 @@ import { QueryTypes } from 'sequelize';
 import { sequelize } from '../config/database';
 import { successResponse } from '../utils/response';
 import { createPlatformNameResolver } from '../utils/platformName';
+import { formatRegionLabel } from '../utils/regionLabel';
 
 type RegionLevel = 'province' | 'regency' | 'district' | 'village';
 
@@ -215,6 +216,7 @@ export const analyticsController = {
           })),
           topRegions: regionRows.map((row: any) => ({
             ...row,
+            regionName: formatRegionLabel(row.regionName),
             orderCount: Number(row.orderCount || 0),
             revenue: Number(row.revenue || 0),
             quantityPurchased: Number(row.quantityPurchased || 0),
@@ -333,12 +335,17 @@ export const analyticsController = {
       }
 
       const getCandidateLabel = (candidate: typeof postalCandidates[number]) => {
-        if (regionLevel === 'province') return candidate.province;
-        if (regionLevel === 'regency') return `${candidate.regency}, ${candidate.province}`;
+        const village = formatRegionLabel(candidate.village);
+        const district = formatRegionLabel(candidate.district);
+        const regency = formatRegionLabel(candidate.regency);
+        const province = formatRegionLabel(candidate.province);
+
+        if (regionLevel === 'province') return province;
+        if (regionLevel === 'regency') return `${regency}, ${province}`;
         if (regionLevel === 'district') {
-          return `${candidate.district}, ${candidate.regency}, ${candidate.province}`;
+          return `${district}, ${regency}, ${province}`;
         }
-        return `${candidate.village}, ${candidate.district}, ${candidate.regency}, ${candidate.province}`;
+        return `${village}, ${district}, ${regency}, ${province}`;
       };
 
       const items = saleRows.map((sale) => {

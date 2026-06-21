@@ -7,6 +7,41 @@ import { AppError } from '../utils/errors';
 import { sequelize } from '../config/database';
 import { Op } from 'sequelize';
 import { assertUserDateIsToday } from '../utils/dateGuard';
+import { formatRegionLabel } from '../utils/regionLabel';
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function cleanAddressSeparators(value: string) {
+  return value
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*,\s*/g, ', ')
+    .replace(/(?:,\s*){2,}/g, ', ')
+    .replace(/^[\s,.-]+|[\s,.-]+$/g, '')
+    .trim();
+}
+
+function sanitizeShippingAddressDetail(input: string, options: {
+  postalCode?: string | null;
+  regionLabels?: Array<string | null | undefined>;
+}) {
+  let sanitized = input;
+
+  if (options.postalCode) {
+    const postalPattern = new RegExp(`(?:kode\\s*pos\\s*:?\\s*)?\\b${escapeRegExp(options.postalCode)}\\b`, 'gi');
+    sanitized = sanitized.replace(postalPattern, '');
+  }
+
+  for (const label of options.regionLabels || []) {
+    const normalizedLabel = String(label || '').trim();
+    if (!normalizedLabel) continue;
+
+    sanitized = sanitized.replace(new RegExp(`\\b${escapeRegExp(normalizedLabel)}\\b`, 'gi'), '');
+  }
+
+  return cleanAddressSeparators(sanitized);
+}
 
 async function resolveShippingRegion(input: {
   provinceId?: unknown;
@@ -44,7 +79,10 @@ async function resolveShippingRegion(input: {
     throw new AppError('Kombinasi wilayah pengiriman tidak valid', 400);
   }
 
-  const addressDetail = String(input.addressDetail || '').trim();
+  const addressDetail = sanitizeShippingAddressDetail(String(input.addressDetail || ''), {
+    postalCode: village.postalCode,
+    regionLabels: [village.label, district.label, regency.label, province.label],
+  });
   if (!addressDetail) {
     throw new AppError('Detail alamat jalan/nomor rumah wajib diisi', 400);
   }
@@ -52,10 +90,10 @@ async function resolveShippingRegion(input: {
   return {
     shippingAddress: [
       addressDetail,
-      village.label,
-      district.label,
-      regency.label,
-      province.label,
+      formatRegionLabel(village.label),
+      formatRegionLabel(district.label),
+      formatRegionLabel(regency.label),
+      formatRegionLabel(province.label),
       village.postalCode,
     ].filter(Boolean).join(', '),
     shippingAddressDetail: addressDetail,
