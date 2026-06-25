@@ -404,6 +404,94 @@ export interface ComplaintListData {
   };
 }
 
+export type SaleReturnStatus =
+  | 'PENDING_REVIEW'
+  | 'WAITING_ITEM_RETURN'
+  | 'ITEM_RECEIVED'
+  | 'REJECTED'
+  | 'RESTOCKED'
+  | 'DAMAGED'
+  | 'RESENT'
+  | 'COMPLETED';
+
+export type SaleReturnDecision = 'RESTOCK' | 'DAMAGED' | 'RESEND';
+
+export interface ReturnItem {
+  id: string;
+  returnId: string;
+  saleItemId: string;
+  productId: string;
+  variantName?: string | null;
+  qtySold: number;
+  qtyRequested: number;
+  qtyReceived?: number | null;
+  resolution?: SaleReturnDecision | null;
+  replacementProductId?: string | null;
+  replacementVariantName?: string | null;
+  replacementQty?: number | null;
+  saleItem?: SaleItem;
+  product?: Product;
+  replacementProduct?: Product;
+}
+
+export interface SaleReturn {
+  id: string;
+  returnNumber: string;
+  saleId: string;
+  requestedBy: string;
+  reviewedBy?: string | null;
+  receivedBy?: string | null;
+  processedBy?: string | null;
+  status: SaleReturnStatus;
+  reason: string;
+  requestDate: string;
+  reviewedAt?: string | null;
+  receivedAt?: string | null;
+  processedAt?: string | null;
+  inspectionDecision?: SaleReturnDecision | null;
+  inspectionNotes?: string | null;
+  resendShippingService?: string | null;
+  resendShippingCost?: string;
+  financialImpactAmount?: string;
+  evidencePhotos?: string[] | null;
+  receivedPhotos?: string[] | null;
+  rejectionReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sale?: Sale;
+  items?: ReturnItem[];
+  requester?: {
+    id: string;
+    fullName: string;
+    username: string;
+  };
+  reviewer?: {
+    id: string;
+    fullName: string;
+    username: string;
+  };
+  receiver?: {
+    id: string;
+    fullName: string;
+    username: string;
+  };
+  processor?: {
+    id: string;
+    fullName: string;
+    username: string;
+  };
+}
+
+export interface ReturnListData {
+  returns: SaleReturn[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
 export interface PaginatedListResponse<T> {
   success: boolean;
   message: string;

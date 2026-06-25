@@ -23,6 +23,7 @@ import variantOptionRoutes from './variantOption.routes';
 import complaintRoutes from './complaint.routes';
 import regionRoutes from './region.routes';
 import analyticsRoutes from './analytics.routes';
+import returnRoutes from './return.routes';
 
 const router = Router();
 
@@ -51,5 +52,6 @@ router.use('/variant-options', variantOptionRoutes);
 router.use('/complaints', complaintRoutes);
 router.use('/regions', regionRoutes);
 router.use('/analytics', analyticsRoutes);
+router.use('/returns', returnRoutes);
 
 export default router;

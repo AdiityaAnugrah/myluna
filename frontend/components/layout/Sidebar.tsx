@@ -22,6 +22,7 @@ import {
   Coins,
   DollarSign,
   Truck,
+  RefreshCcw,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -66,6 +67,7 @@ const navigationGroups: NavigationGroup[] = [
     title: 'Penjualan',
     items: [
       { name: 'Penjualan', href: '/sales', icon: ShoppingBag },
+      { name: 'Retur', href: '/returns', icon: RefreshCcw },
       { name: 'Proses Penjualan', href: '/sales/process', icon: FileCheck, notificationKey: 'pendingSales' },
       { name: 'Komplen', href: '/complaints', icon: MessageSquareWarning },
     ]
@@ -171,7 +173,7 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
         if (group.title === 'Penjualan') {
             return {
                 ...group,
-                items: group.items.filter(item => item.href === '/sales/process' || item.href === '/complaints')
+                items: group.items.filter(item => item.href === '/sales/process' || item.href === '/complaints' || item.href === '/returns')
             };
         }
         

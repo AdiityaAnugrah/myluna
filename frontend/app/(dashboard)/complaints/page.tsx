@@ -374,7 +374,7 @@ export default function ComplaintsPage() {
       <div>
         <h1 className="text-3xl font-bold">Komplen Pesanan</h1>
         <p className="text-muted-foreground mt-1">
-          Komplen untuk pesanan yang sudah dikirim atau sudah pelunasan.
+          Komplen untuk pesanan yang sudah diproses, selesai, atau sudah pelunasan.
         </p>
       </div>
 
@@ -385,7 +385,7 @@ export default function ComplaintsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Cari Pesanan (Sudah Dikirim/Settled)</Label>
+              <Label>Cari Pesanan (Diproses / Selesai / Pelunasan)</Label>
               <Input
                 placeholder="Contoh: INV-2026-001 atau nama pelanggan"
                 value={saleQuery}

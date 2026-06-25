@@ -1,18 +1,16 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Check, ChevronsUpDown, Loader2, MapPin, Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useDistricts, useProvinces, useRegencies, useVillages } from '@/lib/hooks/useRegions';
+import { cn } from '@/lib/utils';
 import { formatRegionLabel } from '@/lib/utils/format';
+import { RegionOption, VillageOption } from '@/types';
 
 export interface ShippingAddressValue {
   addressDetail: string;
@@ -72,6 +70,129 @@ export function sanitizeShippingAddressDetail(
   return cleanAddressSeparators(sanitized);
 }
 
+interface SearchableRegionSelectProps<TOption extends RegionOption | VillageOption> {
+  title: string;
+  placeholder: string;
+  searchPlaceholder: string;
+  emptyMessage: string;
+  value: string;
+  options: TOption[];
+  disabled?: boolean;
+  isLoading?: boolean;
+  renderLabel: (option: TOption) => string;
+  onSelect: (value: string) => void;
+}
+
+function SearchableRegionSelect<TOption extends RegionOption | VillageOption>({
+  title,
+  placeholder,
+  searchPlaceholder,
+  emptyMessage,
+  value,
+  options,
+  disabled,
+  isLoading,
+  renderLabel,
+  onSelect,
+}: SearchableRegionSelectProps<TOption>) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const selectedOption = options.find((item) => String(item.id) === value);
+  const filteredOptions = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    if (!normalizedSearch) return options;
+
+    return options.filter((item) => renderLabel(item).toLowerCase().includes(normalizedSearch));
+  }, [options, renderLabel, search]);
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        role="combobox"
+        aria-expanded={open}
+        className="w-full justify-between font-normal"
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+      >
+        <span className={cn('truncate', !selectedOption && 'text-muted-foreground')}>
+          {selectedOption ? renderLabel(selectedOption) : placeholder}
+        </span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (!nextOpen) setSearch('');
+        }}
+      >
+        <DialogContent className="flex h-[80vh] max-h-[80vh] flex-col gap-0 p-0 sm:max-w-[560px]">
+          <DialogHeader className="border-b px-4 py-4">
+            <DialogTitle>{title}</DialogTitle>
+            <div className="relative mt-2">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={searchPlaceholder}
+                className="pl-9"
+                autoFocus
+              />
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-2">
+            {isLoading ? (
+              <LoadingOption />
+            ) : filteredOptions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-muted-foreground">
+                <MapPin className="mb-3 h-10 w-10 opacity-20" />
+                <p>{emptyMessage}</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredOptions.map((item) => {
+                  const itemValue = String(item.id);
+                  const isSelected = itemValue === value;
+
+                  return (
+                    <button
+                      key={itemValue}
+                      type="button"
+                      className={cn(
+                        'flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-3 text-left transition-colors',
+                        isSelected
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border hover:bg-muted'
+                      )}
+                      onClick={() => {
+                        onSelect(itemValue);
+                        setOpen(false);
+                        setSearch('');
+                      }}
+                    >
+                      <span className="break-words text-sm">{renderLabel(item)}</span>
+                      {isSelected && (
+                        <span className="rounded-full bg-primary p-0.5 text-primary-foreground">
+                          <Check className="h-3 w-3" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export function RegionAddressFields({ value, onChange, disabled }: RegionAddressFieldsProps) {
   const provincesQuery = useProvinces();
   const regenciesQuery = useRegencies(value.provinceId);
@@ -116,103 +237,89 @@ export function RegionAddressFields({ value, onChange, disabled }: RegionAddress
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label>Provinsi <span className="text-destructive">*</span></Label>
-          <Select
+          <SearchableRegionSelect
+            title="Pilih Provinsi"
+            placeholder="Pilih provinsi"
+            searchPlaceholder="Cari provinsi..."
+            emptyMessage="Provinsi tidak ditemukan."
             value={value.provinceId}
-            onValueChange={(provinceId) => update({
+            options={provincesQuery.data?.data || []}
+            isLoading={provincesQuery.isLoading}
+            disabled={disabled || provincesQuery.isLoading}
+            renderLabel={(item) => formatRegionLabel(item.label)}
+            onSelect={(provinceId) => update({
               provinceId,
               regencyId: '',
               districtId: '',
               villageId: '',
               postalCode: '',
             })}
-            disabled={disabled || provincesQuery.isLoading}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Pilih provinsi" />
-            </SelectTrigger>
-            <SelectContent>
-              {provincesQuery.isLoading ? <LoadingOption /> : provincesQuery.data?.data.map((item) => (
-                <SelectItem key={item.id} value={String(item.id)}>
-                  {formatRegionLabel(item.label)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
         </div>
 
         <div className="space-y-2">
           <Label>Kabupaten/Kota <span className="text-destructive">*</span></Label>
-          <Select
+          <SearchableRegionSelect
+            title="Pilih Kabupaten/Kota"
+            placeholder="Pilih kabupaten/kota"
+            searchPlaceholder="Cari kabupaten/kota..."
+            emptyMessage="Kabupaten/kota tidak ditemukan."
             value={value.regencyId}
-            onValueChange={(regencyId) => update({
+            options={regenciesQuery.data?.data || []}
+            isLoading={regenciesQuery.isLoading}
+            disabled={disabled || !value.provinceId || regenciesQuery.isLoading}
+            renderLabel={(item) => formatRegionLabel(item.label)}
+            onSelect={(regencyId) => update({
               regencyId,
               districtId: '',
               villageId: '',
               postalCode: '',
             })}
-            disabled={disabled || !value.provinceId || regenciesQuery.isLoading}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Pilih kabupaten/kota" />
-            </SelectTrigger>
-            <SelectContent>
-              {regenciesQuery.isLoading ? <LoadingOption /> : regenciesQuery.data?.data.map((item) => (
-                <SelectItem key={item.id} value={String(item.id)}>
-                  {formatRegionLabel(item.label)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
         </div>
 
         <div className="space-y-2">
           <Label>Kecamatan <span className="text-destructive">*</span></Label>
-          <Select
+          <SearchableRegionSelect
+            title="Pilih Kecamatan"
+            placeholder="Pilih kecamatan"
+            searchPlaceholder="Cari kecamatan..."
+            emptyMessage="Kecamatan tidak ditemukan."
             value={value.districtId}
-            onValueChange={(districtId) => update({
+            options={districtsQuery.data?.data || []}
+            isLoading={districtsQuery.isLoading}
+            disabled={disabled || !value.regencyId || districtsQuery.isLoading}
+            renderLabel={(item) => formatRegionLabel(item.label)}
+            onSelect={(districtId) => update({
               districtId,
               villageId: '',
               postalCode: '',
             })}
-            disabled={disabled || !value.regencyId || districtsQuery.isLoading}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Pilih kecamatan" />
-            </SelectTrigger>
-            <SelectContent>
-              {districtsQuery.isLoading ? <LoadingOption /> : districtsQuery.data?.data.map((item) => (
-                <SelectItem key={item.id} value={String(item.id)}>
-                  {formatRegionLabel(item.label)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
         </div>
 
         <div className="space-y-2">
           <Label>Kelurahan/Desa <span className="text-destructive">*</span></Label>
-          <Select
+          <SearchableRegionSelect
+            title="Pilih Kelurahan/Desa"
+            placeholder="Pilih kelurahan/desa"
+            searchPlaceholder="Cari kelurahan/desa atau kode pos..."
+            emptyMessage="Kelurahan/desa tidak ditemukan."
             value={value.villageId}
-            onValueChange={(villageId) => {
+            options={villages}
+            isLoading={villagesQuery.isLoading}
+            disabled={disabled || !value.districtId || villagesQuery.isLoading}
+            renderLabel={(item) =>
+              `${formatRegionLabel(item.label)}${item.postalCode ? ` - ${item.postalCode}` : ''}`
+            }
+            onSelect={(villageId) => {
               const village = villages.find((item) => String(item.id) === villageId);
               update({
                 villageId,
                 postalCode: village?.postalCode || '',
               });
             }}
-            disabled={disabled || !value.districtId || villagesQuery.isLoading}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Pilih kelurahan/desa" />
-            </SelectTrigger>
-            <SelectContent>
-              {villagesQuery.isLoading ? <LoadingOption /> : villages.map((item) => (
-                <SelectItem key={item.id} value={String(item.id)}>
-                  {formatRegionLabel(item.label)}{item.postalCode ? ` - ${item.postalCode}` : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
         </div>
       </div>
 

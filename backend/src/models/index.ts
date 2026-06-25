@@ -27,6 +27,8 @@ import Province from './Province';
 import Regency from './Regency';
 import District from './District';
 import Village from './Village';
+import SaleReturn, { SaleReturnDecision, SaleReturnStatus } from './SaleReturn';
+import SaleReturnItem from './SaleReturnItem';
 
 // Define associations
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -145,6 +147,33 @@ Sale.belongsTo(Regency, { foreignKey: 'shippingRegencyId', as: 'shippingRegency'
 Sale.belongsTo(District, { foreignKey: 'shippingDistrictId', as: 'shippingDistrict' });
 Sale.belongsTo(Village, { foreignKey: 'shippingVillageId', as: 'shippingVillage' });
 
+// Return associations
+SaleReturn.belongsTo(Sale, { foreignKey: 'saleId', as: 'sale' });
+Sale.hasMany(SaleReturn, { foreignKey: 'saleId', as: 'returns' });
+
+SaleReturn.belongsTo(User, { foreignKey: 'requestedBy', as: 'requester' });
+User.hasMany(SaleReturn, { foreignKey: 'requestedBy', as: 'requestedReturns' });
+
+SaleReturn.belongsTo(User, { foreignKey: 'reviewedBy', as: 'reviewer' });
+User.hasMany(SaleReturn, { foreignKey: 'reviewedBy', as: 'reviewedReturns' });
+
+SaleReturn.belongsTo(User, { foreignKey: 'receivedBy', as: 'receiver' });
+User.hasMany(SaleReturn, { foreignKey: 'receivedBy', as: 'receivedReturns' });
+
+SaleReturn.belongsTo(User, { foreignKey: 'processedBy', as: 'processor' });
+User.hasMany(SaleReturn, { foreignKey: 'processedBy', as: 'processedReturns' });
+
+SaleReturn.hasMany(SaleReturnItem, { foreignKey: 'returnId', as: 'items' });
+SaleReturnItem.belongsTo(SaleReturn, { foreignKey: 'returnId', as: 'returnRecord' });
+
+SaleReturnItem.belongsTo(SaleItem, { foreignKey: 'saleItemId', as: 'saleItem' });
+SaleItem.hasMany(SaleReturnItem, { foreignKey: 'saleItemId', as: 'returnItems' });
+
+SaleReturnItem.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
+Product.hasMany(SaleReturnItem, { foreignKey: 'productId', as: 'saleReturnItems' });
+
+SaleReturnItem.belongsTo(Product, { foreignKey: 'replacementProductId', as: 'replacementProduct' });
+
 export {
   Role,
   User,
@@ -185,4 +214,8 @@ export {
   Regency,
   District,
   Village,
+  SaleReturn,
+  SaleReturnStatus,
+  SaleReturnDecision,
+  SaleReturnItem,
 };
