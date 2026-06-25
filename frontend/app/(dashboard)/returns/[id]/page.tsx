@@ -23,12 +23,93 @@ import { Badge } from '@/components/ui/badge';
 import { getImageUrl } from '@/lib/utils/url';
 import { Loader2 } from 'lucide-react';
 
+function statusLabel(status: string, isUser: boolean) {
+  switch (status) {
+    case 'PENDING_REVIEW':
+      return isUser ? 'Sedang Dicek' : 'Menunggu Review';
+    case 'WAITING_ITEM_RETURN':
+      return isUser ? 'Menunggu Barang Dikirim Kembali' : 'Menunggu Barang Kembali';
+    case 'ITEM_RECEIVED':
+      return isUser ? 'Barang Sudah Diterima Tim' : 'Barang Diterima';
+    case 'REJECTED':
+      return 'Ditolak';
+    case 'RESTOCKED':
+      return isUser ? 'Barang Diterima Kembali' : 'Masuk Stok';
+    case 'DAMAGED':
+      return isUser ? 'Barang Dinyatakan Rusak' : 'Tidak Layak Pakai';
+    case 'RESENT':
+      return isUser ? 'Barang Pengganti Dikirim' : 'Kirim Ulang';
+    case 'COMPLETED':
+      return 'Selesai';
+    default:
+      return status;
+  }
+}
+
+function statusDescription(status: string, isUser: boolean) {
+  switch (status) {
+    case 'PENDING_REVIEW':
+      return isUser
+        ? 'Tim sedang memeriksa pengajuan retur Anda.'
+        : 'Pengajuan baru masuk dan perlu keputusan review.';
+    case 'WAITING_ITEM_RETURN':
+      return isUser
+        ? 'Pengajuan disetujui. Barang perlu sampai kembali ke tim terlebih dahulu.'
+        : 'Retur sudah disetujui dan menunggu barang diterima secara fisik.';
+    case 'ITEM_RECEIVED':
+      return isUser
+        ? 'Barang sudah diterima tim dan sedang diperiksa kondisinya.'
+        : 'Barang sudah diterima dan menunggu keputusan inspeksi.';
+    case 'REJECTED':
+      return isUser
+        ? 'Pengajuan retur tidak dapat dilanjutkan.'
+        : 'Retur sudah ditolak dan tidak akan diproses lebih lanjut.';
+    case 'RESTOCKED':
+      return isUser
+        ? 'Barang retur dinyatakan layak dan sudah diterima kembali.'
+        : 'Barang hasil retur sudah masuk kembali ke stok.';
+    case 'DAMAGED':
+      return isUser
+        ? 'Barang diterima, tetapi dinyatakan tidak layak pakai.'
+        : 'Barang retur dinyatakan rusak dan dicatat sebagai dampak kerugian.';
+    case 'RESENT':
+      return isUser
+        ? 'Barang pengganti sudah diproses untuk dikirim ulang.'
+        : 'Barang pengganti sudah diproses untuk pengiriman ulang.';
+    case 'COMPLETED':
+      return isUser ? 'Seluruh proses retur sudah selesai.' : 'Proses retur selesai.';
+    default:
+      return '';
+  }
+}
+
+function progressLabel(status: string) {
+  switch (status) {
+    case 'PENDING_REVIEW':
+      return '1 dari 4 langkah selesai';
+    case 'WAITING_ITEM_RETURN':
+      return '2 dari 4 langkah selesai';
+    case 'ITEM_RECEIVED':
+      return '3 dari 4 langkah selesai';
+    case 'RESTOCKED':
+    case 'DAMAGED':
+    case 'RESENT':
+    case 'COMPLETED':
+      return '4 dari 4 langkah selesai';
+    case 'REJECTED':
+      return 'Proses berhenti di tahap review';
+    default:
+      return '';
+  }
+}
+
 export default function ReturnDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
   const canProcess = role === 'TCP' || role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const isUser = role === 'USER';
 
   const returnQuery = useReturn(params.id);
   const reviewMutation = useReviewReturn();
@@ -101,14 +182,19 @@ export default function ReturnDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Ringkasan Retur</CardTitle>
+          <CardTitle>{isUser ? 'Status Retur Anda' : 'Ringkasan Retur'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <p>Status: <Badge variant="outline">{returnData.status}</Badge></p>
+          <p>
+            Status:{' '}
+            <Badge variant="outline">{statusLabel(returnData.status, isUser)}</Badge>
+          </p>
+          <p className="text-muted-foreground">{statusDescription(returnData.status, isUser)}</p>
+          <p className="text-xs text-muted-foreground">{progressLabel(returnData.status)}</p>
           <p>Alasan: {returnData.reason}</p>
           <p>Tanggal Pengajuan: {new Date(returnData.requestDate).toLocaleDateString('id-ID')}</p>
           {returnData.rejectionReason && <p>Alasan Ditolak: {returnData.rejectionReason}</p>}
-          {returnData.inspectionDecision && <p>Keputusan Akhir: {returnData.inspectionDecision}</p>}
+          {returnData.inspectionDecision && !isUser && <p>Keputusan Akhir: {returnData.inspectionDecision}</p>}
           {returnData.inspectionNotes && <p>Catatan Inspeksi: {returnData.inspectionNotes}</p>}
         </CardContent>
       </Card>
@@ -138,7 +224,7 @@ export default function ReturnDetailPage() {
       {(returnData.evidencePhotos || []).length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Foto Bukti User</CardTitle>
+            <CardTitle>{isUser ? 'Foto Bukti yang Anda Kirim' : 'Foto Bukti User'}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             {(returnData.evidencePhotos || []).map((photo) => (
@@ -153,7 +239,7 @@ export default function ReturnDetailPage() {
       {canProcess && returnData.status === 'PENDING_REVIEW' && (
         <Card>
           <CardHeader>
-            <CardTitle>Review TCP</CardTitle>
+            <CardTitle>Review Tim</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -192,7 +278,7 @@ export default function ReturnDetailPage() {
       {canProcess && returnData.status === 'WAITING_ITEM_RETURN' && (
         <Card>
           <CardHeader>
-            <CardTitle>Konfirmasi Barang Diterima</CardTitle>
+            <CardTitle>Konfirmasi Barang Sudah Sampai</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -221,7 +307,7 @@ export default function ReturnDetailPage() {
       {canProcess && returnData.status === 'ITEM_RECEIVED' && (
         <Card>
           <CardHeader>
-            <CardTitle>Keputusan TCP</CardTitle>
+            <CardTitle>Keputusan Setelah Pengecekan</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">

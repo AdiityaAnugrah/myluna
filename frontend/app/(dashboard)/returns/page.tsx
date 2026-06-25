@@ -13,26 +13,65 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowRight, Loader2, Plus, Search } from 'lucide-react';
 import { SaleReturnStatus } from '@/types';
 
-function statusLabel(status: SaleReturnStatus) {
+function statusLabel(status: SaleReturnStatus, isUser: boolean) {
   switch (status) {
     case 'PENDING_REVIEW':
-      return 'Menunggu Review';
+      return isUser ? 'Sedang Dicek' : 'Menunggu Review';
     case 'WAITING_ITEM_RETURN':
-      return 'Menunggu Barang Kembali';
+      return isUser ? 'Menunggu Barang Dikirim Kembali' : 'Menunggu Barang Kembali';
     case 'ITEM_RECEIVED':
-      return 'Barang Diterima';
+      return isUser ? 'Barang Sudah Diterima Tim' : 'Barang Diterima';
     case 'REJECTED':
       return 'Ditolak';
     case 'RESTOCKED':
-      return 'Masuk Stok';
+      return isUser ? 'Barang Diterima Kembali' : 'Masuk Stok';
     case 'DAMAGED':
-      return 'Tidak Layak Pakai';
+      return isUser ? 'Barang Dinyatakan Rusak' : 'Tidak Layak Pakai';
     case 'RESENT':
-      return 'Kirim Ulang';
+      return isUser ? 'Barang Pengganti Dikirim' : 'Kirim Ulang';
     case 'COMPLETED':
       return 'Selesai';
     default:
       return status;
+  }
+}
+
+function statusDescription(status: SaleReturnStatus, isUser: boolean) {
+  switch (status) {
+    case 'PENDING_REVIEW':
+      return isUser
+        ? 'Pengajuan retur Anda sudah masuk dan sedang diperiksa tim.'
+        : 'Retur baru menunggu keputusan review dari tim internal.';
+    case 'WAITING_ITEM_RETURN':
+      return isUser
+        ? 'Pengajuan disetujui. Tim sedang menunggu barang sampai kembali.'
+        : 'Retur disetujui dan menunggu barang diterima secara fisik.';
+    case 'ITEM_RECEIVED':
+      return isUser
+        ? 'Barang sudah diterima tim dan sedang diperiksa kondisinya.'
+        : 'Barang sudah diterima dan siap diputuskan hasil inspeksinya.';
+    case 'REJECTED':
+      return isUser
+        ? 'Pengajuan retur tidak dapat diproses. Lihat alasan penolakan di detail.'
+        : 'Retur ditolak dan tidak akan dilanjutkan.';
+    case 'RESTOCKED':
+      return isUser
+        ? 'Barang dinyatakan layak dan sudah diterima kembali.'
+        : 'Barang hasil retur sudah dimasukkan kembali ke stok.';
+    case 'DAMAGED':
+      return isUser
+        ? 'Barang diterima, tetapi dinyatakan tidak layak pakai.'
+        : 'Barang retur dinyatakan rusak dan tidak masuk ke stok jual.';
+    case 'RESENT':
+      return isUser
+        ? 'Barang pengganti sudah diproses untuk dikirim kembali.'
+        : 'Barang pengganti sudah diproses untuk pengiriman ulang.';
+    case 'COMPLETED':
+      return isUser
+        ? 'Proses retur sudah selesai.'
+        : 'Seluruh proses retur sudah selesai.';
+    default:
+      return '';
   }
 }
 
@@ -63,6 +102,7 @@ export default function ReturnsPage() {
   const user = useAuthStore((state) => state.user);
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
   const canCreate = role === 'USER' || role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const isUser = role === 'USER';
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
@@ -87,7 +127,9 @@ export default function ReturnsPage() {
         <div>
           <h1 className="text-3xl font-bold">Retur Penjualan</h1>
           <p className="mt-1 text-muted-foreground">
-            Pengajuan retur dari user dan proses operasional oleh TCP.
+            {isUser
+              ? 'Lihat status pengajuan retur Anda dan buat retur baru jika diperlukan.'
+              : 'Kelola pengajuan retur dari user dan proses operasionalnya.'}
           </p>
         </div>
         {canCreate && (
@@ -155,14 +197,15 @@ export default function ReturnsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold">{row.returnNumber}</span>
                       <Badge variant="outline" className={statusClass(row.status)}>
-                        {statusLabel(row.status)}
+                        {statusLabel(row.status, isUser)}
                       </Badge>
                     </div>
                     <p className="text-sm">
                       Pesanan: <strong>{row.sale?.saleNumber || '-'}</strong>
                       {' '}• Customer: <strong>{row.sale?.customerName || '-'}</strong>
                     </p>
-                    <p className="text-sm text-muted-foreground">{row.reason}</p>
+                    <p className="text-sm text-muted-foreground">{statusDescription(row.status, isUser)}</p>
+                    {!isUser && <p className="text-sm text-muted-foreground">{row.reason}</p>}
                     <p className="text-xs text-muted-foreground">
                       Tanggal pengajuan: {new Date(row.requestDate).toLocaleDateString('id-ID')}
                     </p>
