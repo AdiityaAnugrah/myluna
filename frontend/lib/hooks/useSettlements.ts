@@ -10,6 +10,7 @@ export const useSettlements = (params?: {
   status?: 'pending' | 'settled';
   search?: string;
   sortBy?: 'urgent' | 'terbaru';
+  responsibleUserId?: string;
   userId?: string; // Add userId for cache isolation
 }, options?: any) => {
   return useQuery({

@@ -49,6 +49,14 @@ const regionLabels = {
 type RegionLevel = keyof typeof regionLabels;
 type AnalyticsRegion = SalesAnalytics['topRegions'][number];
 type AnalyticsCategory = 'products' | 'regions' | 'platforms' | null;
+type SummaryCardItem = {
+  key: string;
+  label: string;
+  value: string;
+  description?: string;
+  icon: typeof ReceiptText;
+  iconClassName?: string;
+};
 
 interface RegionPathItem {
   id: number;
@@ -68,19 +76,19 @@ const analyticsCategoryOptions = [
   {
     key: 'products' as const,
     title: 'Produk Terlaris',
-    description: 'Lihat produk dengan unit terjual, jumlah transaksi, dan nilai penjualan tertinggi.',
+    description: 'Lihat produk yang paling laku berdasarkan total unit terjual, ragam varian, dan nilai penjualannya.',
     icon: Boxes,
   },
   {
     key: 'regions' as const,
     title: 'Provinsi Pembeli Terbanyak',
-    description: 'Lihat seluruh provinsi dengan transaksi pembeli terbanyak pada periode yang dipilih.',
+    description: 'Lihat wilayah dengan pembelian terbanyak berdasarkan transaksi, unit terjual, dan nilai penjualan pada periode yang dipilih.',
     icon: MapPin,
   },
   {
     key: 'platforms' as const,
     title: 'Penjualan per Platform',
-    description: 'Bandingkan performa penjualan setiap platform secara langsung.',
+    description: 'Bandingkan performa setiap platform berdasarkan transaksi, unit terjual, nilai penjualan, dan kontribusinya.',
     icon: Store,
   },
 ];
@@ -117,9 +125,11 @@ export default function AnalyticsPage() {
 
   const analytics = analyticsQuery.data?.data;
   const chartProducts = analytics?.topProducts.slice(0, 6) || [];
+  const chartVariants = analytics?.topVariants.slice(0, 6) || [];
   const chartRegions = analytics?.topRegions.slice(0, 6) || [];
   const chartPlatforms = analytics?.topPlatforms.slice(0, 8) || [];
   const maxProductQuantity = Math.max(...(chartProducts.map((item) => item.quantitySold) || [0]), 1);
+  const maxVariantQuantity = Math.max(...(chartVariants.map((item) => item.quantitySold) || [0]), 1);
   const maxRegionOrders = Math.max(...(chartRegions.map((item) => item.orderCount) || [0]), 1);
   const maxPlatformOrders = Math.max(...(chartPlatforms.map((item) => item.orderCount) || [0]), 1);
 
@@ -155,6 +165,121 @@ export default function AnalyticsPage() {
         : selectedCategory === 'platforms'
           ? 'Penjualan per Platform'
           : '';
+
+  const unmappedSalesPercentage = analytics
+    ? analytics.summary.totalSales > 0
+      ? Math.round((analytics.summary.unmappedSales / analytics.summary.totalSales) * 10000) / 100
+      : 0
+    : 0;
+
+  const summaryCards: SummaryCardItem[] = analytics
+    ? selectedCategory === 'products'
+      ? [
+          {
+            key: 'quantity',
+            label: 'Total Unit Terjual',
+            value: analytics.summary.totalQuantitySold.toLocaleString('id-ID'),
+            description: 'Akumulasi seluruh unit produk yang berhasil terjual.',
+            icon: Boxes,
+            iconClassName: 'text-primary',
+          },
+          {
+            key: 'products',
+            label: 'Produk Terjual',
+            value: analytics.summary.totalProductsSold.toLocaleString('id-ID'),
+            description: 'Jumlah produk unik yang ikut terjual.',
+            icon: ReceiptText,
+            iconClassName: 'text-success',
+          },
+          {
+            key: 'variants',
+            label: 'Varian Terjual',
+            value: analytics.summary.totalVariantsSold.toLocaleString('id-ID'),
+            description: 'Jumlah kombinasi produk-varian yang terjual.',
+            icon: BarChart3,
+            iconClassName: 'text-info',
+          },
+          {
+            key: 'revenue',
+            label: 'Nilai Penjualan',
+            value: formatCurrency(analytics.summary.totalRevenue),
+            description: 'Total omzet dari seluruh produk yang terjual.',
+            icon: Store,
+            iconClassName: 'text-warning',
+          },
+        ]
+      : selectedCategory === 'regions'
+        ? [
+            {
+              key: 'sales',
+              label: 'Total Transaksi',
+              value: analytics.summary.totalSales.toLocaleString('id-ID'),
+              description: 'Jumlah pembelian yang tercatat pada periode ini.',
+              icon: ReceiptText,
+              iconClassName: 'text-primary',
+            },
+            {
+              key: 'quantity',
+              label: 'Total Unit Terjual',
+              value: analytics.summary.totalQuantitySold.toLocaleString('id-ID'),
+              description: 'Akumulasi unit yang terjual pada seluruh wilayah yang tercakup.',
+              icon: BarChart3,
+              iconClassName: 'text-success',
+            },
+            {
+              key: 'unmapped-rate',
+              label: 'Belum Terpetakan',
+              value: `${unmappedSalesPercentage}%`,
+              description: analytics.summary.unmappedSales > 0
+                ? `${analytics.summary.unmappedSales} penjualan belum terpetakan ke wilayah.`
+                : 'Tidak ada penjualan yang belum terpetakan ke wilayah.',
+              icon: MapPin,
+              iconClassName: 'text-info',
+            },
+            {
+              key: 'revenue',
+              label: 'Nilai Penjualan',
+              value: formatCurrency(analytics.summary.totalRevenue),
+              description: `Cakupan ${regionLabels[regionLevel].toLowerCase()}: ${analytics.summary.totalRegionsCovered.toLocaleString('id-ID')} wilayah.`,
+              icon: Boxes,
+              iconClassName: 'text-warning',
+            },
+          ]
+        : [
+            {
+              key: 'sales',
+              label: 'Total Transaksi',
+              value: analytics.summary.totalSales.toLocaleString('id-ID'),
+              description: 'Jumlah transaksi yang tercatat dari seluruh platform pada periode ini.',
+              icon: ReceiptText,
+              iconClassName: 'text-primary',
+            },
+            {
+              key: 'revenue',
+              label: 'Nilai Penjualan',
+              value: formatCurrency(analytics.summary.totalRevenue),
+              description: 'Total omzet gabungan dari seluruh platform yang aktif.',
+              icon: BarChart3,
+              iconClassName: 'text-success',
+            },
+            {
+              key: 'platforms',
+              label: 'Platform Aktif',
+              value: analytics.summary.totalPlatformsUsed.toLocaleString('id-ID'),
+              description: 'Jumlah platform yang menghasilkan transaksi pada periode terpilih.',
+              icon: Store,
+              iconClassName: 'text-info',
+            },
+            {
+              key: 'aov',
+              label: 'Rata-rata per Transaksi',
+              value: formatCurrency(analytics.summary.averageOrderValue),
+              description: 'Rata-rata nilai penjualan untuk setiap transaksi lintas platform.',
+              icon: Boxes,
+              iconClassName: 'text-warning',
+            },
+          ]
+    : [];
 
   return (
     <div className="space-y-6 pb-10">
@@ -283,8 +408,12 @@ export default function AnalyticsPage() {
                 {selectedCategory === 'regions'
                   ? activeScope
                     ? `Dalam ${activeScope.name}`
-                    : 'Seluruh Indonesia'
-                  : 'Periode sesuai filter tanggal yang dipilih.'}
+                    : 'Melihat sebaran pembelian dari seluruh Indonesia.'
+                  : selectedCategory === 'products'
+                    ? 'Melihat performa produk dan varian yang terjual pada periode yang dipilih.'
+                    : selectedCategory === 'platforms'
+                      ? 'Membandingkan performa penjualan antar platform pada periode yang dipilih.'
+                    : 'Periode sesuai filter tanggal yang dipilih.'}
               </p>
             </div>
           </div>
@@ -294,58 +423,31 @@ export default function AnalyticsPage() {
               Array.from({ length: 4 }).map((_, index) => <SkeletonCard key={index} />)
             ) : (
               <>
-                <Card>
-                  <CardContent className="flex items-center justify-between p-5">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Penjualan</p>
-                      <p className="mt-1 text-2xl font-bold tabular-nums">{analytics.summary.totalSales}</p>
-                    </div>
-                    <ReceiptText className="h-6 w-6 text-primary" />
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="flex items-center justify-between p-5">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Nilai Penjualan</p>
-                      <p className="mt-1 text-xl font-bold tabular-nums">
-                        {formatCurrency(analytics.summary.totalRevenue)}
-                      </p>
-                    </div>
-                    <BarChart3 className="h-6 w-6 text-success" />
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="flex items-center justify-between p-5">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Data {regionLabels[regionLevel]}</p>
-                      <p className="mt-1 text-2xl font-bold tabular-nums">{analytics.summary.mappedSales}</p>
-                    </div>
-                    <MapPin className="h-6 w-6 text-info" />
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="flex items-center justify-between p-5">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Cakupan {regionLabels[regionLevel]}</p>
-                      <p className="mt-1 text-2xl font-bold tabular-nums">{analytics.summary.mappingCoverage}%</p>
-                      <p className="text-xs text-muted-foreground">
-                        {analytics.summary.unmappedSales} penjualan belum terpetakan
-                      </p>
-                      {selectedCategory === 'regions' && analytics.summary.unmappedSales > 0 && (
-                        <Button
-                          type="button"
-                          variant="link"
-                          size="sm"
-                          className="h-auto p-0 text-xs"
-                          onClick={() => setUnmappedDialogOpen(true)}
-                        >
-                          Lihat rincian
-                        </Button>
-                      )}
-                    </div>
-                    <Boxes className="h-6 w-6 text-warning" />
-                  </CardContent>
-                </Card>
+                {summaryCards.map((card) => (
+                  <Card key={card.key}>
+                    <CardContent className="flex items-start justify-between gap-4 p-5">
+                      <div className="min-w-0">
+                        <p className="text-sm text-muted-foreground">{card.label}</p>
+                        <p className="mt-1 text-2xl font-bold tabular-nums break-words">{card.value}</p>
+                        {card.description && (
+                          <p className="mt-1 text-xs text-muted-foreground">{card.description}</p>
+                        )}
+                        {selectedCategory === 'regions' && card.key === 'unmapped-rate' && analytics.summary.unmappedSales > 0 && (
+                          <Button
+                            type="button"
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0 text-xs"
+                            onClick={() => setUnmappedDialogOpen(true)}
+                          >
+                            Lihat rincian
+                          </Button>
+                        )}
+                      </div>
+                      <card.icon className={`h-6 w-6 shrink-0 ${card.iconClassName || 'text-primary'}`} />
+                    </CardContent>
+                  </Card>
+                ))}
               </>
             )}
           </div>
@@ -355,7 +457,7 @@ export default function AnalyticsPage() {
               <CardHeader className="pb-2">
                 <CardTitle>Produk Terlaris</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Menampilkan seluruh produk berdasarkan jumlah unit terjual.
+                  Menampilkan produk yang paling laku berdasarkan jumlah unit terjual pada periode terpilih.
                 </p>
               </CardHeader>
               <CardContent>
@@ -389,8 +491,9 @@ export default function AnalyticsPage() {
                           <Tooltip
                             formatter={(value, name) => [
                               name === 'quantitySold' ? `${value} unit` : value,
-                              'Terjual',
+                              'Unit Terjual',
                             ]}
+                            labelFormatter={(label) => `Produk: ${String(label)}`}
                             contentStyle={{
                               backgroundColor: 'var(--card)',
                               border: '1px solid var(--border)',
@@ -419,9 +522,9 @@ export default function AnalyticsPage() {
                         <thead>
                           <tr className="border-b text-left text-muted-foreground">
                             <th className="w-[38%] py-2 font-medium">Produk</th>
-                            <th className="py-2 text-right font-medium">Unit</th>
-                            <th className="py-2 text-right font-medium">Transaksi</th>
-                            <th className="py-2 text-right font-medium">Nilai</th>
+                            <th className="py-2 text-right font-medium">Unit Terjual</th>
+                            <th className="py-2 text-right font-medium">Transaksi Terkait</th>
+                            <th className="py-2 text-right font-medium">Nilai Penjualan</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -439,6 +542,99 @@ export default function AnalyticsPage() {
                         </tbody>
                       </table>
                     </div>
+
+                    <div className="mt-8 border-t pt-6">
+                      <div className="mb-4">
+                        <h3 className="text-lg font-semibold">Varian Terlaris</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Menampilkan varian yang paling laku agar analisa produk juga terlihat sampai level varian.
+                        </p>
+                      </div>
+
+                      {analytics.topVariants.length === 0 ? (
+                        <EmptyState
+                          icon={Boxes}
+                          title="Belum ada data varian"
+                          description="Tidak ada penjualan varian pada periode ini."
+                        />
+                      ) : (
+                        <>
+                          <div className="h-[320px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart
+                                data={chartVariants.map((item) => ({
+                                  ...item,
+                                  label: `${item.productName} - ${item.variantName}`,
+                                }))}
+                                margin={{ top: 28, right: 8, bottom: 16, left: 0 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                                <XAxis
+                                  type="category"
+                                  dataKey="label"
+                                  interval={0}
+                                  height={44}
+                                  tickMargin={8}
+                                  tick={{ fontSize: 10 }}
+                                  tickFormatter={(value) => shortenLabel(value, 12)}
+                                />
+                                <YAxis type="number" domain={[0, maxVariantQuantity]} allowDecimals={false} width={42} />
+                                <Tooltip
+                                  formatter={(value) => [`${value} unit`, 'Unit Terjual']}
+                                  labelFormatter={(label) => `Varian: ${String(label)}`}
+                                  contentStyle={{
+                                    backgroundColor: 'var(--card)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: 6,
+                                  }}
+                                />
+                                <Bar
+                                  dataKey="quantitySold"
+                                  name="Terjual"
+                                  fill="var(--warning)"
+                                  maxBarSize={48}
+                                  radius={[4, 4, 0, 0]}
+                                >
+                                  <LabelList
+                                    dataKey="quantitySold"
+                                    position="top"
+                                    className="fill-foreground"
+                                    fontSize={11}
+                                  />
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div className="mt-4 overflow-x-auto">
+                            <table className="w-full min-w-[820px] table-fixed text-sm">
+                              <thead>
+                                <tr className="border-b text-left text-muted-foreground">
+                                  <th className="w-[30%] py-2 font-medium">Produk</th>
+                                  <th className="w-[24%] py-2 font-medium">Varian</th>
+                                  <th className="py-2 text-right font-medium">Unit Terjual</th>
+                                  <th className="py-2 text-right font-medium">Transaksi Terkait</th>
+                                  <th className="py-2 text-right font-medium">Nilai Penjualan</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {analytics.topVariants.map((item, index) => (
+                                  <tr key={`${item.productId}-${item.variantName}-${index}`} className="border-b last:border-0">
+                                    <td className="py-2.5">
+                                      <div className="break-words font-medium">{item.productName}</div>
+                                      <div className="text-xs text-muted-foreground">{item.sku}</div>
+                                    </td>
+                                    <td className="py-2.5">{item.variantName}</td>
+                                    <td className="py-2.5 text-right tabular-nums">{item.quantitySold}</td>
+                                    <td className="py-2.5 text-right tabular-nums">{item.orderCount}</td>
+                                    <td className="py-2.5 text-right tabular-nums">{formatCurrency(item.revenue)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </>
                 )}
               </CardContent>
@@ -450,7 +646,9 @@ export default function AnalyticsPage() {
               <CardHeader className="pb-2">
                 <CardTitle>{regionLabels[regionLevel]} Pembeli Terbanyak</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {activeScope ? `Dalam ${activeScope.name}` : 'Menampilkan seluruh provinsi pembeli.'}
+                  {activeScope
+                    ? `Menampilkan wilayah dengan pembelian terbanyak di dalam ${activeScope.name}.`
+                    : 'Menampilkan wilayah dengan pembelian terbanyak pada periode terpilih.'}
                 </p>
               </CardHeader>
               <CardContent>
@@ -482,7 +680,8 @@ export default function AnalyticsPage() {
                           />
                           <YAxis type="number" domain={[0, maxRegionOrders]} allowDecimals={false} width={42} />
                           <Tooltip
-                            formatter={(value) => [`${value} transaksi`, 'Pembelian']}
+                            formatter={(value) => [`${value} transaksi`, 'Transaksi Pembelian']}
+                            labelFormatter={(label) => `${regionLabels[regionLevel]}: ${String(label)}`}
                             contentStyle={{
                               backgroundColor: 'var(--card)',
                               border: '1px solid var(--border)',
@@ -491,7 +690,7 @@ export default function AnalyticsPage() {
                           />
                           <Bar
                             dataKey="orderCount"
-                            name="Pembelian"
+                            name="Transaksi Pembelian"
                             fill="var(--success)"
                             maxBarSize={48}
                             radius={[4, 4, 0, 0]}
@@ -516,9 +715,9 @@ export default function AnalyticsPage() {
                         <thead>
                           <tr className="border-b text-left text-muted-foreground">
                             <th className="w-[38%] py-2 font-medium">{regionLabels[regionLevel]}</th>
-                            <th className="py-2 text-right font-medium">Transaksi</th>
-                            <th className="py-2 text-right font-medium">Unit</th>
-                            <th className="py-2 text-right font-medium">Nilai</th>
+                            <th className="py-2 text-right font-medium">Transaksi Pembelian</th>
+                            <th className="py-2 text-right font-medium">Unit Terjual</th>
+                            <th className="py-2 text-right font-medium">Nilai Penjualan</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -557,7 +756,7 @@ export default function AnalyticsPage() {
               <CardHeader className="pb-2">
                 <CardTitle>Penjualan per Platform</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Menampilkan seluruh platform berdasarkan jumlah transaksi.
+                  Menampilkan performa setiap platform berdasarkan transaksi, unit terjual, dan nilai penjualan.
                 </p>
               </CardHeader>
               <CardContent>
@@ -589,7 +788,8 @@ export default function AnalyticsPage() {
                           />
                           <YAxis type="number" domain={[0, maxPlatformOrders]} allowDecimals={false} width={42} />
                           <Tooltip
-                            formatter={(value) => [`${value} transaksi`, 'Penjualan']}
+                            formatter={(value) => [`${value} transaksi`, 'Transaksi Penjualan']}
+                            labelFormatter={(label) => `Platform: ${String(label)}`}
                             contentStyle={{
                               backgroundColor: 'var(--card)',
                               border: '1px solid var(--border)',
@@ -598,7 +798,7 @@ export default function AnalyticsPage() {
                           />
                           <Bar
                             dataKey="orderCount"
-                            name="Penjualan"
+                            name="Transaksi Penjualan"
                             fill="var(--info)"
                             maxBarSize={56}
                             radius={[4, 4, 0, 0]}
@@ -618,10 +818,10 @@ export default function AnalyticsPage() {
                         <thead>
                           <tr className="border-b text-left text-muted-foreground">
                             <th className="w-[28%] py-2 font-medium">Platform</th>
-                            <th className="py-2 text-right font-medium">Transaksi</th>
-                            <th className="py-2 text-right font-medium">Unit</th>
-                            <th className="py-2 text-right font-medium">Nilai</th>
-                            <th className="py-2 text-right font-medium">Rata-rata</th>
+                            <th className="py-2 text-right font-medium">Transaksi Penjualan</th>
+                            <th className="py-2 text-right font-medium">Unit Terjual</th>
+                            <th className="py-2 text-right font-medium">Nilai Penjualan</th>
+                            <th className="py-2 text-right font-medium">Rata-rata per Transaksi</th>
                             <th className="py-2 text-right font-medium">Kontribusi</th>
                           </tr>
                         </thead>

@@ -18,6 +18,7 @@ export const settlementController = {
         status = '', // 'pending' or 'settled'
         search = '',
         sortBy = 'urgent', // 'urgent' = oldest processedAt first, 'terbaru' = newest saleDate first
+        responsibleUserId = '',
       } = req.query;
 
       const offset = (Number(page) - 1) * Number(limit);
@@ -41,6 +42,10 @@ export const settlementController = {
           { customerName: { [Op.like]: searchStr } },
           { customerPhone: { [Op.like]: searchStr } },
         ];
+      }
+
+      if (responsibleUserId) {
+        baseSaleWhere.createdBy = responsibleUserId;
       }
 
       // Data Isolation: If role is USER, only show data related to their own sales.

@@ -10,6 +10,7 @@ export const settlementApi = {
     status?: 'pending' | 'settled';
     search?: string;
     sortBy?: 'urgent' | 'terbaru';
+    responsibleUserId?: string;
   }) => {
     const response = await apiClient.get('/settlements', { params });
     return response.data;

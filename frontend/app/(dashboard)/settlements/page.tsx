@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSettlements, useRequestCancelSettlement } from '@/lib/hooks/useSettlements';
 import { useRequestCancelSale } from '@/lib/hooks/useSales';
+import { useUsers } from '@/lib/hooks/useUsers';
 import { useAuthStore } from '@/lib/stores/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,6 +57,7 @@ export default function SettlementsPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [sortBy, setSortBy] = useState<'urgent' | 'terbaru'>('urgent');
+  const [responsibleUserId, setResponsibleUserId] = useState<'all' | string>('all');
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 500);
@@ -64,7 +66,7 @@ export default function SettlementsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [status, debouncedSearch, startDate, endDate]);
+  }, [status, debouncedSearch, startDate, endDate, responsibleUserId]);
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const [formOpen, setFormOpen] = useState(false);
   
@@ -77,6 +79,8 @@ export default function SettlementsPage() {
   const [otherIncomeListOpen, setOtherIncomeListOpen] = useState(false);
   const requestCancelMutation = useRequestCancelSettlement();
   const requestCancelSaleMutation = useRequestCancelSale();
+  const { data: usersData } = useUsers({ page: 1, limit: 200 });
+  const responsibleUserOptions = usersData?.data?.users || [];
 
   const { data, isLoading } = useSettlements(
     {
@@ -85,6 +89,7 @@ export default function SettlementsPage() {
       status: status === 'all' ? undefined : status,
       ...(startDate && endDate ? { startDate, endDate } : {}),
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      ...(responsibleUserId !== 'all' ? { responsibleUserId } : {}),
       sortBy,
       userId: user?.id, // Add userId for cache isolation
     },
@@ -222,7 +227,7 @@ export default function SettlementsPage() {
           <CardTitle>Filter</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4 lg:grid-cols-5">
             <div className="space-y-2 md:col-span-2">
                 <Label>Rentang Tanggal</Label>
                 <div className="flex gap-2">
@@ -257,6 +262,23 @@ export default function SettlementsPage() {
             </div>
 
             <div className="space-y-2">
+              <Label>Penanggung Jawab</Label>
+              <Select value={responsibleUserId} onValueChange={setResponsibleUserId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Semua penanggung jawab" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua penanggung jawab</SelectItem>
+                  {responsibleUserOptions.map((responsibleUser: any) => (
+                    <SelectItem key={responsibleUser.id} value={responsibleUser.id}>
+                      {responsibleUser.fullName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 md:col-span-2 lg:col-span-1">
               <Label>Cari Penjualan</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />

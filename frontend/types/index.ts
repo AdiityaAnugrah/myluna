@@ -292,6 +292,12 @@ export interface SalesAnalytics {
   summary: {
     totalSales: number;
     totalRevenue: number;
+    totalQuantitySold: number;
+    averageOrderValue: number;
+    totalProductsSold: number;
+    totalVariantsSold: number;
+    totalRegionsCovered: number;
+    totalPlatformsUsed: number;
     mappedSales: number;
     unmappedSales: number;
     mappingCoverage: number;
@@ -300,6 +306,15 @@ export interface SalesAnalytics {
     productId: string;
     productName: string;
     sku: string;
+    quantitySold: number;
+    orderCount: number;
+    revenue: number;
+  }>;
+  topVariants: Array<{
+    productId: string;
+    productName: string;
+    sku: string;
+    variantName: string;
     quantitySold: number;
     orderCount: number;
     revenue: number;
