@@ -29,11 +29,33 @@ export function useReturnTickets(
   });
 }
 
+export function useReturnTicketSummary(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['return-tickets', 'summary'],
+    queryFn: () => returnTicketsApi.getSummary(),
+    enabled: options?.enabled ?? true,
+    refetchInterval: 30_000,
+  });
+}
+
 export function useReturnTicket(id: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['return-tickets', 'detail', id],
     queryFn: () => returnTicketsApi.getById(id),
     enabled: !!id && (options?.enabled ?? true),
+  });
+}
+
+export function useMarkReturnTicketAsRead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => returnTicketsApi.markAsRead(id),
+    onSuccess: (_, ticketId) => {
+      queryClient.invalidateQueries({ queryKey: ['return-tickets'] });
+      queryClient.invalidateQueries({ queryKey: ['return-tickets', 'summary'] });
+      queryClient.invalidateQueries({ queryKey: ['return-tickets', 'detail', ticketId] });
+    },
   });
 }
 

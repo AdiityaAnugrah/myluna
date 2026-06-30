@@ -2,6 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useChangeRequests, useProductRequests } from './useRequests';
 import { useAuth } from './useAuth';
 import apiClient from '@/lib/api/client';
+import { complaintsApi } from '@/lib/api/complaints';
+import { returnsApi } from '@/lib/api/returns';
+import { returnTicketsApi } from '@/lib/api/returnTickets';
 
 /**
  * Hook to get notification counts for various entities
@@ -10,13 +13,14 @@ import apiClient from '@/lib/api/client';
 export function useNotifications() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const hasUser = !!user;
 
   // Fetch ONLY the stats endpoint instead of fetching all 1000 sales
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ['sale-stats'],
     queryFn: () => apiClient.get('/sales/stats').then(r => r.data),
     refetchInterval: 30_000, // refetch every 30s
-    enabled: !!user,
+    enabled: hasUser,
   });
 
   // Fetch pending change requests (data master) - only for admin roles
@@ -44,7 +48,28 @@ export function useNotifications() {
       return overdue.length;
     },
     refetchInterval: 60_000, // refetch every 60s
-    enabled: !!user && user?.role !== 'TCP',
+    enabled: hasUser && user?.role !== 'TCP',
+  });
+
+  const { data: complaintsSummary } = useQuery({
+    queryKey: ['complaints', 'summary'],
+    queryFn: () => complaintsApi.getSummary(),
+    refetchInterval: 30_000,
+    enabled: hasUser,
+  });
+
+  const { data: returnsSummary } = useQuery({
+    queryKey: ['returns', 'summary'],
+    queryFn: () => returnsApi.getSummary(),
+    refetchInterval: 30_000,
+    enabled: hasUser,
+  });
+
+  const { data: returnTicketsSummary } = useQuery({
+    queryKey: ['return-tickets', 'summary'],
+    queryFn: () => returnTicketsApi.getSummary(),
+    refetchInterval: 30_000,
+    enabled: hasUser,
   });
 
   const pendingSalesCount = statsData?.data?.WAITING_APPROVAL || 0;
@@ -55,11 +80,17 @@ export function useNotifications() {
   const pendingApprovalsCount = pendingChangeCount + pendingProductCount;
 
   const overdueSettlementsCount = (overdueData as number) || 0;
+  const complaintsCount = complaintsSummary?.data?.badgeCount || 0;
+  const returnsCount = returnsSummary?.data?.badgeCount || 0;
+  const returnTicketsCount = returnTicketsSummary?.data?.badgeCount || 0;
 
   return {
     pendingSalesCount,
     pendingApprovalsCount,
     overdueSettlementsCount,
+    complaintsCount,
+    returnsCount,
+    returnTicketsCount,
     isLoading: statsLoading,
   };
 }

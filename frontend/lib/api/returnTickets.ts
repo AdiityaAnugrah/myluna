@@ -6,6 +6,17 @@ import {
 } from '@/types';
 
 export const returnTicketsApi = {
+  getSummary: async () => {
+    const response = await apiClient.get<ApiResponse<{
+      activeTicketsCount: number;
+      unreadTicketsCount: number;
+      actionRequiredTicketsCount: number;
+      overdueTicketsCount: number;
+      badgeCount: number;
+    }>>('/return-tickets/summary');
+    return response.data;
+  },
+
   getAll: async (params?: {
     page?: number;
     limit?: number;
@@ -19,6 +30,11 @@ export const returnTicketsApi = {
 
   getById: async (id: string) => {
     const response = await apiClient.get<ApiResponse<ReturnTicket>>(`/return-tickets/${id}`);
+    return response.data;
+  },
+
+  markAsRead: async (id: string) => {
+    const response = await apiClient.patch<ApiResponse<{ ticketId: string; lastReadAt: string }>>(`/return-tickets/${id}/read`);
     return response.data;
   },
 

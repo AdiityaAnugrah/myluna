@@ -562,6 +562,7 @@ export interface ReturnTicketParticipant {
   ticketId: string;
   userId: string;
   roleSnapshot: string;
+  lastReadAt?: string | null;
   user?: {
     id: string;
     fullName: string;
@@ -643,6 +644,9 @@ export interface ReturnTicket {
   messages?: ReturnTicketMessage[];
   executions?: ReturnExecution[];
   returnRecord?: SaleReturn;
+  unreadCount?: number;
+  requiresAction?: boolean;
+  actionLabel?: string | null;
 }
 
 export interface ReturnTicketListData {

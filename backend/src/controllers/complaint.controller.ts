@@ -56,6 +56,45 @@ const complaintActiveStatuses: ComplaintStatus[] = [
 ];
 
 export const complaintController = {
+  async getSummary(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        throw new AppError('Authentication required', 401);
+      }
+
+      const where: any = {
+        status: {
+          [Op.in]: complaintActiveStatuses,
+        },
+      };
+
+      if (req.user.roleName === 'USER') {
+        where.createdBy = req.user.id;
+      }
+
+      const activeCount = await Complaint.count({ where });
+      const pendingReviewCount = await Complaint.count({
+        where: {
+          ...where,
+          status: ComplaintStatus.PENDING_TCP_REVIEW,
+        },
+      });
+
+      return successResponse(
+        res,
+        {
+          activeCount,
+          pendingReviewCount,
+          badgeCount: activeCount,
+        },
+        'Ringkasan komplen berhasil diambil',
+        200
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   async getEligibleSales(req: Request, res: Response, next: NextFunction) {
     try {
       const q = String(req.query.q || '').trim();

@@ -2,6 +2,15 @@ import apiClient from './client';
 import { Complaint, ApiResponse, ComplaintListData, Sale } from '@/types';
 
 export const complaintsApi = {
+  getSummary: async () => {
+    const response = await apiClient.get<ApiResponse<{
+      activeCount: number;
+      pendingReviewCount: number;
+      badgeCount: number;
+    }>>('/complaints/summary');
+    return response.data;
+  },
+
   getEligibleSales: async (q: string) => {
     const response = await apiClient.get<ApiResponse<Sale[]>>('/complaints/eligible-sales', {
       params: { q },

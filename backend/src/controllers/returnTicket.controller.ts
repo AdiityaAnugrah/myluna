@@ -210,6 +210,136 @@ async function emitMessageNotification(ticket: any, senderId: string, message: s
   });
 }
 
+function isTicketOverdue(ticket: any) {
+  if (!ticket?.deadlineAt) return false;
+  return new Date(ticket.deadlineAt).getTime() < Date.now() && ![ReturnTicketStatus.COMPLETED, ReturnTicketStatus.REJECTED].includes(ticket.status);
+}
+
+function getTicketUnreadCount(ticketId: string, unreadMap: Map<string, number>) {
+  return unreadMap.get(ticketId) || 0;
+}
+
+function isTicketActionRequired(ticket: any, roleName: string, unreadCount: number) {
+  if ([ReturnTicketStatus.COMPLETED, ReturnTicketStatus.REJECTED].includes(ticket.status)) {
+    return false;
+  }
+
+  if (unreadCount > 0) {
+    return true;
+  }
+
+  if (roleName === 'TCP') {
+    return [ReturnTicketStatus.WAITING_TCP_EXECUTION, ReturnTicketStatus.TCP_EXECUTING].includes(ticket.status);
+  }
+
+  if (roleName === 'ADMIN' || roleName === 'SUPER_ADMIN') {
+    if (isTicketOverdue(ticket)) return true;
+    if (
+      ticket.returnRecord?.status === SaleReturnStatus.ITEM_RECEIVED &&
+      !ticket.finalDecision &&
+      !ticket.finalizedAt
+    ) {
+      return true;
+    }
+    return [ReturnTicketStatus.OPEN, ReturnTicketStatus.IN_DISCUSSION].includes(ticket.status);
+  }
+
+  return unreadCount > 0;
+}
+
+function getTicketActionLabel(ticket: any, roleName: string, unreadCount: number) {
+  if ([ReturnTicketStatus.COMPLETED, ReturnTicketStatus.REJECTED].includes(ticket.status)) {
+    return null;
+  }
+
+  if (unreadCount > 0) {
+    return 'Ada balasan baru';
+  }
+
+  if (roleName === 'TCP') {
+    if (ticket.status === ReturnTicketStatus.WAITING_TCP_EXECUTION) return 'Perlu mulai eksekusi';
+    if (ticket.status === ReturnTicketStatus.TCP_EXECUTING) return 'Perlu selesaikan eksekusi';
+    return null;
+  }
+
+  if (roleName === 'ADMIN' || roleName === 'SUPER_ADMIN') {
+    if (isTicketOverdue(ticket)) return 'Tiket overdue';
+    if (
+      ticket.returnRecord?.status === SaleReturnStatus.ITEM_RECEIVED &&
+      !ticket.finalDecision &&
+      !ticket.finalizedAt
+    ) {
+      return 'Perlu finalisasi keputusan';
+    }
+    if ([ReturnTicketStatus.OPEN, ReturnTicketStatus.IN_DISCUSSION].includes(ticket.status)) {
+      return 'Perlu tindak lanjut diskusi';
+    }
+  }
+
+  return null;
+}
+
+async function buildUnreadMap(ticketIds: string[], userId: string) {
+  if (!ticketIds.length) return new Map<string, number>();
+
+  const participantRows = await ReturnTicketParticipant.findAll({
+    where: {
+      ticketId: {
+        [Op.in]: ticketIds,
+      },
+      userId,
+    },
+    attributes: ['ticketId', 'lastReadAt'],
+  });
+
+  const participantReadMap = new Map<string, Date | null>();
+  participantRows.forEach((row) => {
+    participantReadMap.set(row.ticketId, row.lastReadAt || null);
+  });
+
+  const messages = await ReturnTicketMessage.findAll({
+    where: {
+      ticketId: {
+        [Op.in]: ticketIds,
+      },
+      senderId: {
+        [Op.ne]: userId,
+      },
+    },
+    attributes: ['ticketId', 'createdAt'],
+    order: [['createdAt', 'ASC']],
+  });
+
+  const unreadMap = new Map<string, number>();
+  for (const message of messages) {
+    const lastReadAt = participantReadMap.get(message.ticketId);
+    if (!lastReadAt || new Date(message.createdAt).getTime() > new Date(lastReadAt).getTime()) {
+      unreadMap.set(message.ticketId, (unreadMap.get(message.ticketId) || 0) + 1);
+    }
+  }
+
+  return unreadMap;
+}
+
+async function enrichTicketsForUser(tickets: any[], user: AuthUser) {
+  const ticketIds = tickets.map((ticket) => ticket.id);
+  const unreadMap = await buildUnreadMap(ticketIds, user.id);
+
+  return tickets.map((ticket) => {
+    const raw = typeof ticket.toJSON === 'function' ? ticket.toJSON() : ticket;
+    const unreadCount = getTicketUnreadCount(raw.id, unreadMap);
+    const requiresAction = isTicketActionRequired(raw, user.roleName, unreadCount);
+    const actionLabel = getTicketActionLabel(raw, user.roleName, unreadCount);
+
+    return {
+      ...raw,
+      unreadCount,
+      requiresAction,
+      actionLabel,
+    };
+  });
+}
+
 export const returnTicketController = {
   generateTicketNumber,
   getDefaultDeadline,
@@ -269,10 +399,12 @@ export const returnTicketController = {
         order: [['updatedAt', 'DESC']],
       });
 
+      const enrichedRows = await enrichTicketsForUser(rows, req.user);
+
       return successResponse(
         res,
         {
-          tickets: rows,
+          tickets: enrichedRows,
           pagination: {
             total: count,
             page: Number(page),
@@ -367,6 +499,98 @@ export const returnTicketController = {
       return successResponse(res, refreshedTicket, 'Pesan tiket berhasil dikirim', 201);
     } catch (error) {
       await transaction.rollback();
+      return next(error);
+    }
+  },
+
+  async markAsRead(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new AppError('Authentication required', 401);
+      const ticket = await ensureTicketAccess(req.params.id, req.user);
+
+      const [participant] = await ReturnTicketParticipant.findOrCreate({
+        where: {
+          ticketId: ticket.id,
+          userId: req.user.id,
+        },
+        defaults: {
+          ticketId: ticket.id,
+          userId: req.user.id,
+          roleSnapshot: req.user.roleName,
+          lastReadAt: new Date(),
+        },
+      });
+
+      await participant.update({
+        lastReadAt: new Date(),
+      });
+
+      return successResponse(res, { ticketId: ticket.id, lastReadAt: participant.lastReadAt }, 'Tiket retur ditandai sudah dibaca', 200);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async getSummary(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new AppError('Authentication required', 401);
+
+      const where: any = {
+        status: {
+          [Op.notIn]: [ReturnTicketStatus.COMPLETED, ReturnTicketStatus.REJECTED],
+        },
+      };
+
+      if (req.user.roleName === 'USER') {
+        where.createdBy = req.user.id;
+      }
+
+      const tickets = await ReturnTicket.findAll({
+        where,
+        include: [
+          {
+            model: SaleReturn,
+            as: 'returnRecord',
+            attributes: ['id', 'status', 'requestedBy'],
+          },
+        ],
+        attributes: ['id', 'status', 'deadlineAt', 'finalDecision', 'finalizedAt', 'createdBy'],
+      });
+
+      const ticketIds = tickets.map((ticket) => ticket.id);
+      const unreadMap = await buildUnreadMap(ticketIds, req.user.id);
+
+      let unreadTicketsCount = 0;
+      let actionRequiredTicketsCount = 0;
+      let overdueTicketsCount = 0;
+      let badgeCount = 0;
+
+      tickets.forEach((ticket: any) => {
+        const raw = typeof ticket.toJSON === 'function' ? ticket.toJSON() : ticket;
+        const unreadCount = getTicketUnreadCount(raw.id, unreadMap);
+        const isUnread = unreadCount > 0;
+        const requiresAction = isTicketActionRequired(raw, req.user!.roleName, unreadCount);
+        const overdue = isTicketOverdue(raw);
+
+        if (isUnread) unreadTicketsCount += 1;
+        if (requiresAction) actionRequiredTicketsCount += 1;
+        if (overdue) overdueTicketsCount += 1;
+        if (isUnread || requiresAction) badgeCount += 1;
+      });
+
+      return successResponse(
+        res,
+        {
+          activeTicketsCount: tickets.length,
+          unreadTicketsCount,
+          actionRequiredTicketsCount,
+          overdueTicketsCount,
+          badgeCount,
+        },
+        'Ringkasan tiket retur berhasil diambil',
+        200
+      );
+    } catch (error) {
       return next(error);
     }
   },

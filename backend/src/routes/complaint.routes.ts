@@ -9,6 +9,7 @@ const router = Router();
 router.use(auth);
 
 router.get('/eligible-sales', rbac(['USER', 'SUPER_ADMIN', 'ADMIN']), complaintController.getEligibleSales);
+router.get('/summary', rbac(['USER', 'SUPER_ADMIN', 'ADMIN', 'TCP']), complaintController.getSummary);
 router.post('/', rbac(['USER', 'SUPER_ADMIN', 'ADMIN']), uploadComplaintSubmission, complaintController.create);
 router.get('/', rbac(['USER', 'SUPER_ADMIN', 'ADMIN', 'TCP']), complaintController.getAll);
 router.patch('/:id/claim', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), complaintController.claim);

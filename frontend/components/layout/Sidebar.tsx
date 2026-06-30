@@ -26,7 +26,13 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-type NotificationKey = 'pendingSales' | 'pendingApprovals' | 'overdueSettlements';
+type NotificationKey =
+  | 'pendingSales'
+  | 'pendingApprovals'
+  | 'overdueSettlements'
+  | 'complaints'
+  | 'returns'
+  | 'returnTickets';
 
 interface NavigationItem {
   name: string;
@@ -67,10 +73,10 @@ const navigationGroups: NavigationGroup[] = [
     title: 'Penjualan',
     items: [
       { name: 'Penjualan', href: '/sales', icon: ShoppingBag },
-      { name: 'Retur', href: '/returns', icon: RefreshCcw },
-      { name: 'Tiket Retur', href: '/return-tickets', icon: FileText },
+      { name: 'Retur', href: '/returns', icon: RefreshCcw, notificationKey: 'returns' },
+      { name: 'Tiket Retur', href: '/return-tickets', icon: FileText, notificationKey: 'returnTickets' },
       { name: 'Proses Penjualan', href: '/sales/process', icon: FileCheck, notificationKey: 'pendingSales' },
-      { name: 'Komplen', href: '/complaints', icon: MessageSquareWarning },
+      { name: 'Komplen', href: '/complaints', icon: MessageSquareWarning, notificationKey: 'complaints' },
     ]
   },
   {
@@ -228,6 +234,12 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
                   notificationCount = notifications.pendingApprovalsCount;
                 } else if (item.notificationKey === 'overdueSettlements') {
                   notificationCount = notifications.overdueSettlementsCount;
+                } else if (item.notificationKey === 'complaints') {
+                  notificationCount = notifications.complaintsCount;
+                } else if (item.notificationKey === 'returns') {
+                  notificationCount = notifications.returnsCount;
+                } else if (item.notificationKey === 'returnTickets') {
+                  notificationCount = notifications.returnTicketsCount;
                 }
                   
                 return (

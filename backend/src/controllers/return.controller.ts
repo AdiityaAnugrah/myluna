@@ -212,6 +212,49 @@ async function resolveReplacementStock(options: {
 }
 
 export const returnController = {
+  async getSummary(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new AppError('Authentication required', 401);
+
+      const activeStatuses = [
+        SaleReturnStatus.PENDING_REVIEW,
+        SaleReturnStatus.WAITING_ITEM_RETURN,
+        SaleReturnStatus.ITEM_RECEIVED,
+      ];
+
+      const where: any = {
+        status: {
+          [Op.in]: activeStatuses,
+        },
+      };
+
+      if (req.user.roleName === 'USER') {
+        where.requestedBy = req.user.id;
+      }
+
+      const activeCount = await SaleReturn.count({ where });
+      const pendingReviewCount = await SaleReturn.count({
+        where: {
+          ...where,
+          status: SaleReturnStatus.PENDING_REVIEW,
+        },
+      });
+
+      return successResponse(
+        res,
+        {
+          activeCount,
+          pendingReviewCount,
+          badgeCount: activeCount,
+        },
+        'Ringkasan retur berhasil diambil',
+        200
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   async getEligibleSales(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw new AppError('Authentication required', 401);

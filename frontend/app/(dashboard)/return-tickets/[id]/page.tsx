@@ -14,6 +14,7 @@ import {
   useAddReturnTicketMessage,
   useCompleteReturnTicketExecution,
   useFinalizeReturnTicketDecision,
+  useMarkReturnTicketAsRead,
   useReturnTicket,
   useStartReturnTicketExecution,
   useUpdateReturnTicketDeadline,
@@ -105,6 +106,7 @@ export default function ReturnTicketDetailPage() {
   const currentUserId = user?.id;
 
   const ticketQuery = useReturnTicket(params.id);
+  const markAsReadMutation = useMarkReturnTicketAsRead();
   const addMessageMutation = useAddReturnTicketMessage();
   const updateDeadlineMutation = useUpdateReturnTicketDeadline();
   const finalizeDecisionMutation = useFinalizeReturnTicketDecision();
@@ -186,6 +188,11 @@ export default function ReturnTicketDetailPage() {
       socket.off('return-ticket:execution:completed', refetch);
     };
   }, [socket, params.id, ticketQuery]);
+
+  useEffect(() => {
+    if (!ticket?.id || ticketQuery.isLoading || markAsReadMutation.isPending) return;
+    markAsReadMutation.mutate(ticket.id);
+  }, [ticket?.id, ticket?.messages?.length, ticket?.status, ticketQuery.isLoading]);
 
   const messageCount = ticket?.messages?.length || 0;
   const participantCount = ticket?.participants?.length || 0;

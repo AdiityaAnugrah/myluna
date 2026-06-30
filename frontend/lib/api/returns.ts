@@ -2,6 +2,15 @@ import apiClient from './client';
 import { ApiResponse, ReturnListData, Sale, SaleReturn } from '@/types';
 
 export const returnsApi = {
+  getSummary: async () => {
+    const response = await apiClient.get<ApiResponse<{
+      activeCount: number;
+      pendingReviewCount: number;
+      badgeCount: number;
+    }>>('/returns/summary');
+    return response.data;
+  },
+
   getEligibleSales: async (q: string) => {
     const response = await apiClient.get<ApiResponse<Sale[]>>('/returns/eligible-sales', {
       params: { q },

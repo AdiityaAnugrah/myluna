@@ -6,12 +6,13 @@ interface ReturnTicketParticipantAttributes {
   ticketId: string;
   userId: string;
   roleSnapshot: string;
+  lastReadAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 interface ReturnTicketParticipantCreationAttributes
-  extends Optional<ReturnTicketParticipantAttributes, 'id' | 'createdAt' | 'updatedAt'> {}
+  extends Optional<ReturnTicketParticipantAttributes, 'id' | 'lastReadAt' | 'createdAt' | 'updatedAt'> {}
 
 class ReturnTicketParticipant
   extends Model<ReturnTicketParticipantAttributes, ReturnTicketParticipantCreationAttributes>
@@ -21,6 +22,7 @@ class ReturnTicketParticipant
   declare ticketId: string;
   declare userId: string;
   declare roleSnapshot: string;
+  declare lastReadAt: Date | null;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 }
@@ -43,6 +45,10 @@ ReturnTicketParticipant.init(
     roleSnapshot: {
       type: DataTypes.STRING(50),
       allowNull: false,
+    },
+    lastReadAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
     },
     createdAt: {
       type: DataTypes.DATE,

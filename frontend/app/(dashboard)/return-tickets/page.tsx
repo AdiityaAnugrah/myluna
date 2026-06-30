@@ -183,6 +183,16 @@ export default function ReturnTicketsPage() {
                         <Badge variant="outline" className={statusClass(overdue ? 'OVERDUE' : ticket.status)}>
                           {getReturnTicketStatusLabel(overdue ? 'OVERDUE' : ticket.status, { overdue })}
                         </Badge>
+                        {(ticket.unreadCount || 0) > 0 && (
+                          <Badge className="bg-red-500 text-white">
+                            {ticket.unreadCount} balasan baru
+                          </Badge>
+                        )}
+                        {ticket.requiresAction && ticket.actionLabel && (
+                          <Badge variant="outline" className="border-amber-400 bg-amber-50 text-amber-700">
+                            {ticket.actionLabel}
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-sm">
                         Retur: <strong>{ticket.returnRecord?.returnNumber || '-'}</strong> • Pesanan:{' '}

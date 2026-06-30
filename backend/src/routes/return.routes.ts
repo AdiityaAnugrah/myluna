@@ -9,6 +9,7 @@ const router = Router();
 router.use(auth);
 
 router.get('/eligible-sales', rbac(['USER', 'SUPER_ADMIN', 'ADMIN']), returnController.getEligibleSales);
+router.get('/summary', rbac(['USER', 'TCP', 'SUPER_ADMIN', 'ADMIN']), returnController.getSummary);
 router.post('/', rbac(['USER', 'SUPER_ADMIN', 'ADMIN']), uploadReturnPhotos, returnController.create);
 router.get('/', rbac(['USER', 'TCP', 'SUPER_ADMIN', 'ADMIN']), returnController.getAll);
 router.get('/:id', rbac(['USER', 'TCP', 'SUPER_ADMIN', 'ADMIN']), returnController.getById);
