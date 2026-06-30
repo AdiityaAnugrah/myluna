@@ -55,10 +55,10 @@ export function useClaimComplaint() {
     mutationFn: ({ id }: { id: string }) => complaintsApi.claim(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['complaints'] });
-      toast.success('Komplen sedang diproses oleh TCP');
+      toast.success('Komplen berhasil diterima untuk diproses');
     },
     onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, 'Gagal memproses komplen'));
+      toast.error(getErrorMessage(error, 'Gagal menerima komplen untuk diproses'));
     },
   });
 }
@@ -70,10 +70,25 @@ export function useMarkComplaintHandled() {
     mutationFn: ({ id }: { id: string }) => complaintsApi.markHandled(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['complaints'] });
-      toast.success('Komplen ditandai sudah diurus');
+      toast.success('Komplen berhasil ditandai pengganti sudah dikirim');
     },
     onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, 'Gagal memperbarui status komplen'));
+      toast.error(getErrorMessage(error, 'Gagal menandai pengganti sudah dikirim'));
+    },
+  });
+}
+
+export function useCompleteComplaint() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => complaintsApi.complete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      toast.success('Komplen berhasil ditandai selesai');
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Gagal menyelesaikan komplen'));
     },
   });
 }

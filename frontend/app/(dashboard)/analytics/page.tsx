@@ -16,9 +16,12 @@ import {
   BarChart3,
   Boxes,
   ChevronRight,
+  ClipboardList,
   MapPin,
+  MessageSquareWarning,
   ReceiptText,
   Store,
+  Ticket,
 } from 'lucide-react';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
@@ -28,7 +31,7 @@ import { Label } from '@/components/ui/label';
 import { SkeletonChart, SkeletonCard } from '@/components/ui/loading-skeleton';
 import { ErrorState } from '@/components/ui/error-state';
 import { EmptyState } from '@/components/ui/empty-state';
-import { useSalesAnalytics } from '@/lib/hooks/useAnalytics';
+import { useOperationalAnalytics, useSalesAnalytics } from '@/lib/hooks/useAnalytics';
 import { SalesAnalytics } from '@/types';
 import { UnmappedSalesDialog } from '@/components/analytics/UnmappedSalesDialog';
 
@@ -104,7 +107,7 @@ export default function AnalyticsPage() {
   const [unmappedDialogOpen, setUnmappedDialogOpen] = useState(false);
 
   const regionLevel = regionLevels[Math.min(regionPath.length, regionLevels.length - 1)];
-  const activeScope = regionPath.at(-1);
+  const activeScope = regionPath.length > 0 ? regionPath[regionPath.length - 1] : undefined;
   const canDrillDown = selectedCategory === 'regions' && regionLevel !== 'village';
   const isDetailView = selectedCategory !== null;
 
@@ -122,12 +125,34 @@ export default function AnalyticsPage() {
   const analyticsQuery = useSalesAnalytics(analyticsParams, {
     enabled: isDetailView,
   });
+  const operationsQuery = useOperationalAnalytics(
+    { startDate, endDate },
+    { enabled: true }
+  );
 
   const analytics = analyticsQuery.data?.data;
-  const chartProducts = analytics?.topProducts.slice(0, 6) || [];
-  const chartVariants = analytics?.topVariants.slice(0, 6) || [];
-  const chartRegions = analytics?.topRegions.slice(0, 6) || [];
-  const chartPlatforms = analytics?.topPlatforms.slice(0, 8) || [];
+  const operations = operationsQuery.data?.data;
+  const analyticsSummary = {
+    totalSales: analytics?.summary?.totalSales ?? 0,
+    totalRevenue: analytics?.summary?.totalRevenue ?? 0,
+    totalQuantitySold: analytics?.summary?.totalQuantitySold ?? 0,
+    averageOrderValue: analytics?.summary?.averageOrderValue ?? 0,
+    totalProductsSold: analytics?.summary?.totalProductsSold ?? 0,
+    totalVariantsSold: analytics?.summary?.totalVariantsSold ?? 0,
+    totalRegionsCovered: analytics?.summary?.totalRegionsCovered ?? 0,
+    totalPlatformsUsed: analytics?.summary?.totalPlatformsUsed ?? 0,
+    mappedSales: analytics?.summary?.mappedSales ?? 0,
+    unmappedSales: analytics?.summary?.unmappedSales ?? 0,
+    mappingCoverage: analytics?.summary?.mappingCoverage ?? 0,
+  };
+  const topProducts = Array.isArray(analytics?.topProducts) ? analytics.topProducts : [];
+  const topVariants = Array.isArray(analytics?.topVariants) ? analytics.topVariants : [];
+  const topRegions = Array.isArray(analytics?.topRegions) ? analytics.topRegions : [];
+  const topPlatforms = Array.isArray(analytics?.topPlatforms) ? analytics.topPlatforms : [];
+  const chartProducts = topProducts.slice(0, 6);
+  const chartVariants = topVariants.slice(0, 6);
+  const chartRegions = topRegions.slice(0, 6);
+  const chartPlatforms = topPlatforms.slice(0, 8);
   const maxProductQuantity = Math.max(...(chartProducts.map((item) => item.quantitySold) || [0]), 1);
   const maxVariantQuantity = Math.max(...(chartVariants.map((item) => item.quantitySold) || [0]), 1);
   const maxRegionOrders = Math.max(...(chartRegions.map((item) => item.orderCount) || [0]), 1);
@@ -167,8 +192,8 @@ export default function AnalyticsPage() {
           : '';
 
   const unmappedSalesPercentage = analytics
-    ? analytics.summary.totalSales > 0
-      ? Math.round((analytics.summary.unmappedSales / analytics.summary.totalSales) * 10000) / 100
+    ? analyticsSummary.totalSales > 0
+      ? Math.round((analyticsSummary.unmappedSales / analyticsSummary.totalSales) * 10000) / 100
       : 0
     : 0;
 
@@ -178,7 +203,7 @@ export default function AnalyticsPage() {
           {
             key: 'quantity',
             label: 'Total Unit Terjual',
-            value: analytics.summary.totalQuantitySold.toLocaleString('id-ID'),
+            value: analyticsSummary.totalQuantitySold.toLocaleString('id-ID'),
             description: 'Akumulasi seluruh unit produk yang berhasil terjual.',
             icon: Boxes,
             iconClassName: 'text-primary',
@@ -186,7 +211,7 @@ export default function AnalyticsPage() {
           {
             key: 'products',
             label: 'Produk Terjual',
-            value: analytics.summary.totalProductsSold.toLocaleString('id-ID'),
+            value: analyticsSummary.totalProductsSold.toLocaleString('id-ID'),
             description: 'Jumlah produk unik yang ikut terjual.',
             icon: ReceiptText,
             iconClassName: 'text-success',
@@ -194,7 +219,7 @@ export default function AnalyticsPage() {
           {
             key: 'variants',
             label: 'Varian Terjual',
-            value: analytics.summary.totalVariantsSold.toLocaleString('id-ID'),
+            value: analyticsSummary.totalVariantsSold.toLocaleString('id-ID'),
             description: 'Jumlah kombinasi produk-varian yang terjual.',
             icon: BarChart3,
             iconClassName: 'text-info',
@@ -202,7 +227,7 @@ export default function AnalyticsPage() {
           {
             key: 'revenue',
             label: 'Nilai Penjualan',
-            value: formatCurrency(analytics.summary.totalRevenue),
+            value: formatCurrency(analyticsSummary.totalRevenue),
             description: 'Total omzet dari seluruh produk yang terjual.',
             icon: Store,
             iconClassName: 'text-warning',
@@ -213,7 +238,7 @@ export default function AnalyticsPage() {
             {
               key: 'sales',
               label: 'Total Transaksi',
-              value: analytics.summary.totalSales.toLocaleString('id-ID'),
+              value: analyticsSummary.totalSales.toLocaleString('id-ID'),
               description: 'Jumlah pembelian yang tercatat pada periode ini.',
               icon: ReceiptText,
               iconClassName: 'text-primary',
@@ -221,7 +246,7 @@ export default function AnalyticsPage() {
             {
               key: 'quantity',
               label: 'Total Unit Terjual',
-              value: analytics.summary.totalQuantitySold.toLocaleString('id-ID'),
+              value: analyticsSummary.totalQuantitySold.toLocaleString('id-ID'),
               description: 'Akumulasi unit yang terjual pada seluruh wilayah yang tercakup.',
               icon: BarChart3,
               iconClassName: 'text-success',
@@ -230,8 +255,8 @@ export default function AnalyticsPage() {
               key: 'unmapped-rate',
               label: 'Belum Terpetakan',
               value: `${unmappedSalesPercentage}%`,
-              description: analytics.summary.unmappedSales > 0
-                ? `${analytics.summary.unmappedSales} penjualan belum terpetakan ke wilayah.`
+              description: analyticsSummary.unmappedSales > 0
+                ? `${analyticsSummary.unmappedSales} penjualan belum terpetakan ke wilayah.`
                 : 'Tidak ada penjualan yang belum terpetakan ke wilayah.',
               icon: MapPin,
               iconClassName: 'text-info',
@@ -239,8 +264,8 @@ export default function AnalyticsPage() {
             {
               key: 'revenue',
               label: 'Nilai Penjualan',
-              value: formatCurrency(analytics.summary.totalRevenue),
-              description: `Cakupan ${regionLabels[regionLevel].toLowerCase()}: ${analytics.summary.totalRegionsCovered.toLocaleString('id-ID')} wilayah.`,
+              value: formatCurrency(analyticsSummary.totalRevenue),
+              description: `Cakupan ${regionLabels[regionLevel].toLowerCase()}: ${analyticsSummary.totalRegionsCovered.toLocaleString('id-ID')} wilayah.`,
               icon: Boxes,
               iconClassName: 'text-warning',
             },
@@ -249,7 +274,7 @@ export default function AnalyticsPage() {
             {
               key: 'sales',
               label: 'Total Transaksi',
-              value: analytics.summary.totalSales.toLocaleString('id-ID'),
+              value: analyticsSummary.totalSales.toLocaleString('id-ID'),
               description: 'Jumlah transaksi yang tercatat dari seluruh platform pada periode ini.',
               icon: ReceiptText,
               iconClassName: 'text-primary',
@@ -257,7 +282,7 @@ export default function AnalyticsPage() {
             {
               key: 'revenue',
               label: 'Nilai Penjualan',
-              value: formatCurrency(analytics.summary.totalRevenue),
+              value: formatCurrency(analyticsSummary.totalRevenue),
               description: 'Total omzet gabungan dari seluruh platform yang aktif.',
               icon: BarChart3,
               iconClassName: 'text-success',
@@ -265,7 +290,7 @@ export default function AnalyticsPage() {
             {
               key: 'platforms',
               label: 'Platform Aktif',
-              value: analytics.summary.totalPlatformsUsed.toLocaleString('id-ID'),
+              value: analyticsSummary.totalPlatformsUsed.toLocaleString('id-ID'),
               description: 'Jumlah platform yang menghasilkan transaksi pada periode terpilih.',
               icon: Store,
               iconClassName: 'text-info',
@@ -273,7 +298,7 @@ export default function AnalyticsPage() {
             {
               key: 'aov',
               label: 'Rata-rata per Transaksi',
-              value: formatCurrency(analytics.summary.averageOrderValue),
+              value: formatCurrency(analyticsSummary.averageOrderValue),
               description: 'Rata-rata nilai penjualan untuk setiap transaksi lintas platform.',
               icon: Boxes,
               iconClassName: 'text-warning',
@@ -364,6 +389,53 @@ export default function AnalyticsPage() {
         )}
       </div>
 
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Card>
+          <CardContent className="flex items-start justify-between gap-4 p-5">
+            <div>
+              <p className="text-sm text-muted-foreground">Komplen Aktif</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums">
+                {operationsQuery.isLoading ? '...' : (operations?.complaints.active || 0)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Review: {operations?.complaints.pendingReview || 0} • Ditangani: {operations?.complaints.acceptedByTcp || 0} • Pengganti Dikirim: {operations?.complaints.replacementShipped || 0}
+              </p>
+            </div>
+            <MessageSquareWarning className="h-6 w-6 shrink-0 text-warning" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-start justify-between gap-4 p-5">
+            <div>
+              <p className="text-sm text-muted-foreground">Retur Aktif</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums">
+                {operationsQuery.isLoading ? '...' : (operations?.returns.active || 0)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Review: {operations?.returns.pendingReview || 0} • Menunggu Barang: {operations?.returns.waitingItemReturn || 0} • Siap Finalisasi: {operations?.returns.itemReceived || 0}
+              </p>
+            </div>
+            <ClipboardList className="h-6 w-6 shrink-0 text-info" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-start justify-between gap-4 p-5">
+            <div>
+              <p className="text-sm text-muted-foreground">Tiket Retur Aktif</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums">
+                {operationsQuery.isLoading ? '...' : (operations?.tickets.active || 0)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Diskusi: {operations?.tickets.inDiscussion || 0} • Tunggu TCP: {operations?.tickets.waitingTcpExecution || 0} • Dieksekusi: {operations?.tickets.tcpExecuting || 0}
+              </p>
+            </div>
+            <Ticket className="h-6 w-6 shrink-0 text-primary" />
+          </CardContent>
+        </Card>
+      </div>
+
       {!isDetailView ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {analyticsCategoryOptions.map((option) => (
@@ -432,7 +504,7 @@ export default function AnalyticsPage() {
                         {card.description && (
                           <p className="mt-1 text-xs text-muted-foreground">{card.description}</p>
                         )}
-                        {selectedCategory === 'regions' && card.key === 'unmapped-rate' && analytics.summary.unmappedSales > 0 && (
+                        {selectedCategory === 'regions' && card.key === 'unmapped-rate' && analyticsSummary.unmappedSales > 0 && (
                           <Button
                             type="button"
                             variant="link"
@@ -463,7 +535,7 @@ export default function AnalyticsPage() {
               <CardContent>
                 {analyticsQuery.isLoading || !analytics ? (
                   <SkeletonChart />
-                ) : analytics.topProducts.length === 0 ? (
+                ) : topProducts.length === 0 ? (
                   <EmptyState
                     icon={Boxes}
                     title="Belum ada data produk"
@@ -528,7 +600,7 @@ export default function AnalyticsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {analytics.topProducts.map((item) => (
+                          {topProducts.map((item) => (
                             <tr key={item.productId} className="border-b last:border-0">
                               <td className="py-2.5">
                                 <div className="break-words font-medium">{item.productName}</div>
@@ -551,7 +623,7 @@ export default function AnalyticsPage() {
                         </p>
                       </div>
 
-                      {analytics.topVariants.length === 0 ? (
+                      {topVariants.length === 0 ? (
                         <EmptyState
                           icon={Boxes}
                           title="Belum ada data varian"
@@ -617,7 +689,7 @@ export default function AnalyticsPage() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {analytics.topVariants.map((item, index) => (
+                                {topVariants.map((item, index) => (
                                   <tr key={`${item.productId}-${item.variantName}-${index}`} className="border-b last:border-0">
                                     <td className="py-2.5">
                                       <div className="break-words font-medium">{item.productName}</div>
@@ -654,7 +726,7 @@ export default function AnalyticsPage() {
               <CardContent>
                 {analyticsQuery.isLoading || !analytics ? (
                   <SkeletonChart />
-                ) : analytics.topRegions.length === 0 ? (
+                ) : topRegions.length === 0 ? (
                   <EmptyState
                     icon={MapPin}
                     title="Belum ada data wilayah"
@@ -721,7 +793,7 @@ export default function AnalyticsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {analytics.topRegions.map((item) => (
+                          {topRegions.map((item) => (
                             <tr key={item.regionId} className="border-b last:border-0">
                               <td className="font-medium">
                                 {canDrillDown ? (
@@ -762,7 +834,7 @@ export default function AnalyticsPage() {
               <CardContent>
                 {analyticsQuery.isLoading || !analytics ? (
                   <SkeletonChart />
-                ) : analytics.topPlatforms.length === 0 ? (
+                ) : topPlatforms.length === 0 ? (
                   <EmptyState
                     icon={Store}
                     title="Belum ada data platform"
@@ -826,7 +898,7 @@ export default function AnalyticsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {analytics.topPlatforms.map((item) => (
+                          {topPlatforms.map((item) => (
                             <tr key={item.platformName} className="border-b last:border-0">
                               <td className="break-words py-2.5 font-medium">{item.platformName}</td>
                               <td className="py-2.5 text-right tabular-nums">{item.orderCount}</td>

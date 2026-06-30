@@ -37,4 +37,9 @@ export const complaintsApi = {
     const response = await apiClient.patch<ApiResponse<Complaint>>(`/complaints/${id}/mark-handled`);
     return response.data;
   },
+
+  complete: async (id: string) => {
+    const response = await apiClient.patch<ApiResponse<Complaint>>(`/complaints/${id}/complete`);
+    return response.data;
+  },
 };

@@ -6,7 +6,7 @@ import { useSales, useSalesStats } from '@/lib/hooks/useSales';
 import { usePurchases } from '@/lib/hooks/usePurchases';
 import { useAuditLogs } from '@/lib/hooks/useAudit';
 import { useSettlementStats } from '@/lib/hooks/useSettlements';
-import { useComplaints } from '@/lib/hooks/useComplaints';
+import { useOperationalAnalytics } from '@/lib/hooks/useAnalytics';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -122,27 +122,10 @@ export default function DashboardPage() {
     refetch: refetchSettlement 
   } = useSettlementStats({}, { enabled: user?.role !== 'TCP' });
 
-  // Complaint summaries for role-specific dashboard blocks
-  const { data: complaintPendingReviewData } = useComplaints(
-    { page: 1, limit: 1, status: 'PENDING_TCP_REVIEW' },
-    { enabled: isTcpRole }
-  );
-  const { data: complaintNeedShipData } = useComplaints(
-    { page: 1, limit: 1, status: 'ACCEPTED_BY_TCP' },
-    { enabled: isTcpRole }
-  );
-  const { data: myComplaintsTotalData } = useComplaints(
-    { page: 1, limit: 1 },
-    { enabled: isUserRole }
-  );
-  const { data: myComplaintsPendingData } = useComplaints(
-    { page: 1, limit: 1, status: 'PENDING_TCP_REVIEW' },
-    { enabled: isUserRole }
-  );
-  const { data: myComplaintsShippedData } = useComplaints(
-    { page: 1, limit: 1, status: 'REPLACEMENT_SHIPPED' },
-    { enabled: isUserRole }
-  );
+  const {
+    data: operationalAnalyticsData,
+    refetch: refetchOperationalAnalytics,
+  } = useOperationalAnalytics(undefined, { enabled: !!user });
 
   useEffect(() => {
     if (!user) {
@@ -197,6 +180,7 @@ export default function DashboardPage() {
       refetchPurchases(),
       refetchAudit(),
       refetchStats(), // Now used by Admins as well for Omset & Chart
+      refetchOperationalAnalytics(),
       user?.role !== 'TCP' && refetchSettlement()
     ]);
     setIsRefreshing(false);
@@ -210,8 +194,10 @@ export default function DashboardPage() {
   // ─── TCP ROLE: Tampilan Proses Penjualan ────────────────────────────────
   if (user.role === 'TCP') {
     const allSales: any[] = salesData?.data?.sales || [];
-    const complaintPendingReviewCount = complaintPendingReviewData?.data?.pagination?.total || 0;
-    const complaintNeedShipCount = complaintNeedShipData?.data?.pagination?.total || 0;
+    const ops = operationalAnalyticsData?.data;
+    const complaintPendingReviewCount = ops?.complaints.pendingReview || 0;
+    const ticketWaitingExecutionCount = ops?.tickets.waitingTcpExecution || 0;
+    const ticketExecutingCount = ops?.tickets.tcpExecuting || 0;
 
     const stats = salesStatsData?.data || {
       WAITING_APPROVAL: 0,
@@ -363,13 +349,44 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Komplen Siap Kirim Pengganti</p>
-                  <p className="text-2xl font-bold text-blue-600">{complaintNeedShipCount}</p>
+                  <p className="text-2xl font-bold text-blue-600">{ticketWaitingExecutionCount}</p>
                 </div>
                 <div className="p-3 bg-blue-500/10 rounded-2xl">
                   <Truck className="h-6 w-6 text-blue-600" />
                 </div>
               </div>
-              <p className="mt-3 text-xs text-muted-foreground">Wajib upload PDF resi pengganti</p>
+              <p className="mt-3 text-xs text-muted-foreground">Tiket retur sudah masuk tahap eksekusi TCP</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <Card className="border-none shadow-md bg-card/50 backdrop-blur-sm card-hover">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Retur Sedang Dieksekusi</p>
+                  <p className="text-2xl font-bold text-green-600">{ticketExecutingCount}</p>
+                </div>
+                <div className="p-3 bg-green-500/10 rounded-2xl">
+                  <ClipboardList className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">Pantau tiket yang sedang dieksekusi TCP</p>
+            </CardContent>
+          </Card>
+          <Card className="border-none shadow-md bg-card/50 backdrop-blur-sm card-hover">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Retur Menunggu Barang Kembali</p>
+                  <p className="text-2xl font-bold text-violet-600">{ops?.returns.waitingItemReturn || 0}</p>
+                </div>
+                <div className="p-3 bg-violet-500/10 rounded-2xl">
+                  <FileText className="h-6 w-6 text-violet-600" />
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">Barang fisik masih ditunggu tim</p>
             </CardContent>
           </Card>
         </div>
@@ -420,9 +437,11 @@ export default function DashboardPage() {
 
   const totalProducts = productsData?.data?.pagination?.total || 0;
   const lowStockCount = lowStockData?.data?.length || 0;
-  const myComplaintsTotal = myComplaintsTotalData?.data?.pagination?.total || 0;
-  const myComplaintsPending = myComplaintsPendingData?.data?.pagination?.total || 0;
-  const myComplaintsShipped = myComplaintsShippedData?.data?.pagination?.total || 0;
+  const myComplaintOps = operationalAnalyticsData?.data?.complaints;
+  const myReturnOps = operationalAnalyticsData?.data?.returns;
+  const myComplaintsTotal = myComplaintOps?.total || 0;
+  const myComplaintsPending = myComplaintOps?.pendingReview || 0;
+  const myComplaintsShipped = myComplaintOps?.replacementShipped || 0;
   const isLoading = productsLoading || lowStockLoading || salesLoading || purchasesLoading;
   const hasError = productsError || lowStockError || salesError;
 
@@ -586,7 +605,7 @@ export default function DashboardPage() {
               <Button variant="outline" size="sm">Lihat Detail</Button>
             </Link>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <CardContent className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Total Komplen</p>
               <p className="text-2xl font-bold">{myComplaintsTotal}</p>
@@ -598,6 +617,10 @@ export default function DashboardPage() {
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Sedang Dikirim</p>
               <p className="text-2xl font-bold text-green-600">{myComplaintsShipped}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Retur Aktif Saya</p>
+              <p className="text-2xl font-bold text-blue-600">{myReturnOps?.active || 0}</p>
             </div>
           </CardContent>
         </Card>

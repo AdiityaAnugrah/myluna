@@ -1,6 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
-import { QueryTypes } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 import { sequelize } from '../config/database';
+import {
+  Complaint,
+  ComplaintStatus,
+  ReturnTicket,
+  ReturnTicketStatus,
+  SaleReturn,
+  SaleReturnStatus,
+} from '../models';
 import { successResponse } from '../utils/response';
 import { createPlatformNameResolver } from '../utils/platformName';
 import { formatRegionLabel } from '../utils/regionLabel';
@@ -50,7 +58,220 @@ function extractPostalCode(value: unknown) {
   return String(value || '').match(/\b\d{5}\b/)?.[0] || null;
 }
 
+function buildCreatedAtFilter(startDate?: string, endDate?: string) {
+  if (!startDate && !endDate) return undefined;
+
+  const filter: Record<symbol, Date> = {} as Record<symbol, Date>;
+  if (startDate) {
+    filter[Op.gte] = new Date(`${startDate}T00:00:00.000Z`);
+  }
+  if (endDate) {
+    filter[Op.lte] = new Date(`${endDate}T23:59:59.999Z`);
+  }
+
+  return filter;
+}
+
 export const analyticsController = {
+  async getOperationalSummary(req: Request, res: Response, next: NextFunction) {
+    try {
+      const startDate = typeof req.query.startDate === 'string' ? req.query.startDate : undefined;
+      const endDate = typeof req.query.endDate === 'string' ? req.query.endDate : undefined;
+      const createdAt = buildCreatedAtFilter(startDate, endDate);
+      const roleName = req.user?.roleName || '';
+      const isUserRole = roleName === 'USER';
+
+      const complaintWhere: any = {};
+      const returnWhere: any = {};
+      const ticketWhere: any = {};
+
+      if (createdAt) {
+        complaintWhere.createdAt = createdAt;
+        returnWhere.createdAt = createdAt;
+        ticketWhere.createdAt = createdAt;
+      }
+
+      if (isUserRole && req.user?.id) {
+        complaintWhere.createdBy = req.user.id;
+        returnWhere.requestedBy = req.user.id;
+        ticketWhere.createdBy = req.user.id;
+      }
+
+      const [
+        complaintRows,
+        returnRows,
+        ticketRows,
+      ] = await Promise.all([
+        Complaint.findAll({
+          attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+          where: complaintWhere,
+          group: ['status'],
+          raw: true,
+        }),
+        SaleReturn.findAll({
+          attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+          where: returnWhere,
+          group: ['status'],
+          raw: true,
+        }),
+        ReturnTicket.findAll({
+          attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+          where: ticketWhere,
+          group: ['status'],
+          raw: true,
+        }),
+      ]);
+
+      const complaints = {
+        total: 0,
+        active: 0,
+        pendingReview: 0,
+        acceptedByTcp: 0,
+        replacementShipped: 0,
+        completed: 0,
+        convertedToReturn: 0,
+        rejected: 0,
+      };
+
+      for (const row of complaintRows as any[]) {
+        const count = Number(row.count || 0);
+        complaints.total += count;
+
+        switch (row.status as ComplaintStatus) {
+          case ComplaintStatus.PENDING_TCP_REVIEW:
+            complaints.pendingReview = count;
+            complaints.active += count;
+            break;
+          case ComplaintStatus.ACCEPTED_BY_TCP:
+            complaints.acceptedByTcp = count;
+            complaints.active += count;
+            break;
+          case ComplaintStatus.REPLACEMENT_SHIPPED:
+            complaints.replacementShipped = count;
+            complaints.active += count;
+            break;
+          case ComplaintStatus.COMPLETED:
+            complaints.completed = count;
+            break;
+          case ComplaintStatus.CONVERTED_TO_RETURN:
+            complaints.convertedToReturn = count;
+            break;
+          case ComplaintStatus.REJECTED_BY_TCP:
+            complaints.rejected = count;
+            break;
+        }
+      }
+
+      const returns = {
+        total: 0,
+        active: 0,
+        pendingReview: 0,
+        waitingItemReturn: 0,
+        itemReceived: 0,
+        restocked: 0,
+        damaged: 0,
+        resent: 0,
+        completed: 0,
+        rejected: 0,
+      };
+
+      for (const row of returnRows as any[]) {
+        const count = Number(row.count || 0);
+        returns.total += count;
+
+        switch (row.status as SaleReturnStatus) {
+          case SaleReturnStatus.PENDING_REVIEW:
+            returns.pendingReview = count;
+            returns.active += count;
+            break;
+          case SaleReturnStatus.WAITING_ITEM_RETURN:
+            returns.waitingItemReturn = count;
+            returns.active += count;
+            break;
+          case SaleReturnStatus.ITEM_RECEIVED:
+            returns.itemReceived = count;
+            returns.active += count;
+            break;
+          case SaleReturnStatus.RESTOCKED:
+            returns.restocked = count;
+            break;
+          case SaleReturnStatus.DAMAGED:
+            returns.damaged = count;
+            break;
+          case SaleReturnStatus.RESENT:
+            returns.resent = count;
+            break;
+          case SaleReturnStatus.COMPLETED:
+            returns.completed = count;
+            break;
+          case SaleReturnStatus.REJECTED:
+            returns.rejected = count;
+            break;
+        }
+      }
+
+      const tickets = {
+        total: 0,
+        active: 0,
+        open: 0,
+        inDiscussion: 0,
+        waitingTcpExecution: 0,
+        tcpExecuting: 0,
+        overdue: 0,
+        completed: 0,
+        rejected: 0,
+      };
+
+      for (const row of ticketRows as any[]) {
+        const count = Number(row.count || 0);
+        tickets.total += count;
+
+        switch (row.status as ReturnTicketStatus) {
+          case ReturnTicketStatus.OPEN:
+            tickets.open = count;
+            tickets.active += count;
+            break;
+          case ReturnTicketStatus.IN_DISCUSSION:
+            tickets.inDiscussion = count;
+            tickets.active += count;
+            break;
+          case ReturnTicketStatus.WAITING_TCP_EXECUTION:
+            tickets.waitingTcpExecution = count;
+            tickets.active += count;
+            break;
+          case ReturnTicketStatus.TCP_EXECUTING:
+            tickets.tcpExecuting = count;
+            tickets.active += count;
+            break;
+          case ReturnTicketStatus.OVERDUE:
+            tickets.overdue = count;
+            tickets.active += count;
+            break;
+          case ReturnTicketStatus.COMPLETED:
+            tickets.completed = count;
+            break;
+          case ReturnTicketStatus.REJECTED:
+            tickets.rejected = count;
+            break;
+        }
+      }
+
+      return successResponse(
+        res,
+        {
+          period: startDate || endDate ? { startDate: startDate || null, endDate: endDate || null } : null,
+          complaints,
+          returns,
+          tickets,
+        },
+        'Operational analytics retrieved successfully',
+        200
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   async getSalesAnalytics(req: Request, res: Response, next: NextFunction) {
     try {
       const { startDate, endDate } = getDefaultDateRange(req);
@@ -60,28 +281,69 @@ export const analyticsController = {
       const region = regionConfig[regionLevel];
 
       const replacements = { startDate, endDate, limit, scopeRegionId };
-      const scopeWhere = scopeLevel && scopeRegionId
-        ? `AND s.${regionConfig[scopeLevel].saleColumn} = :scopeRegionId`
-        : '';
-      const activeSaleWhere = `
-        s.isInitialBalance = 0
-        AND s.status NOT IN ('CANCELLED', 'REJECTED')
-        AND DATE(s.saleDate) BETWEEN :startDate AND :endDate
-        ${scopeWhere}
+      const scopeWhere = (saleAlias: string) => (
+        scopeLevel && scopeRegionId
+          ? `AND ${saleAlias}.${regionConfig[scopeLevel].saleColumn} = :scopeRegionId`
+          : ''
+      );
+      const activeSaleWhere = (saleAlias: string) => `
+        ${saleAlias}.isInitialBalance = 0
+        AND ${saleAlias}.status NOT IN ('CANCELLED', 'REJECTED')
+        AND DATE(${saleAlias}.saleDate) BETWEEN :startDate AND :endDate
+        ${scopeWhere(saleAlias)}
       `;
 
-      const [summaryRows, productRows, regionRows, rawPlatformRows, masterPlatformRows] = await Promise.all([
+      const [summaryRows, productRows, variantRows, regionRows, rawPlatformRows, masterPlatformRows] = await Promise.all([
         sequelize.query(
           `
             SELECT
-              COUNT(DISTINCT s.id) AS totalSales,
-              COALESCE(SUM(s.totalAmount), 0) AS totalRevenue,
-              COUNT(DISTINCT CASE WHEN mapped.id IS NOT NULL THEN s.id END) AS mappedSales
-            FROM sales s
-            LEFT JOIN ${region.table} mapped
-              ON mapped.id = s.${region.saleColumn}
-              AND mapped.isActive = 1
-            WHERE ${activeSaleWhere}
+              (
+                SELECT COUNT(DISTINCT s1.id)
+                FROM sales s1
+                WHERE ${activeSaleWhere('s1')}
+              ) AS totalSales,
+              (
+                SELECT COALESCE(SUM(s2.totalAmount), 0)
+                FROM sales s2
+                WHERE ${activeSaleWhere('s2')}
+              ) AS totalRevenue,
+              (
+                SELECT COALESCE(SUM(si2.quantity), 0)
+                FROM sale_items si2
+                INNER JOIN sales s3 ON s3.id = si2.saleId
+                WHERE ${activeSaleWhere('s3')}
+              ) AS totalQuantitySold,
+              (
+                SELECT COUNT(DISTINCT si3.productId)
+                FROM sale_items si3
+                INNER JOIN sales s4 ON s4.id = si3.saleId
+                WHERE ${activeSaleWhere('s4')}
+              ) AS totalProductsSold,
+              (
+                SELECT COUNT(DISTINCT CASE
+                  WHEN COALESCE(si4.variantName, '') <> '' THEN CONCAT(si4.productId, '::', si4.variantName)
+                  ELSE NULL
+                END)
+                FROM sale_items si4
+                INNER JOIN sales s5 ON s5.id = si4.saleId
+                WHERE ${activeSaleWhere('s5')}
+              ) AS totalVariantsSold,
+              (
+                SELECT COUNT(DISTINCT mapped2.id)
+                FROM sales s6
+                INNER JOIN ${region.table} mapped2
+                  ON mapped2.id = s6.${region.saleColumn}
+                  AND mapped2.isActive = 1
+                WHERE ${activeSaleWhere('s6')}
+              ) AS totalRegionsCovered,
+              (
+                SELECT COUNT(DISTINCT CASE WHEN mapped3.id IS NOT NULL THEN s7.id END)
+                FROM sales s7
+                LEFT JOIN ${region.table} mapped3
+                  ON mapped3.id = s7.${region.saleColumn}
+                  AND mapped3.isActive = 1
+                WHERE ${activeSaleWhere('s7')}
+              ) AS mappedSales
           `,
           { replacements, type: QueryTypes.SELECT }
         ),
@@ -97,8 +359,29 @@ export const analyticsController = {
             FROM sale_items si
             INNER JOIN sales s ON s.id = si.saleId
             INNER JOIN products p ON p.id = si.productId
-            WHERE ${activeSaleWhere}
+            WHERE ${activeSaleWhere('s')}
             GROUP BY p.id, p.name, p.sku
+            ORDER BY quantitySold DESC, revenue DESC
+            LIMIT :limit
+          `,
+          { replacements, type: QueryTypes.SELECT }
+        ),
+        sequelize.query(
+          `
+            SELECT
+              p.id AS productId,
+              p.name AS productName,
+              p.sku,
+              si.variantName,
+              SUM(si.quantity) AS quantitySold,
+              COUNT(DISTINCT si.saleId) AS orderCount,
+              COALESCE(SUM(si.subtotal), 0) AS revenue
+            FROM sale_items si
+            INNER JOIN sales s ON s.id = si.saleId
+            INNER JOIN products p ON p.id = si.productId
+            WHERE ${activeSaleWhere('s')}
+              AND COALESCE(si.variantName, '') <> ''
+            GROUP BY p.id, p.name, p.sku, si.variantName
             ORDER BY quantitySold DESC, revenue DESC
             LIMIT :limit
           `,
@@ -121,7 +404,7 @@ export const analyticsController = {
               FROM sale_items
               GROUP BY saleId
             ) si ON si.saleId = s.id
-            WHERE ${activeSaleWhere}
+            WHERE ${activeSaleWhere('s')}
             GROUP BY r.id, r.label
             ORDER BY orderCount DESC, revenue DESC
             LIMIT :limit
@@ -141,7 +424,7 @@ export const analyticsController = {
               FROM sale_items
               GROUP BY saleId
             ) si ON si.saleId = s.id
-            WHERE ${activeSaleWhere}
+            WHERE ${activeSaleWhere('s')}
             GROUP BY s.platform
             ORDER BY orderCount DESC, revenue DESC
           `,
@@ -155,6 +438,7 @@ export const analyticsController = {
 
       const rawSummary = (summaryRows[0] || {}) as any;
       const totalSales = Number(rawSummary.totalSales || 0);
+      const totalRevenue = Number(rawSummary.totalRevenue || 0);
       const mappedSales = Number(rawSummary.mappedSales || 0);
       const resolvePlatformName = createPlatformNameResolver(
         masterPlatformRows.map((row: any) => String(row.name))
@@ -188,8 +472,8 @@ export const analyticsController = {
           averageOrderValue: platform.orderCount > 0
             ? Math.round((platform.revenue / platform.orderCount) * 100) / 100
             : 0,
-          revenueShare: totalSales > 0 && Number(rawSummary.totalRevenue || 0) > 0
-            ? Math.round((platform.revenue / Number(rawSummary.totalRevenue)) * 10000) / 100
+          revenueShare: totalSales > 0 && totalRevenue > 0
+            ? Math.round((platform.revenue / totalRevenue) * 10000) / 100
             : 0,
         }));
 
@@ -203,13 +487,26 @@ export const analyticsController = {
             : null,
           summary: {
             totalSales,
-            totalRevenue: Number(rawSummary.totalRevenue || 0),
+            totalRevenue,
+            totalQuantitySold: Number(rawSummary.totalQuantitySold || 0),
+            averageOrderValue: totalSales > 0 ? Math.round((totalRevenue / totalSales) * 100) / 100 : 0,
+            totalProductsSold: Number(rawSummary.totalProductsSold || 0),
+            totalVariantsSold: Number(rawSummary.totalVariantsSold || 0),
+            totalRegionsCovered: Number(rawSummary.totalRegionsCovered || 0),
+            totalPlatformsUsed: topPlatforms.length,
             mappedSales,
             unmappedSales: Math.max(totalSales - mappedSales, 0),
             mappingCoverage: totalSales > 0 ? Math.round((mappedSales / totalSales) * 10000) / 100 : 0,
           },
           topProducts: productRows.map((row: any) => ({
             ...row,
+            quantitySold: Number(row.quantitySold || 0),
+            orderCount: Number(row.orderCount || 0),
+            revenue: Number(row.revenue || 0),
+          })),
+          topVariants: variantRows.map((row: any) => ({
+            ...row,
+            variantName: String(row.variantName || '-'),
             quantitySold: Number(row.quantitySold || 0),
             orderCount: Number(row.orderCount || 0),
             revenue: Number(row.revenue || 0),

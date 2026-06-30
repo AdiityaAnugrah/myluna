@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useSales, useDeleteSale } from '@/lib/hooks/useSales';
 import { usePlatforms } from '@/lib/hooks/usePlatforms';
+import { useUsers } from '@/lib/hooks/useUsers';
 import { useAuthStore } from '@/lib/stores/auth';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -60,7 +61,7 @@ const STATUS_OPTIONS = [
   { value: 'WAITING_APPROVAL', label: 'Menunggu Proses' },
   { value: 'APPROVED', label: 'Disetujui' },
   { value: 'PROCESSED', label: 'Diproses' },
-  { value: 'SETTLED', label: 'Disetorkan' },
+  { value: 'SETTLED', label: 'Sudah Dilunasi' },
   { value: 'CANCELLED', label: 'Dibatalkan' },
   { value: 'REJECTED', label: 'Ditolak' },
 ];
@@ -73,6 +74,20 @@ const PAYMENT_OPTIONS = [
   { value: 'CREDIT', label: 'Kredit' },
 ];
 
+const SETTLEMENT_OPTIONS = [
+  { value: 'all', label: 'Semua Pelunasan' },
+  { value: 'SETTLED', label: 'Sudah Dilunasi' },
+  { value: 'UNSETTLED', label: 'Belum Dilunasi' },
+];
+
+const CANCEL_OPTIONS = [
+  { value: 'all', label: 'Semua Pembatalan' },
+  { value: 'NORMAL', label: 'Tidak Ada Pembatalan' },
+  { value: 'PENDING_CANCEL', label: 'Menunggu Persetujuan Batal' },
+  { value: 'CANCELLED', label: 'Sudah Dibatalkan' },
+  { value: 'REJECTED', label: 'Pembatalan Ditolak' },
+];
+
 function getStatusBadge(status: string, isCancelPending?: boolean) {
   if (isCancelPending) {
     return <Badge variant="secondary" className="text-xs whitespace-nowrap">Menunggu Persetujuan Batal</Badge>;
@@ -81,10 +96,10 @@ function getStatusBadge(status: string, isCancelPending?: boolean) {
     WAITING_APPROVAL: { label: 'Menunggu Proses', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
     APPROVED:         { label: 'Disetujui',        className: 'bg-blue-100 text-blue-800 border-blue-200' },
     PROCESSED:        { label: 'Diproses',          className: 'bg-purple-100 text-purple-800 border-purple-200' },
-    SETTLED:          { label: 'Disetorkan',        className: 'bg-green-100 text-green-800 border-green-200' },
+    SETTLED:          { label: 'Sudah Dilunasi',    className: 'bg-green-100 text-green-800 border-green-200' },
     CANCELLED:        { label: 'Dibatalkan',        className: 'bg-red-100 text-red-800 border-red-200' },
     REJECTED:         { label: 'Ditolak',           className: 'bg-red-100 text-red-800 border-red-200' },
-    COMPLETED:        { label: 'Selesai',            className: 'bg-green-100 text-green-800 border-green-200' },
+    COMPLETED:        { label: 'Selesai (Data Lama)', className: 'bg-slate-100 text-slate-700 border-slate-200' },
     PENDING:          { label: 'Menunggu',           className: 'bg-gray-100 text-gray-700 border-gray-200' },
   };
   const cfg = map[status] || { label: formatStatus(status), className: '' };
@@ -100,6 +115,11 @@ export default function SalesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [platformFilter, setPlatformFilter] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('');
+  const [responsibleUserIdFilter, setResponsibleUserIdFilter] = useState('');
+  const [settlementStatusFilter, setSettlementStatusFilter] = useState('');
+  const [cancelStatusFilter, setCancelStatusFilter] = useState('');
+  const [minTotalAmountFilter, setMinTotalAmountFilter] = useState('');
+  const [maxTotalAmountFilter, setMaxTotalAmountFilter] = useState('');
   const [startDate, setStartDate] = useState<string>(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
@@ -118,7 +138,7 @@ export default function SalesPage() {
     { value: 'WAITING_APPROVAL', label: 'Menunggu Proses' },
     { value: 'APPROVED',         label: 'Disetujui' },
     { value: 'PROCESSED',        label: 'Diproses' },
-    { value: 'SETTLED',          label: 'Disetorkan' },
+    { value: 'SETTLED',          label: 'Sudah Dilunasi' },
     { value: 'CANCELLED',        label: 'Dibatalkan' },
     { value: 'REJECTED',         label: 'Ditolak' },
   ];
@@ -141,6 +161,11 @@ export default function SalesPage() {
         endDate: endDate ? `${endDate}T23:59:59` : undefined,
         platform: platformFilter || undefined,
         paymentMethod: paymentFilter || undefined,
+        responsibleUserId: responsibleUserIdFilter || undefined,
+        settlementStatus: settlementStatusFilter || undefined,
+        cancelStatus: cancelStatusFilter || undefined,
+        minTotalAmount: minTotalAmountFilter || undefined,
+        maxTotalAmount: maxTotalAmountFilter || undefined,
         search: search || undefined,
       });
 
@@ -156,7 +181,7 @@ export default function SalesPage() {
         WAITING_APPROVAL: 'Menunggu Proses',
         APPROVED: 'Disetujui',
         PROCESSED: 'Diproses',
-        SETTLED: 'Disetorkan',
+        SETTLED: 'Sudah Dilunasi',
         CANCELLED: 'Dibatalkan',
         REJECTED: 'Ditolak',
       };
@@ -203,7 +228,9 @@ export default function SalesPage() {
   const isEnabled = user?.role !== 'TCP';
 
   const { data: platformsData } = usePlatforms();
+  const { data: usersData } = useUsers({ page: 1, limit: 200 });
   const activePlatforms: { id: string; name: string }[] = (platformsData?.data || []).filter((p: any) => p.isActive);
+  const responsibleUsers = usersData?.data?.users || [];
 
   const { data, isLoading } = useSales(
     {
@@ -212,6 +239,11 @@ export default function SalesPage() {
       status: statusFilter || undefined,
       platform: platformFilter || undefined,
       paymentMethod: paymentFilter || undefined,
+      responsibleUserId: responsibleUserIdFilter || undefined,
+      settlementStatus: settlementStatusFilter || undefined,
+      cancelStatus: cancelStatusFilter || undefined,
+      minTotalAmount: minTotalAmountFilter || undefined,
+      maxTotalAmount: maxTotalAmountFilter || undefined,
       search: search || undefined,
       startDate: startDate || undefined,
       endDate: endDate ? `${endDate}T23:59:59` : undefined,
@@ -226,7 +258,19 @@ export default function SalesPage() {
 
   const defaultStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
   const defaultEnd   = new Date().toISOString().split('T')[0];
-  const hasActiveFilter = !!(statusFilter || platformFilter || paymentFilter || search || startDate !== defaultStart || endDate !== defaultEnd);
+  const hasActiveFilter = !!(
+    statusFilter ||
+    platformFilter ||
+    paymentFilter ||
+    responsibleUserIdFilter ||
+    settlementStatusFilter ||
+    cancelStatusFilter ||
+    minTotalAmountFilter ||
+    maxTotalAmountFilter ||
+    search ||
+    startDate !== defaultStart ||
+    endDate !== defaultEnd
+  );
 
   const resetFilters = () => {
     const d = new Date();
@@ -235,6 +279,11 @@ export default function SalesPage() {
     setStatusFilter('');
     setPlatformFilter('');
     setPaymentFilter('');
+    setResponsibleUserIdFilter('');
+    setSettlementStatusFilter('');
+    setCancelStatusFilter('');
+    setMinTotalAmountFilter('');
+    setMaxTotalAmountFilter('');
     setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
     setEndDate(new Date().toISOString().split('T')[0]);
     setCurrentPage(1);
@@ -350,7 +399,7 @@ export default function SalesPage() {
           <div className="bg-card border rounded-xl p-4 flex items-center gap-3">
             <div className="p-2 bg-green-100 rounded-lg"><CheckCircle2 className="h-4 w-4 text-green-600" /></div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Disetorkan</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Sudah Dilunasi</p>
               <p className="text-xl font-black text-green-600">
                 {sales.filter((s: any) => s.status === 'SETTLED').length}
               </p>
@@ -430,7 +479,53 @@ export default function SalesPage() {
           </Select>
         </div>
 
-        {/* Row 2: Date range + page size */}
+        {/* Row 2: detail filters */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <Select value={responsibleUserIdFilter || 'all'} onValueChange={handleFilterChange(setResponsibleUserIdFilter)}>
+            <SelectTrigger><SelectValue placeholder="Semua Penanggung Jawab" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Penanggung Jawab</SelectItem>
+              {responsibleUsers.map((u: any) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.fullName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={settlementStatusFilter || 'all'} onValueChange={handleFilterChange(setSettlementStatusFilter)}>
+            <SelectTrigger><SelectValue placeholder="Semua Pelunasan" /></SelectTrigger>
+            <SelectContent>
+              {SETTLEMENT_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select value={cancelStatusFilter || 'all'} onValueChange={handleFilterChange(setCancelStatusFilter)}>
+            <SelectTrigger><SelectValue placeholder="Semua Pembatalan" /></SelectTrigger>
+            <SelectContent>
+              {CANCEL_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              type="number"
+              min="0"
+              placeholder="Total min"
+              value={minTotalAmountFilter}
+              onChange={(e) => { setMinTotalAmountFilter(e.target.value); setCurrentPage(1); }}
+            />
+            <Input
+              type="number"
+              min="0"
+              placeholder="Total max"
+              value={maxTotalAmountFilter}
+              onChange={(e) => { setMaxTotalAmountFilter(e.target.value); setCurrentPage(1); }}
+            />
+          </div>
+        </div>
+
+        {/* Row 3: Date range + page size */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="space-y-1">
             <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-0.5">Dari Tanggal</label>

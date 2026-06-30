@@ -633,9 +633,9 @@ export default function SalesProcessPage() {
     };
     
     let translatedStatus = formatStatus(status);
-    if (status === 'COMPLETED') translatedStatus = 'Selesai';
+    if (status === 'COMPLETED') translatedStatus = 'Selesai (Data Lama)';
     if (status === 'CANCELLED') translatedStatus = 'Dibatalkan';
-    if (status === 'SETTLED') translatedStatus = 'Disetorkan';
+    if (status === 'SETTLED') translatedStatus = 'Sudah Dilunasi';
     if (status === 'PROCESSED') translatedStatus = 'Diproses';
     if (status === 'WAITING_APPROVAL') translatedStatus = 'Menunggu Proses/Packing';
     if (status === 'APPROVED') translatedStatus = 'Disetujui';
@@ -738,7 +738,6 @@ export default function SalesProcessPage() {
                 <SelectItem value="WAITING_APPROVAL">Belum Dilakukan Aksi</SelectItem>
                 <SelectItem value="APPROVED">Disetujui/Dipacking</SelectItem>
                 <SelectItem value="PROCESSED">Sudah Diproses/Resi</SelectItem>
-                <SelectItem value="COMPLETED">Selesai</SelectItem>
                 <SelectItem value="CANCELLED">Dibatalkan</SelectItem>
               </SelectContent>
             </Select>

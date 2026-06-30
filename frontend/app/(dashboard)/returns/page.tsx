@@ -10,30 +10,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { getSaleReturnStatusBadgeClass, getSaleReturnStatusLabel } from '@/lib/constants/workflowStatus';
 import { ArrowRight, Loader2, Plus, Search } from 'lucide-react';
 import { SaleReturnStatus } from '@/types';
 
-function statusLabel(status: SaleReturnStatus, isUser: boolean) {
-  switch (status) {
-    case 'PENDING_REVIEW':
-      return isUser ? 'Sedang Dicek' : 'Menunggu Review';
-    case 'WAITING_ITEM_RETURN':
-      return isUser ? 'Menunggu Barang Dikirim Kembali' : 'Menunggu Barang Kembali';
-    case 'ITEM_RECEIVED':
-      return isUser ? 'Barang Sudah Diterima Tim' : 'Barang Diterima';
-    case 'REJECTED':
-      return 'Ditolak';
-    case 'RESTOCKED':
-      return isUser ? 'Barang Diterima Kembali' : 'Masuk Stok';
-    case 'DAMAGED':
-      return isUser ? 'Barang Dinyatakan Rusak' : 'Tidak Layak Pakai';
-    case 'RESENT':
-      return isUser ? 'Barang Pengganti Dikirim' : 'Kirim Ulang';
-    case 'COMPLETED':
-      return 'Selesai';
-    default:
-      return status;
-  }
+function statusLabel(status: SaleReturnStatus) {
+  return getSaleReturnStatusLabel(status);
 }
 
 function statusDescription(status: SaleReturnStatus, isUser: boolean) {
@@ -76,26 +58,7 @@ function statusDescription(status: SaleReturnStatus, isUser: boolean) {
 }
 
 function statusClass(status: SaleReturnStatus) {
-  switch (status) {
-    case 'PENDING_REVIEW':
-      return 'bg-amber-100 text-amber-800 border-amber-300';
-    case 'WAITING_ITEM_RETURN':
-      return 'bg-blue-100 text-blue-800 border-blue-300';
-    case 'ITEM_RECEIVED':
-      return 'bg-violet-100 text-violet-800 border-violet-300';
-    case 'REJECTED':
-      return 'bg-red-100 text-red-800 border-red-300';
-    case 'RESTOCKED':
-      return 'bg-green-100 text-green-800 border-green-300';
-    case 'DAMAGED':
-      return 'bg-orange-100 text-orange-800 border-orange-300';
-    case 'RESENT':
-      return 'bg-cyan-100 text-cyan-800 border-cyan-300';
-    case 'COMPLETED':
-      return 'bg-slate-100 text-slate-800 border-slate-300';
-    default:
-      return '';
-  }
+  return getSaleReturnStatusBadgeClass(status);
 }
 
 export default function ReturnsPage() {
@@ -128,18 +91,23 @@ export default function ReturnsPage() {
           <h1 className="text-3xl font-bold">Retur Penjualan</h1>
           <p className="mt-1 text-muted-foreground">
             {isUser
-              ? 'Lihat status pengajuan retur Anda dan buat retur baru jika diperlukan.'
-              : 'Kelola pengajuan retur dari user dan proses operasionalnya.'}
+              ? 'Lihat riwayat pengajuan retur Anda. Diskusi dan keputusan lanjutannya ada di Tiket Retur.'
+              : 'Lihat data retur yang masuk. Forum diskusi dan keputusan lanjutannya ada di Tiket Retur.'}
           </p>
         </div>
-        {canCreate && (
-          <Link href="/returns/new">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Buat Retur
-            </Button>
+        <div className="flex gap-2">
+          <Link href="/return-tickets">
+            <Button variant="outline">Lihat Tiket Retur</Button>
           </Link>
-        )}
+          {canCreate && (
+            <Link href="/returns/new">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Buat Retur
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       <Card>
@@ -172,10 +140,10 @@ export default function ReturnsPage() {
                 <SelectItem value="all">Semua Status</SelectItem>
                 <SelectItem value="PENDING_REVIEW">Menunggu Review</SelectItem>
                 <SelectItem value="WAITING_ITEM_RETURN">Menunggu Barang Kembali</SelectItem>
-                <SelectItem value="ITEM_RECEIVED">Barang Diterima</SelectItem>
+                <SelectItem value="ITEM_RECEIVED">Barang Sudah Diterima</SelectItem>
                 <SelectItem value="RESTOCKED">Masuk Stok</SelectItem>
                 <SelectItem value="DAMAGED">Tidak Layak Pakai</SelectItem>
-                <SelectItem value="RESENT">Kirim Ulang</SelectItem>
+                <SelectItem value="RESENT">Barang Pengganti Dikirim</SelectItem>
                 <SelectItem value="REJECTED">Ditolak</SelectItem>
               </SelectContent>
             </Select>
@@ -197,7 +165,7 @@ export default function ReturnsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold">{row.returnNumber}</span>
                       <Badge variant="outline" className={statusClass(row.status)}>
-                        {statusLabel(row.status, isUser)}
+                        {statusLabel(row.status)}
                       </Badge>
                     </div>
                     <p className="text-sm">

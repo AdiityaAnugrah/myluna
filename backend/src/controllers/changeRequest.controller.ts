@@ -113,6 +113,20 @@ export const changeRequestController = {
 
       await transaction.commit();
 
+      if (entityType === EntityType.SETTLEMENT) {
+        socketService.broadcastDataRefresh('settlements');
+        socketService.broadcastDataRefresh('sales');
+        socketService.broadcastDataRefresh('finance');
+      } else if (entityType === EntityType.SALE) {
+        socketService.broadcastDataRefresh('sales');
+        socketService.broadcastDataRefresh('stock');
+        socketService.broadcastDataRefresh('settlements');
+      } else if (entityType === EntityType.STOCK) {
+        socketService.broadcastDataRefresh('stock');
+      } else if ([EntityType.PRODUCT, EntityType.CATEGORY, EntityType.SUPPLIER].includes(entityType)) {
+        socketService.broadcastDataRefresh(String(entityType).toLowerCase());
+      }
+
       // Notify requester
       if (request.requestedBy) {
         socketService.emitToUser(request.requestedBy, 'notification:new', {
@@ -358,7 +372,6 @@ async function handleSettlementCancellation(_entityId: string | null, payload: a
     include: [{
       model: Sale,
       as: 'sale',
-      include: [{ model: SaleItem, as: 'items' }],
     }],
     transaction,
   });
@@ -367,42 +380,10 @@ async function handleSettlementCancellation(_entityId: string | null, payload: a
 
   const sale = (settlement as any).sale;
 
-  // 1. Restore stock & record movements
-  if (sale && sale.items) {
-    for (const item of sale.items) {
-      const product = await Product.findByPk(item.productId, { transaction });
-      if (product) {
-        const stockBeforeSettleCancel = product.stock;
-        await product.update({ stock: product.stock + item.quantity }, { transaction });
-
-        if (item.variantName) {
-          const variant = await ProductVariant.findOne({
-            where: { productId: item.productId, value: item.variantName },
-            transaction,
-          });
-          if (variant) {
-            await variant.update({ stock: variant.stock + item.quantity }, { transaction });
-          }
-        }
-
-        await StockMovement.create({
-          productId: item.productId,
-          type: MovementType.IN,
-          quantity: item.quantity,
-          stockBefore: stockBeforeSettleCancel,
-          stockAfter: stockBeforeSettleCancel + item.quantity,
-          reference: `CANCEL:${sale.saleNumber || settlementId}`,
-          notes: `Pembatalan pelunasan disetujui. Alasan: ${data.reason || '-'}${item.variantName ? ` (Varian: ${item.variantName})` : ''}`,
-          createdBy: _userId,
-        }, { transaction });
-      }
-    }
-
-    // 2. Update sale status to CANCELLED
-    await sale.update({ status: 'CANCELLED' as any }, { transaction });
+  if (sale) {
+    await sale.update({ status: 'PROCESSED' as any }, { transaction });
   }
 
-  // 3. Delete settlement
   await settlement.destroy({ transaction });
 }
 
@@ -422,6 +403,19 @@ async function handleSaleCancellation(id: string | null, payload: any, transacti
 
   if (sale.status === 'CANCELLED') {
       throw new AppError('Sale is already cancelled', 400);
+  }
+
+  if (!['WAITING_APPROVAL', 'APPROVED', 'PROCESSED'].includes(String(sale.status))) {
+      throw new AppError(`Penjualan dengan status ${sale.status} tidak dapat dibatalkan`, 400);
+  }
+
+  const existingSettlement = await Settlement.findOne({
+    where: { saleId: targetId },
+    transaction,
+  });
+
+  if (existingSettlement) {
+    throw new AppError('Penjualan sudah memiliki pelunasan. Batalkan pelunasannya terlebih dahulu', 400);
   }
 
   // 1. Restore stock & record movements

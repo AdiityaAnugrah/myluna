@@ -29,6 +29,10 @@ import District from './District';
 import Village from './Village';
 import SaleReturn, { SaleReturnDecision, SaleReturnStatus } from './SaleReturn';
 import SaleReturnItem from './SaleReturnItem';
+import ReturnTicket, { ReturnFinalDecision, ReturnTicketStatus } from './ReturnTicket';
+import ReturnTicketParticipant from './ReturnTicketParticipant';
+import ReturnTicketMessage, { ReturnTicketMessageType } from './ReturnTicketMessage';
+import ReturnExecution, { ReturnExecutionStatus } from './ReturnExecution';
 
 // Define associations
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -174,6 +178,33 @@ Product.hasMany(SaleReturnItem, { foreignKey: 'productId', as: 'saleReturnItems'
 
 SaleReturnItem.belongsTo(Product, { foreignKey: 'replacementProductId', as: 'replacementProduct' });
 
+ReturnTicket.belongsTo(SaleReturn, { foreignKey: 'saleReturnId', as: 'returnRecord' });
+SaleReturn.hasOne(ReturnTicket, { foreignKey: 'saleReturnId', as: 'ticket' });
+
+ReturnTicket.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+User.hasMany(ReturnTicket, { foreignKey: 'createdBy', as: 'createdReturnTickets' });
+
+ReturnTicket.belongsTo(User, { foreignKey: 'finalizedBy', as: 'finalizer' });
+User.hasMany(ReturnTicket, { foreignKey: 'finalizedBy', as: 'finalizedReturnTickets' });
+
+ReturnTicket.belongsTo(User, { foreignKey: 'tcpExecutorId', as: 'tcpExecutor' });
+User.hasMany(ReturnTicket, { foreignKey: 'tcpExecutorId', as: 'tcpAssignedReturnTickets' });
+
+ReturnTicket.hasMany(ReturnTicketParticipant, { foreignKey: 'ticketId', as: 'participants' });
+ReturnTicketParticipant.belongsTo(ReturnTicket, { foreignKey: 'ticketId', as: 'ticket' });
+ReturnTicketParticipant.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+User.hasMany(ReturnTicketParticipant, { foreignKey: 'userId', as: 'returnTicketParticipants' });
+
+ReturnTicket.hasMany(ReturnTicketMessage, { foreignKey: 'ticketId', as: 'messages' });
+ReturnTicketMessage.belongsTo(ReturnTicket, { foreignKey: 'ticketId', as: 'ticket' });
+ReturnTicketMessage.belongsTo(User, { foreignKey: 'senderId', as: 'sender' });
+User.hasMany(ReturnTicketMessage, { foreignKey: 'senderId', as: 'returnTicketMessages' });
+
+ReturnTicket.hasMany(ReturnExecution, { foreignKey: 'ticketId', as: 'executions' });
+ReturnExecution.belongsTo(ReturnTicket, { foreignKey: 'ticketId', as: 'ticket' });
+ReturnExecution.belongsTo(User, { foreignKey: 'executedBy', as: 'executor' });
+User.hasMany(ReturnExecution, { foreignKey: 'executedBy', as: 'returnExecutions' });
+
 export {
   Role,
   User,
@@ -218,4 +249,12 @@ export {
   SaleReturnStatus,
   SaleReturnDecision,
   SaleReturnItem,
+  ReturnTicket,
+  ReturnTicketStatus,
+  ReturnFinalDecision,
+  ReturnTicketParticipant,
+  ReturnTicketMessage,
+  ReturnTicketMessageType,
+  ReturnExecution,
+  ReturnExecutionStatus,
 };

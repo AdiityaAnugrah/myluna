@@ -5,10 +5,16 @@ import { Op } from 'sequelize';
 import { sequelize } from '../config/database';
 import {
   AuditAction,
+  Complaint,
+  ComplaintStatus,
   Expense,
   MovementType,
   Product,
   ProductVariant,
+  ReturnTicket,
+  ReturnTicketMessage,
+  ReturnTicketMessageType,
+  ReturnTicketStatus,
   Sale,
   SaleItem,
   SaleReturn,
@@ -24,8 +30,14 @@ import { AppError } from '../utils/errors';
 import { successResponse } from '../utils/response';
 import { getLocalDateString } from '../utils/dateGuard';
 import { returnEvidenceDir, returnReceivedDir } from '../middlewares/uploadReturn';
+import { returnTicketController } from './returnTicket.controller';
 
 const eligibleSaleStatuses = ['PROCESSED', 'SETTLED', 'COMPLETED'];
+const activeComplaintStatuses = [
+  ComplaintStatus.PENDING_TCP_REVIEW,
+  ComplaintStatus.ACCEPTED_BY_TCP,
+  ComplaintStatus.REPLACEMENT_SHIPPED,
+];
 
 type UploadedFileMap = { [fieldname: string]: Express.Multer.File[] } | undefined;
 
@@ -108,6 +120,61 @@ function ensureEligibleSaleStatus(status: string) {
   if (!eligibleSaleStatuses.includes(status)) {
     throw new AppError('Retur hanya bisa dibuat untuk penjualan yang sudah diproses, selesai, atau pelunasan', 400);
   }
+}
+
+async function ensureNoActiveComplaint(saleId: string, transaction?: any) {
+  const activeComplaint = await Complaint.findOne({
+    where: {
+      saleId,
+      status: {
+        [Op.in]: activeComplaintStatuses,
+      },
+    },
+    transaction,
+  });
+
+  if (activeComplaint) {
+    if (
+      [ComplaintStatus.PENDING_TCP_REVIEW, ComplaintStatus.ACCEPTED_BY_TCP].includes(
+        activeComplaint.status as ComplaintStatus
+      )
+    ) {
+      await activeComplaint.update(
+        {
+          status: ComplaintStatus.CONVERTED_TO_RETURN,
+        },
+        { transaction }
+      );
+
+      return activeComplaint;
+    }
+
+    throw new AppError(
+      'Pesanan ini sedang memiliki proses komplen aktif. Selesaikan komplen terlebih dahulu sebelum membuat retur',
+      400
+    );
+  }
+
+  return null;
+}
+
+async function ensureLegacyFinalizationAllowed(returnId: string, transaction?: any) {
+  const linkedTicket = await ReturnTicket.findOne({
+    where: { saleReturnId: returnId },
+    transaction,
+  });
+
+  if (
+    linkedTicket &&
+    ![ReturnTicketStatus.REJECTED, ReturnTicketStatus.COMPLETED].includes(linkedTicket.status)
+  ) {
+    throw new AppError(
+      'Keputusan akhir retur ini harus diproses melalui Tiket Retur agar diskusi, keputusan, dan eksekusi tetap sinkron',
+      400
+    );
+  }
+
+  return linkedTicket;
 }
 
 async function resolveReplacementStock(options: {
@@ -235,6 +302,7 @@ export const returnController = {
 
       if (!sale) throw new AppError('Penjualan tidak ditemukan', 404);
       ensureEligibleSaleStatus(String(sale.status));
+      const convertedComplaint = await ensureNoActiveComplaint(sale.id, transaction);
 
       if (req.user.roleName === 'USER' && sale.createdBy !== req.user.id) {
         throw new AppError('Anda hanya dapat membuat retur untuk penjualan milik sendiri', 403);
@@ -274,6 +342,17 @@ export const returnController = {
         { transaction }
       );
 
+      await returnTicketController.createForReturn({
+        saleReturnId: createdReturn.id,
+        createdBy: req.user.id,
+        createdByRole: req.user.roleName,
+        transaction,
+        requestMeta: {
+          ip: req.ip || req.socket.remoteAddress || '',
+          userAgent: req.headers['user-agent'] || '',
+        },
+      });
+
       for (const item of items) {
         const saleItem = saleItemsById.get(String(item.saleItemId))!;
         await SaleReturnItem.create(
@@ -308,11 +387,32 @@ export const returnController = {
         transaction
       );
 
+      if (convertedComplaint) {
+        await auditService.log(
+          {
+            userId: req.user.id,
+            action: AuditAction.UPDATE,
+            entity: 'Complaint',
+            entityId: convertedComplaint.id,
+            before: {
+              ...convertedComplaint.toJSON(),
+              status:
+                convertedComplaint.previous('status') || convertedComplaint.status,
+            },
+            after: convertedComplaint.toJSON(),
+            ip: req.ip || req.socket.remoteAddress || '',
+            userAgent: req.headers['user-agent'] || '',
+          },
+          transaction
+        );
+      }
+
       await transaction.commit();
 
       const result = await SaleReturn.findByPk(createdReturn.id, {
         include: [
           { model: Sale, as: 'sale' },
+          { model: ReturnTicket, as: 'ticket' },
           {
             model: SaleReturnItem,
             as: 'items',
@@ -324,12 +424,21 @@ export const returnController = {
         ],
       });
 
-      socketService.emitToTCP('notification:new', {
-        message: 'Pengajuan retur baru',
-        description: `Retur ${createdReturn.returnNumber} menunggu review TCP`,
+      socketService.emitToAdmins('notification:new', {
+        message: 'Tiket retur baru',
+        description: `Retur ${createdReturn.returnNumber} siap didiskusikan`,
         type: 'INFO',
       });
+      if (convertedComplaint) {
+        socketService.emitToUser(convertedComplaint.createdBy, 'notification:new', {
+          message: 'Komplen dialihkan menjadi retur',
+          description: `Komplen ${convertedComplaint.complaintNumber} dilanjutkan lewat retur ${createdReturn.returnNumber}`,
+          type: 'INFO',
+        });
+        socketService.broadcastDataRefresh('complaints');
+      }
       socketService.broadcastDataRefresh('returns');
+      socketService.broadcastDataRefresh('return-tickets');
 
       return successResponse(res, result, 'Retur berhasil diajukan', 201);
     } catch (error) {
@@ -373,6 +482,11 @@ export const returnController = {
             model: SaleReturnItem,
             as: 'items',
             attributes: ['id', 'qtyRequested', 'qtyReceived', 'resolution'],
+          },
+          {
+            model: ReturnTicket,
+            as: 'ticket',
+            attributes: ['id', 'ticketNumber', 'status', 'deadlineAt'],
           },
         ],
         distinct: true,
@@ -426,6 +540,7 @@ export const returnController = {
               { model: Product, as: 'replacementProduct', attributes: ['id', 'sku', 'name', 'unit'] },
             ],
           },
+          { model: ReturnTicket, as: 'ticket' },
           { model: User, as: 'requester', attributes: ['id', 'fullName', 'username'] },
           { model: User, as: 'reviewer', attributes: ['id', 'fullName', 'username'] },
           { model: User, as: 'receiver', attributes: ['id', 'fullName', 'username'] },
@@ -493,13 +608,41 @@ export const returnController = {
         transaction
       );
 
+      if (normalizedAction === 'REJECT') {
+        const ticket = await ReturnTicket.findOne({
+          where: { saleReturnId: record.id },
+          transaction,
+        });
+
+        if (ticket && ![ReturnTicketStatus.REJECTED, ReturnTicketStatus.COMPLETED].includes(ticket.status)) {
+          await ticket.update(
+            {
+              status: ReturnTicketStatus.REJECTED,
+              resolvedAt: new Date(),
+            },
+            { transaction }
+          );
+
+          await ReturnTicketMessage.create(
+            {
+              ticketId: ticket.id,
+              senderId: req.user.id,
+              message: `Tiket retur ditutup karena pengajuan retur ditolak${record.rejectionReason ? ` — ${record.rejectionReason}` : ''}`,
+              messageType: ReturnTicketMessageType.SYSTEM,
+            },
+            { transaction }
+          );
+        }
+      }
+
       await transaction.commit();
       socketService.broadcastDataRefresh('returns');
+      socketService.broadcastDataRefresh('return-tickets');
 
       return successResponse(
         res,
         record,
-        normalizedAction === 'APPROVE' ? 'Retur disetujui' : 'Retur ditolak',
+        normalizedAction === 'APPROVE' ? 'Pengajuan retur berhasil disetujui' : 'Pengajuan retur berhasil ditolak',
         200
       );
     } catch (error) {
@@ -553,7 +696,7 @@ export const returnController = {
       await transaction.commit();
       socketService.broadcastDataRefresh('returns');
 
-      return successResponse(res, record, 'Barang retur berhasil dikonfirmasi diterima', 200);
+      return successResponse(res, record, 'Retur berhasil ditandai barang sudah diterima', 200);
     } catch (error) {
       await transaction.rollback();
       return next(error);
@@ -570,6 +713,7 @@ export const returnController = {
         transaction,
       });
       if (!record) throw new AppError('Data retur tidak ditemukan', 404);
+      await ensureLegacyFinalizationAllowed(record.id, transaction);
       if (record.status !== SaleReturnStatus.ITEM_RECEIVED) {
         throw new AppError('Retur belum berada pada tahap inspeksi', 400);
       }
@@ -678,12 +822,13 @@ export const returnController = {
         transaction,
       });
       if (!record) throw new AppError('Data retur tidak ditemukan', 404);
+      await ensureLegacyFinalizationAllowed(record.id, transaction);
       if (record.status !== SaleReturnStatus.ITEM_RECEIVED) {
         throw new AppError('Retur belum berada pada tahap inspeksi', 400);
       }
 
       const payloadItems = parseItemsPayload(req.body.items);
-      if (!payloadItems.length) throw new AppError('Detail item retur rusak wajib diisi', 400);
+      if (!payloadItems.length) throw new AppError('Detail item tidak layak pakai wajib diisi', 400);
 
       const returnItems = (record.items || []) as SaleReturnItem[];
       const itemsById = new Map<string, SaleReturnItem>(returnItems.map((item) => [item.id, item]));
@@ -694,7 +839,7 @@ export const returnController = {
         const qtyReceived = Number(item.qtyReceived || 0);
         if (!returnItem) throw new AppError('Item retur tidak ditemukan', 400);
         if (!Number.isInteger(qtyReceived) || qtyReceived <= 0 || qtyReceived > returnItem.qtyRequested) {
-          throw new AppError('Qty diterima untuk retur rusak tidak valid', 400);
+          throw new AppError('Qty diterima untuk item tidak layak pakai tidak valid', 400);
         }
 
         const saleItem = await SaleItem.findByPk(returnItem.saleItemId, { transaction });
@@ -781,6 +926,7 @@ export const returnController = {
         transaction,
       });
       if (!record) throw new AppError('Data retur tidak ditemukan', 404);
+      await ensureLegacyFinalizationAllowed(record.id, transaction);
       if (record.status !== SaleReturnStatus.ITEM_RECEIVED) {
         throw new AppError('Retur belum berada pada tahap inspeksi', 400);
       }
@@ -839,7 +985,7 @@ export const returnController = {
             stockBefore,
             stockAfter: stockBefore - replacementQty,
             reference: `RETURN_RESEND:${record.returnNumber}`,
-            notes: `Kirim ulang retur${replacementVariantName ? ` (Varian: ${replacementVariantName})` : ''}`,
+            notes: `Pengiriman pengganti retur${replacementVariantName ? ` (Varian: ${replacementVariantName})` : ''}`,
             createdBy: req.user.id,
           },
           { transaction }
@@ -907,7 +1053,7 @@ export const returnController = {
       socketService.broadcastDataRefresh('expense');
       socketService.broadcastDataRefresh('finance');
 
-      return successResponse(res, record, 'Kirim ulang retur berhasil diproses', 200);
+      return successResponse(res, record, 'Pengiriman pengganti berhasil diproses', 200);
     } catch (error) {
       await transaction.rollback();
       return next(error);

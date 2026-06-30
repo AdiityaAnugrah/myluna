@@ -3,6 +3,7 @@ import { Server as HTTPServer } from 'http';
 import { verify } from 'jsonwebtoken';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
+import { Role, User } from '../models';
 
 export class SocketService {
   private io: SocketIOServer | null = null;
@@ -16,7 +17,7 @@ export class SocketService {
     });
 
     // Authentication middleware
-    this.io.use((socket, next) => {
+    this.io.use(async (socket, next) => {
       const token = socket.handshake.auth.token;
       
       if (!token) {
@@ -25,8 +26,22 @@ export class SocketService {
 
       try {
         const decoded = verify(token, env.JWT_ACCESS_SECRET) as any;
-        socket.data.userId = decoded.id;
-        socket.data.userRole = decoded.role;
+        const userId = decoded.userId;
+        if (!userId) {
+          return next(new Error('Invalid token payload'));
+        }
+
+        const user = await User.findByPk(userId, {
+          include: [{ model: Role, as: 'role', attributes: ['name'] }],
+          attributes: ['id', 'isActive'],
+        });
+
+        if (!user || !user.isActive) {
+          return next(new Error('User not found or inactive'));
+        }
+
+        socket.data.userId = user.id;
+        socket.data.userRole = (user as any).role?.name || null;
         next();
       } catch (error) {
         return next(new Error('Invalid token'));
@@ -48,6 +63,18 @@ export class SocketService {
       if (socket.data.userRole === 'TCP') {
         socket.join('tcp');
       }
+
+      socket.on('room:join', (room: string) => {
+        if (typeof room === 'string' && room.trim()) {
+          socket.join(room.trim());
+        }
+      });
+
+      socket.on('room:leave', (room: string) => {
+        if (typeof room === 'string' && room.trim()) {
+          socket.leave(room.trim());
+        }
+      });
 
       socket.on('disconnect', () => {
         logger.info(`User disconnected: ${socket.data.userId}`);
@@ -89,6 +116,11 @@ export class SocketService {
   emitToAll(event: string, data: any) {
     if (!this.io) return;
     this.io.emit(event, data);
+  }
+
+  emitToRoom(room: string, event: string, data: any) {
+    if (!this.io) return;
+    this.io.to(room).emit(event, data);
   }
 
   getIO() {

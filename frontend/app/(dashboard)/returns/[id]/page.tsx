@@ -1,18 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
 import {
-  useDamageReturn,
   useReceiveReturn,
-  useResendReturn,
-  useRestockReturn,
   useReturn,
   useReviewReturn,
 } from '@/lib/hooks/useReturns';
-import { useProducts } from '@/lib/hooks/useProducts';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -20,30 +16,22 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  getReturnTicketStatusBadgeClass,
+  getReturnTicketStatusLabel,
+  getSaleReturnStatusBadgeClass,
+  getSaleReturnStatusLabel,
+} from '@/lib/constants/workflowStatus';
 import { getImageUrl } from '@/lib/utils/url';
 import { Loader2 } from 'lucide-react';
+import { SaleReturnStatus } from '@/types';
 
-function statusLabel(status: string, isUser: boolean) {
-  switch (status) {
-    case 'PENDING_REVIEW':
-      return isUser ? 'Sedang Dicek' : 'Menunggu Review';
-    case 'WAITING_ITEM_RETURN':
-      return isUser ? 'Menunggu Barang Dikirim Kembali' : 'Menunggu Barang Kembali';
-    case 'ITEM_RECEIVED':
-      return isUser ? 'Barang Sudah Diterima Tim' : 'Barang Diterima';
-    case 'REJECTED':
-      return 'Ditolak';
-    case 'RESTOCKED':
-      return isUser ? 'Barang Diterima Kembali' : 'Masuk Stok';
-    case 'DAMAGED':
-      return isUser ? 'Barang Dinyatakan Rusak' : 'Tidak Layak Pakai';
-    case 'RESENT':
-      return isUser ? 'Barang Pengganti Dikirim' : 'Kirim Ulang';
-    case 'COMPLETED':
-      return 'Selesai';
-    default:
-      return status;
-  }
+function statusLabel(status: SaleReturnStatus) {
+  return getSaleReturnStatusLabel(status);
+}
+
+function statusClass(status: SaleReturnStatus) {
+  return getSaleReturnStatusBadgeClass(status);
 }
 
 function statusDescription(status: string, isUser: boolean) {
@@ -114,34 +102,12 @@ export default function ReturnDetailPage() {
   const returnQuery = useReturn(params.id);
   const reviewMutation = useReviewReturn();
   const receiveMutation = useReceiveReturn();
-  const restockMutation = useRestockReturn();
-  const damageMutation = useDamageReturn();
-  const resendMutation = useResendReturn();
-  const { data: productsData } = useProducts({ limit: 100 }, { enabled: canProcess });
 
   const returnData = returnQuery.data?.data;
   const returnItems = returnData?.items || [];
-  const products = productsData?.data?.products || [];
 
   const [rejectionReason, setRejectionReason] = useState('');
-  const [inspectionNotes, setInspectionNotes] = useState('');
   const [receivedPhotos, setReceivedPhotos] = useState<File[]>([]);
-  const [shippingService, setShippingService] = useState('');
-  const [shippingCost, setShippingCost] = useState('');
-  const [financialImpact, setFinancialImpact] = useState('');
-
-  const resendPayloadItems = useMemo(
-    () =>
-      returnItems.map((item) => ({
-        returnItemId: item.id,
-        qtyReceived: item.qtyRequested,
-        replacementProductId: item.productId,
-        replacementVariantName: item.variantName || null,
-        replacementQty: item.qtyRequested,
-      })),
-    [returnItems]
-  );
-
   if (returnQuery.isLoading) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -164,6 +130,8 @@ export default function ReturnDetailPage() {
     );
   }
 
+  const ticketHref = returnData.ticket ? `/return-tickets/${returnData.ticket.id}` : '/return-tickets';
+
   return (
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: 'Retur', href: '/returns' }, { label: returnData.returnNumber }]} />
@@ -180,6 +148,31 @@ export default function ReturnDetailPage() {
         </Button>
       </div>
 
+      {returnData.ticket && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Tiket Retur Terkait</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="text-sm">
+              <p className="font-medium">{returnData.ticket.ticketNumber}</p>
+              <p className="text-muted-foreground">
+                Status tiket:{' '}
+                <Badge
+                  variant="outline"
+                  className={getReturnTicketStatusBadgeClass(returnData.ticket.status)}
+                >
+                  {getReturnTicketStatusLabel(returnData.ticket.status)}
+                </Badge>
+              </p>
+            </div>
+            <Link href={ticketHref}>
+              <Button>Lihat Tiket Retur</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>{isUser ? 'Status Retur Anda' : 'Ringkasan Retur'}</CardTitle>
@@ -187,7 +180,9 @@ export default function ReturnDetailPage() {
         <CardContent className="space-y-2 text-sm">
           <p>
             Status:{' '}
-            <Badge variant="outline">{statusLabel(returnData.status, isUser)}</Badge>
+            <Badge variant="outline" className={statusClass(returnData.status)}>
+              {statusLabel(returnData.status)}
+            </Badge>
           </p>
           <p className="text-muted-foreground">{statusDescription(returnData.status, isUser)}</p>
           <p className="text-xs text-muted-foreground">{progressLabel(returnData.status)}</p>
@@ -256,7 +251,7 @@ export default function ReturnDetailPage() {
                 onClick={() => reviewMutation.mutate({ id: returnData.id, data: { action: 'APPROVE' } })}
                 disabled={reviewMutation.isPending}
               >
-                Setujui Retur
+                Setujui Pengajuan
               </Button>
               <Button
                 variant="destructive"
@@ -268,7 +263,7 @@ export default function ReturnDetailPage() {
                 }
                 disabled={reviewMutation.isPending || rejectionReason.trim().length < 5}
               >
-                Tolak Retur
+                Tolak Pengajuan
               </Button>
             </div>
           </CardContent>
@@ -298,7 +293,7 @@ export default function ReturnDetailPage() {
               }}
               disabled={receiveMutation.isPending}
             >
-              Konfirmasi Barang Diterima
+              Tandai Barang Sudah Diterima
             </Button>
           </CardContent>
         </Card>
@@ -309,118 +304,15 @@ export default function ReturnDetailPage() {
           <CardHeader>
             <CardTitle>Keputusan Setelah Pengecekan</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label>Catatan Inspeksi</Label>
-              <Textarea
-                rows={3}
-                value={inspectionNotes}
-                onChange={(event) => setInspectionNotes(event.target.value)}
-              />
-            </div>
-
-            <div className="rounded-md border p-4">
-              <p className="mb-3 font-medium">Masuk Stok Kembali</p>
-              <Button
-                onClick={() =>
-                  restockMutation.mutate({
-                    id: returnData.id,
-                    data: {
-                      inspectionNotes,
-                      items: returnItems.map((item) => ({
-                        returnItemId: item.id,
-                        qtyReceived: item.qtyRequested,
-                      })),
-                    },
-                  })
-                }
-                disabled={restockMutation.isPending}
-              >
-                Proses Masuk Stok
-              </Button>
-            </div>
-
-            <div className="rounded-md border p-4">
-              <p className="mb-3 font-medium">Tidak Layak Pakai</p>
-              <div className="space-y-2">
-                <Label>Dampak Keuangan</Label>
-                <Input
-                  type="number"
-                  value={financialImpact}
-                  onChange={(event) => setFinancialImpact(event.target.value)}
-                  placeholder="Contoh: 250000"
-                />
-              </div>
-              <Button
-                className="mt-3"
-                variant="outline"
-                onClick={() =>
-                  damageMutation.mutate({
-                    id: returnData.id,
-                    data: {
-                      inspectionNotes,
-                      financialImpactAmount: Number(financialImpact || 0),
-                      items: returnItems.map((item) => ({
-                        returnItemId: item.id,
-                        qtyReceived: item.qtyRequested,
-                      })),
-                    },
-                  })
-                }
-                disabled={damageMutation.isPending}
-              >
-                Proses Barang Rusak
-              </Button>
-            </div>
-
-            <div className="rounded-md border p-4">
-              <p className="mb-3 font-medium">Kirim Ulang</p>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Jasa Pengiriman</Label>
-                  <Input
-                    value={shippingService}
-                    onChange={(event) => setShippingService(event.target.value)}
-                    placeholder="Contoh: JNE"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Biaya Pengiriman Ulang</Label>
-                  <Input
-                    type="number"
-                    value={shippingCost}
-                    onChange={(event) => setShippingCost(event.target.value)}
-                    placeholder="Contoh: 18000"
-                  />
-                </div>
-              </div>
-              <div className="mt-3 rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
-                Untuk MVP fase 1, produk pengganti default memakai item yang sama dengan barang yang diretur.
-              </div>
-              <Button
-                className="mt-3"
-                onClick={() =>
-                  resendMutation.mutate({
-                    id: returnData.id,
-                    data: {
-                      inspectionNotes,
-                      resendShippingService: shippingService,
-                      resendShippingCost: Number(shippingCost || 0),
-                      items: resendPayloadItems,
-                    },
-                  })
-                }
-                disabled={resendMutation.isPending || !shippingService.trim()}
-              >
-                Proses Kirim Ulang
-              </Button>
-            </div>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Barang sudah diterima. Diskusi keputusan akhir, finalisasi keputusan, dan eksekusi TCP sekarang dipusatkan di Tiket Retur agar tidak ada keputusan ganda.
+            </p>
+            <Link href={ticketHref}>
+              <Button>Lanjut ke Tiket Retur</Button>
+            </Link>
           </CardContent>
         </Card>
-      )}
-
-      {products.length === 0 && canProcess && (
-        <div className="hidden">{products.length}</div>
       )}
     </div>
   );

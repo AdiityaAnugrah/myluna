@@ -1,0 +1,279 @@
+# Luna Sistem - Peta Struktur dan Fitur (Backend -> Frontend)
+
+Dokumen ini merangkum arsitektur aktual project berdasarkan kode yang aktif saat ini.
+
+> Acuan istilah bisnis resmi untuk label, status, toast, dan notifikasi ada di `BUSINESS_TERMS.md`.
+
+## 1) Struktur Proyek
+
+- `backend/`: API server Node.js + Express + TypeScript + Sequelize (MySQL).
+- `frontend/`: Web app Next.js (App Router) + React Query + Zustand.
+- `logs/`: log aplikasi.
+
+## 2) Alur Runtime Singkat
+
+- Frontend memanggil API ke `NEXT_PUBLIC_API_URL` (default `http://localhost:4000/api/v1`).
+- Backend expose endpoint utama di prefix `env.API_PREFIX` (default `/api/v1`).
+- Auth: JWT Bearer + refresh token.
+- Realtime: Socket.IO, event notifikasi + `data:refresh` untuk invalidasi cache UI.
+
+## 3) Layering Backend
+
+- `src/app.ts`: setup security middleware (helmet, cors, rate limit), parser, static uploads, mount routes.
+- `src/server.ts`: connect DB, start HTTP server, init socket.
+- `src/routes/*.ts`: deklarasi endpoint.
+- `src/controllers/*.ts`: logika request/response.
+- `src/models/*.ts`: schema tabel + relasi Sequelize.
+- `src/middlewares/*`: auth, rbac, validation, upload, error handler.
+
+## 4) Mapping Route Backend (Mount Prefix)
+
+Semua endpoint berikut berada di bawah `/api/v1`.
+
+- `/auth` -> `auth.routes.ts`
+- `/products` -> `product.routes.ts`
+- `/categories` -> `category.routes.ts`
+- `/suppliers` -> `supplier.routes.ts`
+- `/purchases` -> `purchase.routes.ts`
+- `/sales` -> `sale.routes.ts`
+- `/stock` -> `stock.routes.ts`
+- `/product-requests` -> `productRequest.routes.ts`
+- `/sale-requests` -> `saleRequest.routes.ts`
+- `/change-requests` -> `changeRequest.routes.ts`
+- `/users` -> `user.routes.ts`
+- `/platforms` -> `platform.routes.ts`
+- `/audit-logs` -> `audit.routes.ts`
+- `/settlements` -> `settlement.routes.ts`
+- `/financial-summary` -> `financial.routes.ts`
+- `/finance` -> `financial.routes.ts` (alias mount)
+- `/expenses` -> `expense.routes.ts`
+- `/shipping-services` -> `shipping.routes.ts`
+- `/other-incomes` -> `otherIncome.routes.ts`
+- `/search` -> `search.routes.ts`
+- `/variant-options` -> `variantOption.routes.ts`
+- `/upload` -> `upload.routes.ts`
+- `/regions` -> `region.routes.ts`
+- `/analytics` -> `analytics.routes.ts`
+
+## 5) Mapping Modul Fitur End-to-End
+
+Format: `Backend endpoint -> Frontend API/Hook -> Halaman/Komponen`.
+
+### A. Auth & Session
+
+- `/auth/login`, `/auth/logout`, `/auth/me`, `/auth/change-password`, `/auth/heartbeat`
+- `frontend/lib/api/auth.ts`, `frontend/lib/hooks/useAuth.ts`, `frontend/lib/hooks/useActivityTracker.ts`
+- Dipakai di:
+  - `app/(auth)/login/page.tsx`
+  - `app/(dashboard)/profile/page.tsx`
+  - `app/(dashboard)/layout.tsx` (heartbeat tracker)
+  - `components/layout/Header.tsx` (logout)
+
+### B. User & Role
+
+- `/users`, `/users/:id`, `/users/roles`, `/users/settings`
+- `frontend/lib/hooks/useUsers.ts`
+- Dipakai di:
+  - `app/(dashboard)/users/page.tsx`
+  - `app/(dashboard)/users/components/UserForm.tsx`
+  - `app/(dashboard)/settings/page.tsx` (settings user)
+
+### C. Produk, Kategori, Supplier, Varian
+
+- Produk:
+  - `/products`, `/products/:id`, `/products/low-stock`, `/products/bulk/delete`, `/products/bulk/update`
+  - `frontend/lib/api/products.ts` (`productApi`), `frontend/lib/hooks/useProducts.ts`
+  - Halaman: `products`, `products/new`, `products/[id]`, dashboard, stock pages, sales form selector.
+- Kategori:
+  - `/categories`, `/categories/:id`
+  - `frontend/lib/api/products.ts` (`categoryApi`), `frontend/lib/hooks/useCategories.ts`
+  - Halaman: `categories`, `categories/new`, `categories/[id]`, product form.
+- Supplier:
+  - `/suppliers`, `/suppliers/:id`
+  - `frontend/lib/api/suppliers.ts`, `frontend/lib/hooks/useSuppliers.ts`
+  - Halaman: `suppliers`, `suppliers/new`, `suppliers/[id]`, purchase form.
+- Varian Option:
+  - `/variant-options`
+  - `frontend/lib/hooks/useVariantOptions.ts`
+  - Dipakai di `components/forms/ProductForm.tsx`.
+- Upload Gambar Produk:
+  - `/upload/image`
+  - Dipakai langsung via `apiClient` di `components/forms/ProductForm.tsx`.
+
+### D. Pembelian (Restock)
+
+- `/purchases`, `/purchases/:id`
+- `frontend/lib/api/purchases.ts`, `frontend/lib/hooks/usePurchases.ts`
+- Halaman:
+  - `purchases/page.tsx`
+  - `purchases/new/page.tsx`
+  - `purchases/[id]/page.tsx`
+  - `purchases/[id]/edit/page.tsx`
+
+### E. Penjualan
+
+- Endpoint inti:
+  - `/sales`, `/sales/:id`, `/sales/stats`
+  - `/sales/:id/approve`, `/sales/:id/reject`, `/sales/:id/process`
+  - `/sales/:id/request-cancel`
+- API/hook:
+  - `frontend/lib/api/sales.ts`
+  - `frontend/lib/hooks/useSales.ts`
+- Halaman/komponen:
+  - `sales/page.tsx`, `sales/new/page.tsx`, `sales/[id]/page.tsx`, `sales/[id]/edit/page.tsx`
+  - `sales/process/page.tsx` (workflow TCP/admin)
+  - `components/sales/CancelSaleDialog.tsx`
+- Catatan backend:
+  - Create sale langsung mengurangi stok produk/varian.
+  - Reject/cancel bisa restore stok melalui flow tertentu.
+  - Event socket: `approval:pending`, `shipping:ready`, `data:refresh`.
+
+### F. Stok & Movement
+
+- `/stock/movements`, `/stock/adjustment`, `/stock/report`
+- `frontend/lib/api/stock.ts`, `frontend/lib/hooks/useStock.ts`
+- Halaman:
+  - `stock/page.tsx`
+  - `stock/adjustment/page.tsx`
+  - `stock/all/page.tsx`
+- Catatan:
+  - Tersedia flow request penyesuaian stok via `/change-requests` untuk approval.
+
+### G. Approval Workflow
+
+- Generic change request:
+  - `/change-requests/pending`, `/change-requests`, `/change-requests/:id/approve`, `/change-requests/:id/reject`
+  - `frontend/lib/api/requests.ts` (`changeRequestsApi`), `frontend/lib/hooks/useRequests.ts`
+- Product status request:
+  - `/product-requests/...`
+  - `requestsApi` + `useProductRequests`.
+- Sale return/exchange request:
+  - `/sale-requests/...`
+  - `requestsApi` + `useSaleRequests`.
+- UI:
+  - `app/(dashboard)/approvals/page.tsx`
+  - `components/products/ProductApprovals.tsx`
+  - `components/sales/SaleApprovals.tsx`
+  - dialog request di modul produk/penjualan.
+
+### H. Pelunasan (Settlement) & Pendapatan Lain
+
+- Settlement:
+  - `/settlements`, `/settlements/:id`, `/settlements/stats`, `/settlements/:id/request-cancel`
+  - `frontend/lib/api/settlements.ts`, `frontend/lib/hooks/useSettlements.ts`
+  - UI: `settlements/page.tsx`, `settlements/[id]/page.tsx`, `components/settlements/SettlementFormDialog.tsx`
+- Other income:
+  - `/other-incomes`, `/other-incomes/:id` (multipart proof optional)
+  - `frontend/lib/api/otherIncome.ts`, `frontend/lib/hooks/useOtherIncome.ts`
+  - UI:
+    - `components/settlements/OtherIncomeDialog.tsx`
+    - `components/settlements/OtherIncomeListDialog.tsx`
+- Upload bukti:
+  - file served dari `/uploads/proofs/...`
+
+### I. Keuangan / Financial Summary / Finance Ops
+
+- Summary endpoint:
+  - `/financial-summary` (+ alias `/finance`)
+  - `/financial-summary/omset-breakdown`
+- API/hook:
+  - `frontend/lib/api/financial.ts`
+  - `frontend/lib/hooks/useFinancial.ts`
+- Halaman:
+  - `finance/page.tsx`
+  - `financial-summary/page.tsx`
+  - `finance/global-report/page.tsx`
+- Operasi khusus SUPER_ADMIN (dipanggil direct di komponen):
+  - `/finance/initial-receivable` -> `SetInitialBalanceModal`
+  - `/finance/import-settlements` -> `ImportSettlementsModal`
+  - `/finance/import-other-incomes` -> `ImportSettlementsModal` (tab other income)
+  - `/finance/historical-settlements` + create/update/delete historical settlement -> `HistoricalSettlementModal`
+
+### J. Platform & Shipping Service
+
+- Platform:
+  - `/platforms`
+  - `frontend/lib/api/platforms.ts`, `frontend/lib/hooks/usePlatforms.ts`
+  - halaman `platforms/page.tsx`.
+- Shipping service:
+  - `/shipping-services`
+  - `frontend/lib/api/shipping.ts`, `frontend/lib/hooks/useShipping.ts`
+  - halaman `shipping/page.tsx`.
+
+### K. Audit & Aktivitas
+
+- `/audit-logs`, `/audit-logs/stats/daily`
+- `frontend/lib/api/audit.ts`, `frontend/lib/hooks/useAudit.ts`
+- UI:
+  - `activities/page.tsx`
+  - dashboard card aktivitas
+  - `users/components/UserActivityModal.tsx`.
+
+### L. Global Search
+
+- `/search?q=...`
+- Dipakai langsung di `components/ui/global-search.tsx`
+- Trigger keyboard: `/` untuk fokus search.
+
+### M. Analisa dan Wilayah
+
+- `/analytics/sales`
+  - `frontend/lib/api/analytics.ts`, `frontend/lib/hooks/useAnalytics.ts`
+  - halaman `analytics/page.tsx`
+- `/regions/provinces`, `/regions/regencies`, `/regions/districts`, `/regions/villages`
+  - `frontend/lib/api/regions.ts`, `frontend/lib/hooks/useRegions.ts`
+  - komponen `components/sales/RegionAddressFields.tsx`
+- Form penjualan baru menyimpan ID provinsi, kabupaten/kota, kecamatan, kelurahan/desa, kode pos, dan detail alamat.
+- Data penjualan lama tanpa ID wilayah tetap tampil, tetapi tidak dihitung dalam peringkat wilayah.
+
+## 6) Realtime & Sinkronisasi Data
+
+- Backend `socket.service.ts`:
+  - room per user (`user:{id}`)
+  - room `admins`, room `tcp`
+  - event utama: `notification:new`, `approval:pending`, `shipping:ready`, `data:refresh`
+- Frontend `SocketContext.tsx`:
+  - konek pakai access token
+  - saat `data:refresh`, `queryClient.invalidateQueries()` (semua query direfresh)
+  - notifikasi toast per event.
+
+## 7) Role Matrix (UI + API Inti)
+
+- `SUPER_ADMIN`:
+  - akses penuh, termasuk user management, finance ops (saldo awal/import/historical), delete expense tertentu.
+- `ADMIN`:
+  - operasional penuh tanpa beberapa aksi eksklusif super admin.
+- `USER`:
+  - akses terbatas; beberapa operasi jadi request approval.
+- `TCP`:
+  - fokus proses penjualan/pengiriman, akses dashboard khusus proses.
+
+## 8) Halaman Frontend yang Aktif
+
+- Auth:
+  - `/login`
+- Dashboard:
+  - `/`
+  - `/activities`
+  - `/analytics`
+  - `/approvals`
+  - `/categories`, `/categories/new`, `/categories/[id]`
+  - `/expenses`
+  - `/finance`, `/finance/global-report`
+  - `/financial-summary`
+  - `/platforms`
+  - `/products`, `/products/new`, `/products/[id]`
+  - `/profile`
+  - `/purchases`, `/purchases/new`, `/purchases/[id]`, `/purchases/[id]/edit`
+  - `/sales`, `/sales/new`, `/sales/process`, `/sales/[id]`, `/sales/[id]/edit`
+  - `/settings`
+  - `/settlements`, `/settlements/[id]`
+  - `/shipping`
+  - `/stock`, `/stock/adjustment`, `/stock/all`
+  - `/suppliers`, `/suppliers/new`, `/suppliers/[id]`
+  - `/users`
+
+## 9) Temuan Penting
+
+- Dokumen lama `backend/README.md` dan `backend/IMPLEMENTATION_STATUS.md` tidak mencerminkan kondisi aktual (kode sudah lebih komplet).
+- Struktur saat ini sudah produksi-oriented: auth, RBAC, audit, approval workflow, settlement ledger, dan realtime sync sudah terhubung end-to-end.

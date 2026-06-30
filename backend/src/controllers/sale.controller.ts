@@ -116,13 +116,19 @@ export const saleController = {
         platform = '',
         startDate = '',
         endDate = '',
-        search = ''
+        search = '',
+        responsibleUserId = '',
+        settlementStatus = '',
+        cancelStatus = '',
+        minTotalAmount = '',
+        maxTotalAmount = '',
       } = req.query;
 
       const offset = (Number(page) - 1) * Number(limit);
       const where: any = {
         isInitialBalance: false
       };
+      const andConditions: any[] = [];
 
       // Data Isolation: If role is USER, only show their own sales
       if ((req as any).user?.roleName === 'USER') {
@@ -141,10 +147,26 @@ export const saleController = {
         where.platform = platform;
       }
 
+      if (responsibleUserId) {
+        where.createdBy = responsibleUserId;
+      }
+
       if (startDate && endDate) {
         where.saleDate = {
           [Op.between]: [new Date(startDate as string), new Date(endDate as string)],
         };
+      }
+
+      const minTotal = Number(minTotalAmount);
+      const maxTotal = Number(maxTotalAmount);
+      if ((minTotalAmount && !Number.isNaN(minTotal)) || (maxTotalAmount && !Number.isNaN(maxTotal))) {
+        where.totalAmount = {};
+        if (minTotalAmount && !Number.isNaN(minTotal)) {
+          where.totalAmount[Op.gte] = minTotal;
+        }
+        if (maxTotalAmount && !Number.isNaN(maxTotal)) {
+          where.totalAmount[Op.lte] = maxTotal;
+        }
       }
 
       if (search) {
@@ -154,6 +176,67 @@ export const saleController = {
           { customerName: { [Op.like]: searchStr } },
           { customerPhone: { [Op.like]: searchStr } }
         ];
+      }
+
+      if (cancelStatus === 'PENDING_CANCEL') {
+        andConditions.push(
+          sequelize.literal(`EXISTS (
+            SELECT 1
+            FROM change_requests cr
+            WHERE cr.entityType = 'SALE'
+              AND cr.entityId = Sale.id
+              AND cr.status = 'PENDING'
+              AND cr.requestType = 'DELETE'
+          )`)
+        );
+      } else if (cancelStatus === 'NORMAL') {
+        andConditions.push(
+          sequelize.literal(`NOT EXISTS (
+            SELECT 1
+            FROM change_requests cr
+            WHERE cr.entityType = 'SALE'
+              AND cr.entityId = Sale.id
+              AND cr.status = 'PENDING'
+              AND cr.requestType = 'DELETE'
+          )`)
+        );
+        andConditions.push({
+          status: {
+            [Op.notIn]: ['CANCELLED', 'REJECTED']
+          }
+        });
+      } else if (cancelStatus === 'CANCELLED') {
+        where.status = 'CANCELLED';
+      } else if (cancelStatus === 'REJECTED') {
+        where.status = 'REJECTED';
+      }
+
+      if (settlementStatus === 'SETTLED') {
+        andConditions.push(
+          sequelize.literal(`(
+            Sale.status = 'SETTLED'
+            OR EXISTS (
+              SELECT 1
+              FROM settlements st
+              WHERE st.saleId = Sale.id
+            )
+          )`)
+        );
+      } else if (settlementStatus === 'UNSETTLED') {
+        andConditions.push(
+          sequelize.literal(`(
+            Sale.status <> 'SETTLED'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM settlements st
+              WHERE st.saleId = Sale.id
+            )
+          )`)
+        );
+      }
+
+      if (andConditions.length) {
+        where[Op.and] = andConditions;
       }
 
       const { count, rows } = await Sale.findAndCountAll({
@@ -933,6 +1016,14 @@ export const saleController = {
 
       if (!sale) {
         throw new AppError('Sale not found', 404);
+      }
+
+      const existingSettlement = await Settlement.findOne({
+        where: { saleId: id },
+      });
+
+      if (existingSettlement) {
+        throw new AppError('Penjualan ini sudah memiliki pelunasan. Batalkan pelunasannya terlebih dahulu', 400);
       }
 
       if (['CANCELLED', 'REJECTED', 'COMPLETED', 'SETTLED'].includes(sale.status as string)) {

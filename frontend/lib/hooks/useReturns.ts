@@ -65,10 +65,10 @@ export function useReviewReturn() {
       returnsApi.review(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['returns'] });
-      toast.success('Review retur berhasil disimpan');
+      toast.success('Keputusan review retur berhasil disimpan');
     },
     onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, 'Gagal mereview retur'));
+      toast.error(getErrorMessage(error, 'Gagal menyimpan keputusan review retur'));
     },
   });
 }
@@ -79,10 +79,10 @@ export function useReceiveReturn() {
     mutationFn: ({ id, data }: { id: string; data: FormData }) => returnsApi.receive(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['returns'] });
-      toast.success('Barang retur berhasil dikonfirmasi diterima');
+      toast.success('Retur berhasil ditandai barang sudah diterima');
     },
     onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, 'Gagal mengonfirmasi penerimaan retur'));
+      toast.error(getErrorMessage(error, 'Gagal menandai barang sudah diterima'));
     },
   });
 }
@@ -125,7 +125,7 @@ export function useDamageReturn() {
       toast.success('Retur berhasil ditandai tidak layak pakai');
     },
     onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, 'Gagal memproses retur rusak'));
+      toast.error(getErrorMessage(error, 'Gagal menandai retur tidak layak pakai'));
     },
   });
 }
@@ -157,10 +157,10 @@ export function useResendReturn() {
       queryClient.invalidateQueries({ queryKey: ['stock'] });
       queryClient.invalidateQueries({ queryKey: ['expense'] });
       queryClient.invalidateQueries({ queryKey: ['financial'] });
-      toast.success('Kirim ulang retur berhasil diproses');
+      toast.success('Pengiriman pengganti berhasil diproses');
     },
     onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, 'Gagal memproses kirim ulang retur'));
+      toast.error(getErrorMessage(error, 'Gagal memproses pengiriman pengganti'));
     },
   });
 }

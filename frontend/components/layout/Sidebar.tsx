@@ -68,6 +68,7 @@ const navigationGroups: NavigationGroup[] = [
     items: [
       { name: 'Penjualan', href: '/sales', icon: ShoppingBag },
       { name: 'Retur', href: '/returns', icon: RefreshCcw },
+      { name: 'Tiket Retur', href: '/return-tickets', icon: FileText },
       { name: 'Proses Penjualan', href: '/sales/process', icon: FileCheck, notificationKey: 'pendingSales' },
       { name: 'Komplen', href: '/complaints', icon: MessageSquareWarning },
     ]
@@ -173,7 +174,7 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
         if (group.title === 'Penjualan') {
             return {
                 ...group,
-                items: group.items.filter(item => item.href === '/sales/process' || item.href === '/complaints' || item.href === '/returns')
+                items: group.items.filter(item => item.href === '/sales/process' || item.href === '/complaints' || item.href === '/returns' || item.href === '/return-tickets')
             };
         }
         

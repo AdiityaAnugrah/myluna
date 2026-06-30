@@ -6,8 +6,10 @@ import { useAuthStore } from '@/lib/stores/auth';
 import {
   useClaimComplaint,
   useComplaints,
+  useCompleteComplaint,
   useCreateComplaint,
   useEligibleComplaintSales,
+  useMarkComplaintHandled,
 } from '@/lib/hooks/useComplaints';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,37 +36,16 @@ import {
 import { getImageUrl } from '@/lib/utils/url';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import { notify } from '@/lib/notify';
+import { getComplaintStatusBadgeClass, getComplaintStatusLabel } from '@/lib/constants/workflowStatus';
 import { Complaint, ComplaintStatus, Sale } from '@/types';
 import { CheckCircle2, Eye, FileText, Loader2, Printer, Search, Send } from 'lucide-react';
 
 function statusLabel(status: ComplaintStatus) {
-  switch (status) {
-    case 'PENDING_TCP_REVIEW':
-      return 'Menunggu Diterima TCP';
-    case 'REJECTED_BY_TCP':
-      return 'Ditolak TCP';
-    case 'ACCEPTED_BY_TCP':
-      return 'Sedang Diproses TCP';
-    case 'REPLACEMENT_SHIPPED':
-      return 'Sudah Diurus TCP';
-    default:
-      return status;
-  }
+  return getComplaintStatusLabel(status);
 }
 
 function statusBadgeClass(status: ComplaintStatus) {
-  switch (status) {
-    case 'PENDING_TCP_REVIEW':
-      return 'bg-amber-100 text-amber-800 border-amber-300';
-    case 'REJECTED_BY_TCP':
-      return 'bg-red-100 text-red-800 border-red-300';
-    case 'ACCEPTED_BY_TCP':
-      return 'bg-blue-100 text-blue-800 border-blue-300';
-    case 'REPLACEMENT_SHIPPED':
-      return 'bg-green-100 text-green-800 border-green-300';
-    default:
-      return '';
-  }
+  return getComplaintStatusBadgeClass(status);
 }
 
 function sanitizeComplaintSalesInformation(value: string) {
@@ -173,6 +154,8 @@ export default function ComplaintsPage() {
 
   const createComplaint = useCreateComplaint();
   const claimComplaint = useClaimComplaint();
+  const completeComplaint = useCompleteComplaint();
+  const markComplaintHandled = useMarkComplaintHandled();
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSaleQuery(saleQuery), 350);
@@ -316,7 +299,7 @@ export default function ComplaintsPage() {
       acceptedComplaintIds.has(complaint.id);
 
     if (!canPrint) {
-      notify.warning('Terima komplen dulu sebelum print');
+      notify.warning('Terima untuk diproses dulu sebelum print');
       return;
     }
 
@@ -592,9 +575,11 @@ export default function ComplaintsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua Status</SelectItem>
-                <SelectItem value="PENDING_TCP_REVIEW">Menunggu Diterima TCP</SelectItem>
-                <SelectItem value="ACCEPTED_BY_TCP">Sedang Diproses TCP</SelectItem>
-                <SelectItem value="REPLACEMENT_SHIPPED">Sudah Diurus TCP</SelectItem>
+                <SelectItem value="PENDING_TCP_REVIEW">Menunggu Review TCP</SelectItem>
+                <SelectItem value="ACCEPTED_BY_TCP">Sedang Ditangani TCP</SelectItem>
+                <SelectItem value="REPLACEMENT_SHIPPED">Pengganti Sudah Dikirim</SelectItem>
+                <SelectItem value="COMPLETED">Selesai</SelectItem>
+                <SelectItem value="CONVERTED_TO_RETURN">Dialihkan ke Retur</SelectItem>
                 <SelectItem value="REJECTED_BY_TCP">Ditolak TCP</SelectItem>
               </SelectContent>
             </Select>
@@ -626,9 +611,11 @@ export default function ComplaintsPage() {
               {complaints.map((complaint) => {
                 const receiptPdfPath = complaint.complaintReceiptPdf || complaint.replacementProofDocument;
                 const isAcceptedForPrint =
-                  ['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED'].includes(complaint.status) ||
+                  ['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED', 'COMPLETED'].includes(complaint.status) ||
                   acceptedComplaintIds.has(complaint.id);
                 const isPendingReview = complaint.status === 'PENDING_TCP_REVIEW' && !acceptedComplaintIds.has(complaint.id);
+                const canMarkHandled = complaint.status === 'ACCEPTED_BY_TCP';
+                const canComplete = complaint.status === 'REPLACEMENT_SHIPPED';
                 return (
                   <div key={complaint.id} className="rounded-lg border p-3">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -716,13 +703,35 @@ export default function ComplaintsPage() {
                               disabled={!isAcceptedForPrint}
                               title={
                                 !isAcceptedForPrint
-                                  ? 'Terima komplen dulu sebelum print'
+                                  ? 'Terima untuk diproses dulu sebelum print'
                                   : undefined
                               }
                             >
                               <Printer className="h-4 w-4 mr-1" />
                               Print
                             </Button>
+
+                            {canMarkHandled && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => markComplaintHandled.mutate({ id: complaint.id })}
+                                disabled={markComplaintHandled.isPending}
+                              >
+                                Tandai Pengganti Dikirim
+                              </Button>
+                            )}
+
+                            {canComplete && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => completeComplaint.mutate({ id: complaint.id })}
+                                disabled={completeComplaint.isPending}
+                              >
+                                Selesai
+                              </Button>
+                            )}
                           </>
                         )}
                       </div>
@@ -770,7 +779,7 @@ export default function ComplaintsPage() {
         <DialogContent className="max-w-3xl max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {detailMode === 'accept' ? 'Terima Komplen' : 'Detail Komplen'}
+              {detailMode === 'accept' ? 'Terima untuk Diproses' : 'Detail Komplen'}
             </DialogTitle>
             <DialogDescription>
               Periksa detail pesanan, alasan, foto, dan alamat penerima sebelum diproses TCP.
@@ -864,7 +873,7 @@ export default function ComplaintsPage() {
                 ) : (
                   <>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Terima Komplen
+                    Terima untuk Diproses
                   </>
                 )}
               </Button>

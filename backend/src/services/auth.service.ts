@@ -157,22 +157,6 @@ export const authService = {
       { isRevoked: true },
       { where: { userId, isRevoked: false } }
     );
-
-    // Log logout activity
-    try {
-      await auditService.log({
-        userId: userId,
-        action: 'LOGOUT' as any,
-        entity: 'Auth',
-        entityId: userId,
-        before: null,
-        after: null,
-        ip: '',
-        userAgent: '',
-      });
-    } catch (error) {
-      console.error('Audit log failed:', error);
-    }
   },
 
   async getMe(userId: string) {

@@ -28,6 +28,7 @@ export interface Product {
     };
   };
   variants?: ProductVariant[];
+  variantItems?: ProductVariant[];
 }
 
 export interface Category {
@@ -353,11 +354,53 @@ export interface UnmappedSalesDiagnostics {
   }>;
 }
 
+export interface OperationalAnalytics {
+  period: {
+    startDate: string | null;
+    endDate: string | null;
+  } | null;
+  complaints: {
+    total: number;
+    active: number;
+    pendingReview: number;
+    acceptedByTcp: number;
+    replacementShipped: number;
+    completed: number;
+    convertedToReturn: number;
+    rejected: number;
+  };
+  returns: {
+    total: number;
+    active: number;
+    pendingReview: number;
+    waitingItemReturn: number;
+    itemReceived: number;
+    restocked: number;
+    damaged: number;
+    resent: number;
+    completed: number;
+    rejected: number;
+  };
+  tickets: {
+    total: number;
+    active: number;
+    open: number;
+    inDiscussion: number;
+    waitingTcpExecution: number;
+    tcpExecuting: number;
+    overdue: number;
+    completed: number;
+    rejected: number;
+  };
+}
+
 export type ComplaintStatus =
   | 'PENDING_TCP_REVIEW'
   | 'REJECTED_BY_TCP'
   | 'ACCEPTED_BY_TCP'
-  | 'REPLACEMENT_SHIPPED';
+  | 'REPLACEMENT_SHIPPED'
+  | 'COMPLETED'
+  | 'CONVERTED_TO_RETURN';
 
 export interface Complaint {
   id: string;
@@ -431,6 +474,22 @@ export type SaleReturnStatus =
 
 export type SaleReturnDecision = 'RESTOCK' | 'DAMAGED' | 'RESEND';
 
+export type ReturnTicketStatus =
+  | 'OPEN'
+  | 'IN_DISCUSSION'
+  | 'DECISION_FINALIZED'
+  | 'WAITING_TCP_EXECUTION'
+  | 'TCP_EXECUTING'
+  | 'COMPLETED'
+  | 'REJECTED'
+  | 'OVERDUE';
+
+export type ReturnFinalDecision = 'RESEND_UNIT' | 'SEND_COMPONENT' | 'RESTOCK';
+
+export type ReturnTicketMessageType = 'TEXT' | 'SYSTEM' | 'DECISION';
+
+export type ReturnExecutionStatus = 'PENDING' | 'STARTED' | 'COMPLETED';
+
 export interface ReturnItem {
   id: string;
   returnId: string;
@@ -494,6 +553,105 @@ export interface SaleReturn {
     id: string;
     fullName: string;
     username: string;
+  };
+  ticket?: ReturnTicket;
+}
+
+export interface ReturnTicketParticipant {
+  id: string;
+  ticketId: string;
+  userId: string;
+  roleSnapshot: string;
+  user?: {
+    id: string;
+    fullName: string;
+    username: string;
+  };
+}
+
+export interface ReturnTicketMessage {
+  id: string;
+  ticketId: string;
+  senderId?: string | null;
+  message: string;
+  messageType: ReturnTicketMessageType;
+  attachmentUrl?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  sender?: {
+    id: string;
+    fullName: string;
+    username: string;
+  } | null;
+}
+
+export interface ReturnExecution {
+  id: string;
+  ticketId: string;
+  executionType: ReturnFinalDecision;
+  status: ReturnExecutionStatus;
+  notes?: string | null;
+  shippingService?: string | null;
+  shippingCost: string;
+  expenseAmount: string;
+  proofPhotos?: string[] | null;
+  executedBy?: string | null;
+  executedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  executor?: {
+    id: string;
+    fullName: string;
+    username: string;
+  } | null;
+}
+
+export interface ReturnTicket {
+  id: string;
+  ticketNumber: string;
+  saleReturnId: string;
+  createdBy: string;
+  status: ReturnTicketStatus;
+  deadlineAt: string;
+  finalDecision?: ReturnFinalDecision | null;
+  finalDecisionNotes?: string | null;
+  finalizedBy?: string | null;
+  finalizedAt?: string | null;
+  tcpExecutorId?: string | null;
+  tcpStartedAt?: string | null;
+  tcpCompletedAt?: string | null;
+  resolvedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  creator?: {
+    id: string;
+    fullName: string;
+    username: string;
+  };
+  finalizer?: {
+    id: string;
+    fullName: string;
+    username: string;
+  } | null;
+  tcpExecutor?: {
+    id: string;
+    fullName: string;
+    username: string;
+  } | null;
+  participants?: ReturnTicketParticipant[];
+  messages?: ReturnTicketMessage[];
+  executions?: ReturnExecution[];
+  returnRecord?: SaleReturn;
+}
+
+export interface ReturnTicketListData {
+  tickets: ReturnTicket[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
   };
 }
 

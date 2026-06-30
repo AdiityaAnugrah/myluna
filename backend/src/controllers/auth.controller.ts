@@ -43,17 +43,20 @@ export const authController = {
       const userId = req.user!.id;
       await authService.logout(userId);
 
-      // Catat aktivitas logout
-      await auditService.log({
-        userId,
-        action: AuditAction.LOGOUT,
-        entity: 'Auth',
-        entityId: userId,
-        before: null,
-        after: null,
-        ip: req.ip || req.socket.remoteAddress || '',
-        userAgent: req.headers['user-agent'] || '',
-      });
+      try {
+        await auditService.log({
+          userId,
+          action: AuditAction.LOGOUT,
+          entity: 'Auth',
+          entityId: userId,
+          before: null,
+          after: null,
+          ip: req.ip || req.socket.remoteAddress || '',
+          userAgent: req.headers['user-agent'] || '',
+        });
+      } catch (auditError) {
+        console.error('Logout audit log failed:', auditError);
+      }
 
       successResponse(res, null, 'Logout successful', 200);
     } catch (error) {

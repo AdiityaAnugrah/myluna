@@ -70,8 +70,9 @@ export default function NewReturnPage() {
     photos.forEach((photo) => formData.append('evidencePhotos', photo));
 
     createReturn.mutate(formData, {
-      onSuccess: () => {
-        router.push('/returns');
+      onSuccess: (response) => {
+        const ticketId = response.data.ticket?.id;
+        router.push(ticketId ? `/return-tickets/${ticketId}` : '/return-tickets');
       },
     });
   };
