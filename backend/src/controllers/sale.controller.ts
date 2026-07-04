@@ -445,7 +445,7 @@ export const saleController = {
         revenueTrend,
       };
       statusCounts.forEach((record: any) => {
-        if (stats.hasOwnProperty(record.status)) {
+        if (Object.prototype.hasOwnProperty.call(stats, record.status)) {
            stats[record.status] = parseInt(record.count);
         }
         stats.totalSales += parseInt(record.count);
@@ -474,7 +474,7 @@ export const saleController = {
         }
       }
 
-      let {
+      const {
         invoiceNumber,
         saleDate,
         customerName,

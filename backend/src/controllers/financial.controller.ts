@@ -465,7 +465,7 @@ export const financialController = {
         status: 'SETTLED' as any,
         notes: 'Sistem: Set Saldo Awal Piutang Global',
         isInitialBalance: true,
-        createdBy: req.user?.id!, // user id from auth middleware
+        createdBy: req.user!.id, // user id from auth middleware
       });
 
       return successResponse(res, initialBalanceSale, 'Saldo awal piutang berhasil diatur', 201);

@@ -51,6 +51,9 @@ Semua endpoint berikut berada di bawah `/api/v1`.
 - `/other-incomes` -> `otherIncome.routes.ts`
 - `/search` -> `search.routes.ts`
 - `/variant-options` -> `variantOption.routes.ts`
+- `/complaints` -> `complaint.routes.ts`
+- `/returns` -> `return.routes.ts`
+- `/return-tickets` -> `returnTicket.routes.ts`
 - `/upload` -> `upload.routes.ts`
 - `/regions` -> `region.routes.ts`
 - `/analytics` -> `analytics.routes.ts`
@@ -226,6 +229,54 @@ Format: `Backend endpoint -> Frontend API/Hook -> Halaman/Komponen`.
 - Form penjualan baru menyimpan ID provinsi, kabupaten/kota, kecamatan, kelurahan/desa, kode pos, dan detail alamat.
 - Data penjualan lama tanpa ID wilayah tetap tampil, tetapi tidak dihitung dalam peringkat wilayah.
 
+
+### N. Retur
+
+- `/returns/eligible-sales`, `/returns/summary`, `/returns`, `/returns/:id`
+- `/returns/:id/review`, `/returns/:id/receive`, `/returns/:id/restock`, `/returns/:id/damaged`, `/returns/:id/resend`
+- `frontend/lib/api/returns.ts`, `frontend/lib/hooks/useReturns.ts`
+- Halaman:
+  - `returns/page.tsx`
+  - `returns/new/page.tsx`
+  - `returns/[id]/page.tsx`
+- Status resmi Retur:
+  - `PENDING_REVIEW` -> Menunggu Review
+  - `WAITING_ITEM_RETURN` -> Menunggu Barang Kembali
+  - `ITEM_RECEIVED` -> Barang Sudah Diterima
+  - `REJECTED` -> Ditolak
+  - `RESTOCKED` -> Masuk Stok
+  - `DAMAGED` -> Tidak Layak Pakai
+  - `RESENT` -> Barang Pengganti Dikirim
+  - `COMPLETED` -> Selesai
+- Catatan alur:
+  - Retur dibuat dari penjualan eligible dengan item yang dipilih dan foto bukti.
+  - Review menyetujui pengajuan ke tahap menunggu barang kembali atau menolak.
+  - Setelah barang diterima, Retur dapat difinalisasi langsung atau dilanjutkan ke Tiket Retur.
+
+### O. Tiket Retur
+
+- `/return-tickets`, `/return-tickets/summary`, `/return-tickets/:id`
+- `/return-tickets/:id/read`, `/return-tickets/:id/messages`, `/return-tickets/:id/deadline`
+- `/return-tickets/:id/finalize-decision`, `/return-tickets/:id/start-execution`, `/return-tickets/:id/complete-execution`
+- `frontend/lib/api/returnTickets.ts`, `frontend/lib/hooks/useReturnTickets.ts`
+- Halaman:
+  - `return-tickets/page.tsx`
+  - `return-tickets/[id]/page.tsx`
+- Status resmi Tiket Retur:
+  - `OPEN` -> Baru Dibuka
+  - `IN_DISCUSSION` -> Dalam Diskusi
+  - `DECISION_FINALIZED` -> Keputusan Sudah Final
+  - `WAITING_TCP_EXECUTION` -> Menunggu Eksekusi TCP
+  - `TCP_EXECUTING` -> Sedang Dieksekusi TCP
+  - `COMPLETED` -> Selesai
+  - `REJECTED` -> Ditolak
+  - `OVERDUE` -> Melewati Deadline
+- Catatan alur:
+  - Tiket Retur adalah ruang diskusi/finalisasi keputusan internal untuk Retur.
+  - Admin/super admin mengatur Batas Waktu dan Finalisasi Keputusan.
+  - TCP melakukan Mulai Eksekusi dan Selesaikan Eksekusi.
+  - Eksekusi dapat membuat penyesuaian stok dan biaya terkait keputusan akhir.
+
 ## 6) Realtime & Sinkronisasi Data
 
 - Backend `socket.service.ts`:
@@ -266,6 +317,8 @@ Format: `Backend endpoint -> Frontend API/Hook -> Halaman/Komponen`.
   - `/profile`
   - `/purchases`, `/purchases/new`, `/purchases/[id]`, `/purchases/[id]/edit`
   - `/sales`, `/sales/new`, `/sales/process`, `/sales/[id]`, `/sales/[id]/edit`
+  - `/returns`, `/returns/new`, `/returns/[id]`
+  - `/return-tickets`, `/return-tickets/[id]`
   - `/settings`
   - `/settlements`, `/settlements/[id]`
   - `/shipping`
@@ -275,5 +328,15 @@ Format: `Backend endpoint -> Frontend API/Hook -> Halaman/Komponen`.
 
 ## 9) Temuan Penting
 
-- Dokumen lama `backend/README.md` dan `backend/IMPLEMENTATION_STATUS.md` tidak mencerminkan kondisi aktual (kode sudah lebih komplet).
+- `backend/IMPLEMENTATION_STATUS.md` adalah arsip lama dan tidak mencerminkan kondisi aktual. Gunakan dokumen ini, `AI_PROJECT_HANDOFF.md`, `backend/README.md`, dan `frontend/README.md` sebagai acuan utama.
 - Struktur saat ini sudah produksi-oriented: auth, RBAC, audit, approval workflow, settlement ledger, dan realtime sync sudah terhubung end-to-end.
+
+## 10) Status Verifikasi Terakhir
+
+Diverifikasi pada 2026-07-04:
+
+- `backend npm run build`: berhasil.
+- `frontend npm run build`: berhasil.
+- `frontend npm run lint`: berhasil.
+- `backend npm run lint`: berhasil.
+- `backend npm test`: belum siap karena `backend/tests` belum ada sesuai `jest.config.js`.

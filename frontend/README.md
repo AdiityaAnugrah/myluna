@@ -104,6 +104,8 @@ frontend/
 - `/profile`
 - `/purchases`, `/purchases/new`, `/purchases/[id]`, `/purchases/[id]/edit`
 - `/sales`, `/sales/new`, `/sales/process`, `/sales/[id]`, `/sales/[id]/edit`
+- `/returns`, `/returns/new`, `/returns/[id]`
+- `/return-tickets`, `/return-tickets/[id]`
 - `/settings`
 - `/settlements`, `/settlements/[id]`
 - `/shipping`
@@ -127,7 +129,7 @@ Sidebar dan beberapa halaman memfilter akses berdasarkan role:
 - `SUPER_ADMIN`: semua menu.
 - `ADMIN`: menu operasional luas, tanpa beberapa menu sistem sensitif.
 - `USER`: menu terbatas, beberapa aksi masuk approval.
-- `TCP`: fokus proses penjualan dan komplen.
+- `TCP`: fokus proses penjualan, komplen, Retur, dan eksekusi Tiket Retur.
 - `TESTING`: dinormalisasi di frontend sebagai `SUPER_ADMIN` dengan flag mode testing.
 
 ## Modul Frontend
@@ -141,8 +143,17 @@ Sidebar dan beberapa halaman memfilter akses berdasarkan role:
 - Settlements: `lib/api/settlements.ts`, `lib/hooks/useSettlements.ts`.
 - Finance: `lib/api/financial.ts`, `lib/hooks/useFinancial.ts`.
 - Complaints: `lib/api/complaints.ts`, `lib/hooks/useComplaints.ts`.
+- Retur: `lib/api/returns.ts`, `lib/hooks/useReturns.ts`.
+- Tiket Retur: `lib/api/returnTickets.ts`, `lib/hooks/useReturnTickets.ts`.
 - Audit: `lib/api/audit.ts`, `lib/hooks/useAudit.ts`.
 - Notifications: `lib/hooks/useNotifications.ts`.
+
+## Status Verifikasi dan Tooling
+
+Diverifikasi pada 2026-07-04:
+
+- `npm run build`: berhasil.
+- `npm run lint`: berhasil.
 
 ## Catatan Maintenance
 

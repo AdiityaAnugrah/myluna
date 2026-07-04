@@ -129,7 +129,6 @@ export const auditService = {
     const deletedCount = await AuditLog.destroy({
       where: {
         createdAt: {
-          // @ts-ignore
           [Op.lt]: sixMonthsAgo,
         },
       },

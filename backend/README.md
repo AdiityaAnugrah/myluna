@@ -114,7 +114,9 @@ backend/
 - Settlements: pending/settled list, create/update settlement, stats, cancel request.
 - Finance: financial summary, omset breakdown, initial receivable, import settlements, import other incomes, historical settlements.
 - Expenses and other incomes.
-- Complaints: eligible sales, create complaint, TCP claim, mark handled, video metadata.
+- Complaints: eligible sales, create complaint, TCP claim, mark handled, complete.
+- Retur: eligible sales, create Retur, review, receive item, restock, damaged, resend.
+- Tiket Retur: diskusi, read marker, Batas Waktu, Finalisasi Keputusan, Mulai Eksekusi, Selesaikan Eksekusi.
 - Audit logs and global search.
 
 ## Endpoint Groups
@@ -144,6 +146,8 @@ Semua endpoint di bawah `API_PREFIX`, default `/api/v1`.
 /search
 /variant-options
 /complaints
+/returns
+/return-tickets
 /upload
 ```
 
@@ -165,7 +169,10 @@ Semua endpoint di bawah `API_PREFIX`, default `/api/v1`.
 - TCP/admin dapat process sale; status menjadi `PROCESSED`.
 - Settlement hanya bisa dibuat untuk sale `PROCESSED`; setelah settlement dibuat, sale menjadi `SETTLED`.
 - Finance summary menghitung piutang, pelunasan, selisih/platform fee, saldo awal piutang, historical settlement, dan other income.
-- Complaint dibuat untuk sale yang sudah `PROCESSED`, `COMPLETED`, atau `SETTLED`; TCP dapat claim dan mark handled.
+- Complaint dibuat untuk sale yang sudah `PROCESSED`, `COMPLETED`, atau `SETTLED`; TCP dapat claim, mark handled, dan complete.
+- Retur dibuat untuk sale eligible dengan item dan foto bukti; review bisa menyetujui pengajuan ke tahap menunggu barang kembali atau menolak.
+- Setelah barang Retur diterima, alur bisa dilanjutkan lewat inspeksi langsung atau Tiket Retur.
+- Tiket Retur dipakai untuk diskusi/finalisasi keputusan internal; admin/super admin melakukan Finalisasi Keputusan, TCP melakukan eksekusi.
 
 ## Realtime
 
@@ -194,8 +201,19 @@ File upload disajikan dari `/uploads`.
 - Proof document: `/uploads/proofs/...`
 - Shipping document: sesuai middleware upload dokumen.
 - Complaint photos/receipts/videos: `/uploads/complaints/...`
+- Return evidence/received photos: `/uploads/returns/...`
 
 PDF di `/uploads` disajikan inline dengan header cache dasar.
+
+## Status Verifikasi dan Tooling
+
+Diverifikasi pada 2026-07-04:
+
+- `npm run build`: berhasil.
+- `npm run lint`: berhasil.
+- `npm test`: belum siap karena `jest.config.js` menunjuk ke folder `tests` yang belum ada.
+
+Catatan: `IMPLEMENTATION_STATUS.md` adalah arsip lama dari fase awal dan tidak boleh dijadikan acuan progres saat ini.
 
 ## Catatan Maintenance
 

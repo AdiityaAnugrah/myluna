@@ -105,6 +105,8 @@ Route group aktif:
 - `/search`
 - `/variant-options`
 - `/complaints`
+- `/returns`
+- `/return-tickets`
 - `/upload`
 - `/regions`
 - `/analytics`
@@ -117,6 +119,7 @@ Pola umum frontend:
 - `components/ui/*`: komponen UI shared.
 - `components/forms/*`: form master data.
 - `components/products/*`, `components/sales/*`, `components/settlements/*`: komponen domain.
+- Modul Retur dan Tiket Retur memakai halaman di `app/(dashboard)/returns` dan `app/(dashboard)/return-tickets`, API wrapper `lib/api/returns.ts` dan `lib/api/returnTickets.ts`, serta hook `useReturns.ts` dan `useReturnTickets.ts`.
 - `lib/api/*`: wrapper axios per domain.
 - `lib/hooks/*`: React Query hooks per domain.
 - `lib/stores/*`: Zustand client state.
@@ -178,7 +181,7 @@ Event penting:
 
 Frontend akan `queryClient.invalidateQueries()` saat menerima `data:refresh`, sehingga data UI refresh otomatis.
 
-Catatan penting: per 2026-06-09, ada potensi mismatch di `backend/src/services/socket.service.ts`. JWT access token dibuat dengan payload `{ userId }`, tetapi socket service membaca `decoded.id` dan `decoded.role`. Jika notifikasi role/user tidak masuk, cek bagian ini dulu.
+Catatan historis: sebelumnya ada potensi mismatch JWT Socket.IO. Kondisi kode saat ini sudah membaca `decoded.userId` lalu mengambil role dari database, sehingga room `user:{id}`, `admins`, dan `tcp` sinkron dengan payload access token `{ userId }`.
 
 ## Modul Bisnis Utama
 
@@ -298,6 +301,54 @@ Alur penting:
 5. Process sale bisa dilakukan dari `WAITING_APPROVAL` atau `APPROVED`; jika masih waiting, backend auto-approve.
 6. Process sale mengubah status ke `PROCESSED` dan mengisi `processedAt`.
 7. Settlement mengubah sale menjadi `SETTLED`.
+
+### Retur dan Tiket Retur
+
+Endpoint Retur:
+
+- `/returns/eligible-sales`
+- `/returns/summary`
+- `/returns`
+- `/returns/:id`
+- `/returns/:id/review`
+- `/returns/:id/receive`
+- `/returns/:id/restock`
+- `/returns/:id/damaged`
+- `/returns/:id/resend`
+
+Endpoint Tiket Retur:
+
+- `/return-tickets`
+- `/return-tickets/summary`
+- `/return-tickets/:id`
+- `/return-tickets/:id/read`
+- `/return-tickets/:id/messages`
+- `/return-tickets/:id/deadline`
+- `/return-tickets/:id/finalize-decision`
+- `/return-tickets/:id/start-execution`
+- `/return-tickets/:id/complete-execution`
+
+Frontend:
+
+- `frontend/lib/api/returns.ts`
+- `frontend/lib/hooks/useReturns.ts`
+- `frontend/lib/api/returnTickets.ts`
+- `frontend/lib/hooks/useReturnTickets.ts`
+- `frontend/lib/constants/workflowStatus.ts`
+- `frontend/app/(dashboard)/returns`
+- `frontend/app/(dashboard)/return-tickets`
+
+Alur penting:
+
+1. Retur dibuat dari sale eligible dan wajib memilih minimal satu item serta upload foto bukti.
+2. Status Retur mengikuti istilah resmi: `PENDING_REVIEW`, `WAITING_ITEM_RETURN`, `ITEM_RECEIVED`, `REJECTED`, `RESTOCKED`, `DAMAGED`, `RESENT`, `COMPLETED`.
+3. Review TCP/admin menyetujui Retur ke tahap `WAITING_ITEM_RETURN` atau menolak menjadi `REJECTED`.
+4. Saat barang diterima, status menjadi `ITEM_RECEIVED` dan dapat dilanjutkan inspeksi legacy (`restock`/`damaged`/`resend`) atau lewat Tiket Retur.
+5. Tiket Retur menjadi ruang diskusi/finalisasi keputusan internal, dengan status `OPEN`, `IN_DISCUSSION`, `DECISION_FINALIZED`, `WAITING_TCP_EXECUTION`, `TCP_EXECUTING`, `COMPLETED`, `REJECTED`, `OVERDUE`.
+6. Finalisasi keputusan oleh admin/super admin menyiapkan eksekusi TCP (`RESEND_UNIT`, `SEND_COMPONENT`, atau `RESTOCK`).
+7. Eksekusi TCP dapat mengubah stok, membuat biaya/expense bila perlu, menyelesaikan tiket, dan menyelesaikan Retur terkait.
+8. Label status, CTA, toast, dan notifikasi wajib mengikuti `BUSINESS_TERMS.md`.
+
 
 Alamat pengiriman penjualan baru memakai pilihan wilayah berjenjang:
 
@@ -557,6 +608,7 @@ Folder upload yang terlihat:
 - `backend/uploads/proofs`
 - `backend/uploads/documents`
 - `backend/uploads/complaints`
+- `backend/uploads/returns`
 
 PDF di `/uploads` diberi header inline dan cache dasar di `app.ts`.
 
@@ -603,8 +655,7 @@ Hal yang perlu diperhatikan sebelum revisi besar:
 - Jangan ubah file upload/runtime kecuali memang diminta.
 - `PROJECT_MODULE_MAP.md` sudah ada dan berisi peta fitur end-to-end yang cukup detail.
 - Beberapa file debug/temp ada di repo root/backend; cek dulu sebelum menjalankan script yang menyentuh database.
-- Ada beberapa file lokal belum tracked pada 2026-06-09: `.vscode/`, `PROJECT_MODULE_MAP.md`, `backend/check_excel.js`, `backend/check_maret.js`, `backend/query_test.js`, `frontend/eslint-report.json`.
-- Socket.IO payload JWT kemungkinan mismatch seperti dijelaskan di bagian Realtime.
+- Ada beberapa file lokal belum tracked/bersifat runtime pada 2026-07-04: `.vscode/`, `backend/check_excel.js`, `backend/check_maret.js`, `backend/query_test.js`, `frontend/eslint-report.json`, dan file di `logs/`.
 - Beberapa komentar/teks frontend terlihat hasil encoding rusak, misalnya karakter panah/emoji di beberapa file. Jika menyentuh file tersebut, hati-hati jangan memperluas churn.
 - Backend Sequelize config memakai `freezeTableName: true`, tetapi beberapa raw SQL memakai nama tabel kapital seperti `Sales`/`Settlements`. MySQL Windows biasanya case-insensitive, tetapi server Linux bisa sensitif tergantung konfigurasi.
 - Role guard ada di backend dan frontend. Saat menambah fitur, update keduanya.
@@ -618,8 +669,8 @@ Backend:
 ```bash
 cd backend
 npm run build
-npm test
 npm run lint
+# Catatan 2026-07-04: backend test belum siap. `npm test` gagal karena folder `backend/tests` belum ada. Jalankan setelah setup test dirapikan.
 ```
 
 Frontend:

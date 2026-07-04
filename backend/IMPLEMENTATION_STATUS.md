@@ -1,3 +1,18 @@
+# ARSIP LAMA - Tidak Mencerminkan Kondisi Aktual
+
+> Dokumen ini berasal dari fase awal pembangunan backend dan sudah tidak akurat untuk kondisi kode saat ini.
+> Per 2026-07-04, backend sudah memiliki modul aktif untuk auth, user/role, produk, kategori, supplier, pembelian, penjualan, stok, approval, settlement, finance, expense, other income, komplen, Retur, Tiket Retur, wilayah, analytics, audit, realtime Socket.IO, dan upload.
+>
+> Gunakan dokumen berikut sebagai acuan utama:
+>
+> - `../AI_PROJECT_HANDOFF.md`
+> - `../PROJECT_MODULE_MAP.md`
+> - `README.md`
+> - `../frontend/README.md`
+> - `../BUSINESS_TERMS.md`
+
+---
+
 # WMS Backend - Implementation Walkthrough
 
 ## ✅ Yang Sudah Dibuat

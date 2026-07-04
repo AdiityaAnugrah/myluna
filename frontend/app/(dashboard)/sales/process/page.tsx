@@ -49,6 +49,7 @@ interface SalesTableProps {
 const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStatusBadge }: any) => {
     const isUrgent = isUrgentSale(sale);
     const daysSince = getDaysSinceSale(sale.saleDate);
+    const canPrintWaitingApproval = ['TCP', 'ADMIN', 'SUPER_ADMIN'].includes(userRole || '');
 
     return (
         <div className={cn(
@@ -137,8 +138,8 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
 
             {/* Actions */}
             <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-                 {/* TCP role: Show Print directly for WAITING_APPROVAL (auto-approve logic) */}
-                 {sale.status === 'WAITING_APPROVAL' && userRole === 'TCP' && !sale.isCancelPending && (
+                 {/* TCP/Admin/Super Admin can print WAITING_APPROVAL directly (auto-process after print) */}
+                 {sale.status === 'WAITING_APPROVAL' && canPrintWaitingApproval && !sale.isCancelPending && (
                      <Button 
                          variant="outline"
                          size="sm" 
@@ -271,6 +272,7 @@ const SalesTable = ({
                 const daysSince = getDaysSinceSale(sale.saleDate);
                 
                 const processedToday = isHistory && sale.processedAt && isToday(sale.processedAt);
+                const canPrintWaitingApproval = ['TCP', 'ADMIN', 'SUPER_ADMIN'].includes(userRole || '');
                 
                 return (
                 <TableRow 
@@ -367,8 +369,8 @@ const SalesTable = ({
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-2">
-                        {/* TCP role: Show Print directly for WAITING_APPROVAL (auto-approve) */}
-                        {!isHistory && sale.status === 'WAITING_APPROVAL' && userRole === 'TCP' && !sale.isCancelPending && (
+                        {/* TCP/Admin/Super Admin can print WAITING_APPROVAL directly (auto-process after print) */}
+                        {!isHistory && sale.status === 'WAITING_APPROVAL' && canPrintWaitingApproval && !sale.isCancelPending && (
                             <Button 
                                 variant="outline"
                                 size="sm" 
@@ -650,7 +652,7 @@ export default function SalesProcessPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gradient">Proses Penjualan</h1>
-          <p className="text-muted-foreground mt-1">Kelola persetujuan dan pencetakan resi (TCP).</p>
+          <p className="text-muted-foreground mt-1">Kelola persetujuan dan pencetakan resi penjualan.</p>
         </div>
         <Button 
           variant="outline" 
