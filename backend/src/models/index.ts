@@ -33,6 +33,11 @@ import ReturnTicket, { ReturnFinalDecision, ReturnTicketStatus } from './ReturnT
 import ReturnTicketParticipant from './ReturnTicketParticipant';
 import ReturnTicketMessage, { ReturnTicketMessageType } from './ReturnTicketMessage';
 import ReturnExecution, { ReturnExecutionStatus } from './ReturnExecution';
+import DisplayCategory from './DisplayCategory';
+import DisplaySupplier from './DisplaySupplier';
+import DisplayProduct, { DisplayProductCondition, DisplayProductStatus } from './DisplayProduct';
+import DisplayStockMovement, { DisplayMovementType } from './DisplayStockMovement';
+import DisplayStockRequest, { DisplayRequestStatus, DisplayRequestType } from './DisplayStockRequest';
 
 // Define associations
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -130,6 +135,9 @@ User.hasMany(Complaint, { foreignKey: 'reviewedBy', as: 'reviewedComplaints' });
 Complaint.belongsTo(User, { foreignKey: 'shippedBy', as: 'shipper' });
 User.hasMany(Complaint, { foreignKey: 'shippedBy', as: 'shippedComplaints' });
 
+Complaint.belongsTo(User, { foreignKey: 'completedBy', as: 'completer' });
+User.hasMany(Complaint, { foreignKey: 'completedBy', as: 'completedComplaints' });
+
 // Indonesian administrative regions
 Province.hasMany(Regency, { foreignKey: 'provinceId', as: 'regencies' });
 Regency.belongsTo(Province, { foreignKey: 'provinceId', as: 'province' });
@@ -205,6 +213,19 @@ ReturnExecution.belongsTo(ReturnTicket, { foreignKey: 'ticketId', as: 'ticket' }
 ReturnExecution.belongsTo(User, { foreignKey: 'executedBy', as: 'executor' });
 User.hasMany(ReturnExecution, { foreignKey: 'executedBy', as: 'returnExecutions' });
 
+// Display system associations - isolated from sales, finance, and operational stock
+DisplayProduct.belongsTo(DisplayCategory, { foreignKey: 'categoryId', as: 'category' });
+DisplayCategory.hasMany(DisplayProduct, { foreignKey: 'categoryId', as: 'products' });
+DisplayProduct.belongsTo(DisplaySupplier, { foreignKey: 'supplierId', as: 'supplier' });
+DisplaySupplier.hasMany(DisplayProduct, { foreignKey: 'supplierId', as: 'products' });
+DisplayProduct.hasMany(DisplayStockMovement, { foreignKey: 'productId', as: 'movements' });
+DisplayStockMovement.belongsTo(DisplayProduct, { foreignKey: 'productId', as: 'product' });
+DisplayStockMovement.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+DisplayProduct.hasMany(DisplayStockRequest, { foreignKey: 'productId', as: 'requests' });
+DisplayStockRequest.belongsTo(DisplayProduct, { foreignKey: 'productId', as: 'product' });
+DisplayStockRequest.belongsTo(User, { foreignKey: 'requestedBy', as: 'requester' });
+DisplayStockRequest.belongsTo(User, { foreignKey: 'reviewedBy', as: 'reviewer' });
+
 export {
   Role,
   User,
@@ -257,4 +278,14 @@ export {
   ReturnTicketMessageType,
   ReturnExecution,
   ReturnExecutionStatus,
+  DisplayCategory,
+  DisplaySupplier,
+  DisplayProduct,
+  DisplayProductCondition,
+  DisplayProductStatus,
+  DisplayStockMovement,
+  DisplayMovementType,
+  DisplayStockRequest,
+  DisplayRequestType,
+  DisplayRequestStatus,
 };

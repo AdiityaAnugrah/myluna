@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils';
 
 
-import { useSales, useApproveSale, useRejectSale, useProcessSale } from '@/lib/hooks/useSales';
+import { useSales, useProcessSale } from '@/lib/hooks/useSales';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -16,13 +16,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Check, X, FileText, Loader2, RefreshCw, Printer, AlertCircle, Filter, XCircle, Search } from 'lucide-react';
+import { Check, FileText, Loader2, RefreshCw, Printer, AlertCircle, Filter, XCircle, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatStatus } from '@/lib/utils/format';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Pagination } from '@/components/ui/pagination';
 import { useReactToPrint } from 'react-to-print';
@@ -37,8 +36,6 @@ interface SalesTableProps {
     sales: Sale[];
     isLoading: boolean;
     isHistory?: boolean;
-    onApprove?: (id: string) => void;
-    onReject?: (id: string) => void;
     onPrint: (sale: Sale) => void;
     getStatusBadge: (status: SaleStatus, isCancelPending?: boolean) => React.ReactNode;
     userRole?: string;
@@ -46,7 +43,7 @@ interface SalesTableProps {
     itemsPerPage: number;
 }
 
-const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStatusBadge }: any) => {
+const MobileSalesCard = ({ sale, userRole, onPrint, getStatusBadge }: any) => {
     const isUrgent = isUrgentSale(sale);
     const daysSince = getDaysSinceSale(sale.saleDate);
     const canPrintWaitingApproval = ['TCP', 'ADMIN', 'SUPER_ADMIN'].includes(userRole || '');
@@ -66,7 +63,7 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
                     {getStatusBadge(sale.status, sale.isCancelPending)}
                 </div>
             </div>
-            
+
             <div className="space-y-0.5 pt-0.5">
                 <div className="flex justify-between text-[11px]">
                     <span className="text-muted-foreground">Pelanggan:</span>
@@ -100,9 +97,9 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
                 </div>
                  {sale.shippingDocument && (
                     <div className="flex justify-end mt-0.5">
-                        <a 
-                            href={getPdfUrl(sale.shippingDocument)} 
-                            target="LunaPDFViewer" 
+                        <a
+                            href={getPdfUrl(sale.shippingDocument)}
+                            target="LunaPDFViewer"
                             rel="noopener noreferrer"
                             className="inline-flex items-center text-[10px] text-blue-600 hover:underline bg-blue-50 px-1.5 py-0.5 rounded leading-none"
                         >
@@ -140,9 +137,9 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
             <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                  {/* TCP/Admin/Super Admin can print WAITING_APPROVAL directly (auto-process after print) */}
                  {sale.status === 'WAITING_APPROVAL' && canPrintWaitingApproval && !sale.isCancelPending && (
-                     <Button 
+                     <Button
                          variant="outline"
-                         size="sm" 
+                         size="sm"
                          className="w-full border-blue-600 text-blue-600 hover:bg-blue-50 h-7 text-[11px]"
                          onClick={() => onPrint(sale)}
                      >
@@ -153,9 +150,9 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
 
                  {/* APPROVED, PROCESSED, SETTLED or COMPLETED */}
                  {['APPROVED', 'PROCESSED', 'SETTLED', 'COMPLETED'].includes(sale.status) && !sale.isCancelPending && (
-                     <Button 
+                     <Button
                          variant="outline"
-                         size="sm" 
+                         size="sm"
                          className="w-full col-span-2 border-blue-600 text-blue-600 hover:bg-blue-50 h-7 text-[11px]"
                          onClick={() => onPrint(sale)}
                      >
@@ -163,42 +160,17 @@ const MobileSalesCard = ({ sale, userRole, onApprove, onReject, onPrint, getStat
                          {['PROCESSED', 'SETTLED', 'COMPLETED'].includes(sale.status) ? 'Cetak Ulang' : 'Cetak Resi'}
                      </Button>
                  )}
-                 
-                 {/* Non-TCP roles approval */}
-                 {sale.status === 'WAITING_APPROVAL' && userRole !== 'TCP' && !sale.isCancelPending && onApprove && onReject && (
-                    <>
-                        <Button 
-                            variant="destructive" 
-                            size="sm"
-                            className="w-full h-7 text-[11px]"
-                            onClick={() => onReject(sale.id)}
-                        >
-                            <X className="h-3 w-3 mr-1.5" />
-                            Tolak
-                        </Button>
-                        <Button 
-                            variant="default" 
-                            size="sm" 
-                            className="bg-green-600 hover:bg-green-700 w-full h-7 text-[11px]"
-                            onClick={() => onApprove(sale.id)}
-                        >
-                            <Check className="h-3 w-3 mr-1.5" />
-                            ACC
-                        </Button>
-                    </>
-                 )}
+
             </div>
         </div>
     );
 };
 
 // Update SalesTable to render cards on mobile
-const SalesTable = ({ 
-    sales, 
-    isLoading, 
+const SalesTable = ({
+    sales,
+    isLoading,
     isHistory = false,
-    onApprove, 
-    onReject, 
     onPrint,
     getStatusBadge,
     userRole,
@@ -220,12 +192,10 @@ const SalesTable = ({
                </div>
             ) : (
                 sales.map((sale: Sale) => (
-                    <MobileSalesCard 
+                    <MobileSalesCard
                         key={sale.id}
                         sale={sale}
                         userRole={userRole}
-                        onApprove={onApprove}
-                        onReject={onReject}
                         onPrint={onPrint}
                         getStatusBadge={getStatusBadge}
                     />
@@ -270,12 +240,12 @@ const SalesTable = ({
               sales.map((sale: Sale, index: number) => {
                 const urgent = !isHistory && isUrgentSale(sale);
                 const daysSince = getDaysSinceSale(sale.saleDate);
-                
+
                 const processedToday = isHistory && sale.processedAt && isToday(sale.processedAt);
                 const canPrintWaitingApproval = ['TCP', 'ADMIN', 'SUPER_ADMIN'].includes(userRole || '');
-                
+
                 return (
-                <TableRow 
+                <TableRow
                   key={sale.id}
                   className={cn(
                     urgent ? 'bg-red-50 border-l-4 border-l-red-500' : '',
@@ -371,9 +341,9 @@ const SalesTable = ({
                     <div className="flex items-center justify-center gap-2">
                         {/* TCP/Admin/Super Admin can print WAITING_APPROVAL directly (auto-process after print) */}
                         {!isHistory && sale.status === 'WAITING_APPROVAL' && canPrintWaitingApproval && !sale.isCancelPending && (
-                            <Button 
+                            <Button
                                 variant="outline"
-                                size="sm" 
+                                size="sm"
                                 className="h-8 border-blue-600 text-blue-600 hover:bg-blue-50"
                                 onClick={() => onPrint(sale)}
                                 aria-label={`Cetak resi untuk ${sale.saleNumber}`}
@@ -382,36 +352,11 @@ const SalesTable = ({
                                 Cetak
                             </Button>
                         )}
-                        {/* Non-TCP roles: Show ACC/Tolak for WAITING_APPROVAL */}
-                        {!isHistory && sale.status === 'WAITING_APPROVAL' && userRole !== 'TCP' && !sale.isCancelPending && onApprove && onReject && (
-                            <>
-                                <Button 
-                                    variant="default" 
-                                    size="sm" 
-                                    className="bg-green-600 hover:bg-green-700 h-8"
-                                    onClick={() => onApprove(sale.id)}
-                                    aria-label={`Setujui penjualan ${sale.saleNumber}`}
-                                >
-                                    <Check className="h-4 w-4 mr-1" />
-                                    ACC
-                                </Button>
-                                <Button 
-                                    variant="destructive" 
-                                    size="sm"
-                                    className="h-8"
-                                    onClick={() => onReject(sale.id)}
-                                    aria-label={`Tolak penjualan ${sale.saleNumber}`}
-                                >
-                                    <X className="h-4 w-4 mr-1" />
-                                    Tolak
-                                </Button>
-                            </>
-                        )}
                         {/* Show Print for APPROVED sales or History (PROCESSED, SETTLED, COMPLETED) */}
                         {(sale.status === 'APPROVED' || (isHistory && ['PROCESSED', 'SETTLED', 'COMPLETED'].includes(sale.status))) && !sale.isCancelPending && (
-                            <Button 
+                            <Button
                                 variant="outline"
-                                size="sm" 
+                                size="sm"
                                 className="h-8 border-blue-600 text-blue-600 hover:bg-blue-50"
                                 onClick={() => onPrint(sale)}
                                 aria-label={`${isHistory ? 'Cetak ulang' : 'Cetak'} resi untuk ${sale.saleNumber}`}
@@ -423,7 +368,7 @@ const SalesTable = ({
                     </div>
                   </TableCell>
                 </TableRow>
-              )})  
+              )})
             )}
           </TableBody>
         </Table>
@@ -435,7 +380,7 @@ const SalesTable = ({
 export default function SalesProcessPage() {
   const { user } = useAuth();
   const userRole = user?.role;
-  
+
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('ALL');
@@ -450,24 +395,18 @@ export default function SalesProcessPage() {
 
   const [activePage, setActivePage] = useState(1);
   const [activeLimit, setActiveLimit] = useState(10);
-  
+
   const [historyPage, setHistoryPage] = useState(1);
   const [historyLimit, setHistoryLimit] = useState(10);
 
-  const { data, isLoading, isFetching, error, refetch } = useSales({ 
+  const { data, isLoading, isFetching, error, refetch } = useSales({
     limit: 500,
     ...(startDate && endDate ? { startDate, endDate } : {}),
     ...(paymentMethod !== 'ALL' ? { paymentMethod } : {}),
     ...(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
     ...(debouncedSearch ? { search: debouncedSearch } : {})
   });
-  const approveMutation = useApproveSale();
-  const rejectMutation = useRejectSale();
   const processMutation = useProcessSale();
-
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null);
-  const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
 
   // Print related
   const [printSale, setPrintSale] = useState<Sale | null>(null);
@@ -575,32 +514,11 @@ export default function SalesProcessPage() {
     setHistoryPage(1);
   }, [startDate, endDate, paymentMethod, statusFilter, searchQuery, data]);
 
-  // Memoize event handlers
-  const handleAction = useCallback((id: string, type: 'approve' | 'reject') => {
-    setSelectedSaleId(id);
-    setActionType(type);
-    setConfirmOpen(true);
-  }, []);
-
-  const confirmAction = useCallback(() => {
-    if (selectedSaleId && actionType) {
-      if (actionType === 'approve') {
-        approveMutation.mutate(selectedSaleId, {
-            onSuccess: () => setConfirmOpen(false)
-        });
-      } else {
-        rejectMutation.mutate(selectedSaleId, {
-            onSuccess: () => setConfirmOpen(false)
-        });
-      }
-    }
-  }, [selectedSaleId, actionType, approveMutation, rejectMutation]);
-  
   const handlePrintClick = useCallback((sale: Sale) => {
     if (sale.shippingDocument) {
         // Open PDF in a reusable tab to prevent clutter
         window.open(getPdfUrl(sale.shippingDocument), 'LunaPDFViewer');
-        
+
         // Only process if it needs processing (WAITING_APPROVAL or APPROVED)
         if (['WAITING_APPROVAL', 'APPROVED'].includes(sale.status)) {
           processMutation.mutate(sale.id, {
@@ -633,7 +551,7 @@ export default function SalesProcessPage() {
       CANCELLED: 'secondary',
       REJECTED: 'destructive',
     };
-    
+
     let translatedStatus = formatStatus(status);
     if (status === 'COMPLETED') translatedStatus = 'Selesai (Data Lama)';
     if (status === 'CANCELLED') translatedStatus = 'Dibatalkan';
@@ -654,10 +572,10 @@ export default function SalesProcessPage() {
           <h1 className="text-3xl font-bold tracking-tight text-gradient">Proses Penjualan</h1>
           <p className="text-muted-foreground mt-1">Kelola persetujuan dan pencetakan resi penjualan.</p>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => refetch()} 
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetch()}
           disabled={isFetching}
           aria-label="Segarkan data penjualan"
         >
@@ -687,32 +605,32 @@ export default function SalesProcessPage() {
         <div className="w-full">
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                    placeholder="Cari berdasarkan No. Penjualan, Nama Pelanggan, atau No. Telepon..." 
+                <Input
+                    placeholder="Cari berdasarkan No. Penjualan, Nama Pelanggan, atau No. Telepon..."
                     className="pl-9 h-10 w-full"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                 />
             </div>
         </div>
-        
+
         <div className="flex flex-col md:flex-row gap-4 items-end">
           <div className="w-full md:w-auto flex-1 space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><Filter className="w-3 h-3"/> Mulai Tanggal</label>
-            <Input 
-              type="date" 
-              value={startDate} 
-              onChange={(e) => setStartDate(e.target.value)} 
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
               className="h-9"
             />
           </div>
           <div className="w-full md:w-auto flex-1 space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Sampai Tanggal</label>
-            <Input 
-              type="date" 
-              value={endDate} 
+            <Input
+              type="date"
+              value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="h-9" 
+              className="h-9"
             />
           </div>
           <div className="w-full md:w-auto flex-1 space-y-1.5">
@@ -766,14 +684,12 @@ export default function SalesProcessPage() {
             <TabsTrigger value="history">Riwayat</TabsTrigger>
           )}
         </TabsList>
-        
+
         <TabsContent value="active">
             <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex flex-col">
-                <SalesTable 
-                    sales={paginatedActiveSales} 
-                    isLoading={isLoading} 
-                    onApprove={(id) => handleAction(id, 'approve')}
-                    onReject={(id) => handleAction(id, 'reject')}
+                <SalesTable
+                    sales={paginatedActiveSales}
+                    isLoading={isLoading}
                     onPrint={handlePrintClick}
                     getStatusBadge={getStatusBadge}
                     userRole={userRole}
@@ -814,9 +730,9 @@ export default function SalesProcessPage() {
                 </div>
             </div>
             <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex flex-col">
-                 <SalesTable 
-                    sales={paginatedHistorySales} 
-                    isLoading={isLoading} 
+                 <SalesTable
+                    sales={paginatedHistorySales}
+                    isLoading={isLoading}
                     isHistory
                     onPrint={handlePrintClick}
                     getStatusBadge={getStatusBadge}
@@ -842,18 +758,6 @@ export default function SalesProcessPage() {
             </div>
         </TabsContent>
       </Tabs>
-
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        onConfirm={confirmAction}
-        title={actionType === 'approve' ? "Setujui Penjualan" : "Tolak Penjualan"}
-        description={actionType === 'approve' 
-            ? "Apakah Anda yakin ingin menyetujui penjualan ini? Stok akan dikurangi secara permanen." 
-            : "Apakah Anda yakin ingin menolak penjualan ini? Stok akan dikembalikan."}
-        confirmText={actionType === 'approve' ? "Setujui" : "Tolak"}
-        variant={actionType === 'approve' ? "default" : "destructive"}
-      />
 
         {/* ===== AREA CETAK (TERSEMBUNYI DI LAYAR, MUNCUL SAAT PRINT) ===== */}
         <div className="absolute top-0 left-0 w-0 h-0 overflow-hidden opacity-0 pointer-events-none">
@@ -918,7 +822,7 @@ export default function SalesProcessPage() {
                             {/* PENGIRIM */}
                             <div style={{ border: '1.5px solid #000' }}>
                                 <div style={{ background: '#000', color: '#fff', padding: '5px 12px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                                    PENGIRIM 
+                                    PENGIRIM
                                 </div>
                                 <div style={{ padding: '10px 12px' }}>
                                     <div style={{ fontWeight: '900', fontSize: '14px', textTransform: 'uppercase', marginBottom: '3px' }}>LUNAREA FURNITURE</div>

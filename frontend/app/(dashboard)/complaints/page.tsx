@@ -10,6 +10,7 @@ import {
   useCreateComplaint,
   useEligibleComplaintSales,
   useMarkComplaintHandled,
+  useRequestComplaintFollowUp,
 } from '@/lib/hooks/useComplaints';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,12 +34,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getImageUrl } from '@/lib/utils/url';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import { notify } from '@/lib/notify';
 import { getComplaintStatusBadgeClass, getComplaintStatusLabel } from '@/lib/constants/workflowStatus';
 import { Complaint, ComplaintStatus, Sale } from '@/types';
-import { CheckCircle2, Eye, FileText, Loader2, Printer, Search, Send } from 'lucide-react';
+import { CheckCircle2, Eye, FileText, Loader2, Printer, RotateCcw, Search, Send } from 'lucide-react';
 
 function statusLabel(status: ComplaintStatus) {
   return getComplaintStatusLabel(status);
@@ -145,6 +147,9 @@ export default function ComplaintsPage() {
   const [detailComplaint, setDetailComplaint] = useState<Complaint | null>(null);
   const [detailMode, setDetailMode] = useState<'view' | 'accept'>('view');
   const [acceptedComplaintIds, setAcceptedComplaintIds] = useState<Set<string>>(new Set());
+  const [complaintScope, setComplaintScope] = useState<'active' | 'history'>('active');
+  const [followUpComplaint, setFollowUpComplaint] = useState<Complaint | null>(null);
+  const [followUpReason, setFollowUpReason] = useState('');
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchFilter, setSearchFilter] = useState('');
@@ -156,6 +161,7 @@ export default function ComplaintsPage() {
   const claimComplaint = useClaimComplaint();
   const completeComplaint = useCompleteComplaint();
   const markComplaintHandled = useMarkComplaintHandled();
+  const requestComplaintFollowUp = useRequestComplaintFollowUp();
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSaleQuery(saleQuery), 350);
@@ -169,7 +175,7 @@ export default function ComplaintsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, debouncedSearchFilter, pageLimit]);
+  }, [statusFilter, debouncedSearchFilter, pageLimit, complaintScope]);
 
   const eligibleSalesQuery = useEligibleComplaintSales(debouncedSaleQuery, {
     enabled: canCreate,
@@ -180,6 +186,7 @@ export default function ComplaintsPage() {
     limit: Number(pageLimit),
     status: statusFilter === 'all' ? undefined : statusFilter,
     search: debouncedSearchFilter || undefined,
+    scope: statusFilter === 'all' ? complaintScope : undefined,
   });
 
   const complaints: Complaint[] = useMemo(
@@ -295,7 +302,7 @@ export default function ComplaintsPage() {
 
   const handlePrintComplaint = (complaint: Complaint) => {
     const canPrint =
-      ['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED'].includes(complaint.status) ||
+      ['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED', 'WAITING_USER_CONFIRMATION', 'COMPLETED'].includes(complaint.status) ||
       acceptedComplaintIds.has(complaint.id);
 
     if (!canPrint) {
@@ -348,6 +355,20 @@ export default function ComplaintsPage() {
     const objectUrl = URL.createObjectURL(fallbackPdf);
     window.open(objectUrl, '_blank', 'noopener,noreferrer');
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  };
+
+  const handleRequestFollowUp = () => {
+    if (!followUpComplaint) return;
+    requestComplaintFollowUp.mutate(
+      { id: followUpComplaint.id, reason: followUpReason.trim() },
+      {
+        onSuccess: () => {
+          setFollowUpComplaint(null);
+          setFollowUpReason('');
+          void complaintsQuery.refetch();
+        },
+      }
+    );
   };
 
   return (
@@ -557,8 +578,22 @@ export default function ComplaintsPage() {
       )}
 
       <Card>
-        <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <CardTitle>Daftar Komplen</CardTitle>
+        <CardHeader className="flex flex-col gap-3">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <CardTitle>{complaintScope === 'active' ? 'Komplen Aktif' : 'Riwayat Komplen'}</CardTitle>
+            <Tabs
+              value={complaintScope}
+              onValueChange={(value) => {
+                setComplaintScope(value as 'active' | 'history');
+                setStatusFilter('all');
+              }}
+            >
+              <TabsList>
+                <TabsTrigger value="active">Aktif</TabsTrigger>
+                <TabsTrigger value="history">Riwayat Komplen</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
           <div className="flex flex-col md:flex-row gap-2">
             <div className="relative">
               <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
@@ -578,6 +613,8 @@ export default function ComplaintsPage() {
                 <SelectItem value="PENDING_TCP_REVIEW">Menunggu Review TCP</SelectItem>
                 <SelectItem value="ACCEPTED_BY_TCP">Sedang Ditangani TCP</SelectItem>
                 <SelectItem value="REPLACEMENT_SHIPPED">Pengganti Sudah Dikirim</SelectItem>
+                <SelectItem value="WAITING_USER_CONFIRMATION">Menunggu Konfirmasi User</SelectItem>
+                <SelectItem value="FOLLOW_UP_REQUIRED">Perlu Tindak Lanjut</SelectItem>
                 <SelectItem value="COMPLETED">Selesai</SelectItem>
                 <SelectItem value="CONVERTED_TO_RETURN">Dialihkan ke Retur</SelectItem>
                 <SelectItem value="REJECTED_BY_TCP">Ditolak TCP</SelectItem>
@@ -611,11 +648,14 @@ export default function ComplaintsPage() {
               {complaints.map((complaint) => {
                 const receiptPdfPath = complaint.complaintReceiptPdf || complaint.replacementProofDocument;
                 const isAcceptedForPrint =
-                  ['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED', 'COMPLETED'].includes(complaint.status) ||
+                  ['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED', 'WAITING_USER_CONFIRMATION', 'COMPLETED'].includes(complaint.status) ||
                   acceptedComplaintIds.has(complaint.id);
                 const isPendingReview = complaint.status === 'PENDING_TCP_REVIEW' && !acceptedComplaintIds.has(complaint.id);
+                const isFollowUpRequired = complaint.status === 'FOLLOW_UP_REQUIRED';
                 const canMarkHandled = complaint.status === 'ACCEPTED_BY_TCP';
-                const canComplete = complaint.status === 'REPLACEMENT_SHIPPED';
+                const canUserConfirm =
+                  (isUser || isAdmin || isSuperAdmin) &&
+                  ['WAITING_USER_CONFIRMATION', 'REPLACEMENT_SHIPPED'].includes(complaint.status);
                 return (
                   <div key={complaint.id} className="rounded-lg border p-3">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -651,8 +691,13 @@ export default function ComplaintsPage() {
                         {complaint.rejectionReason && (
                           <p className="text-sm text-red-600">Alasan ditolak: {complaint.rejectionReason}</p>
                         )}
+                        {complaint.followUpReason && (
+                          <p className="text-sm text-orange-700">Alasan tindak lanjut: {complaint.followUpReason}</p>
+                        )}
                         <p className="text-xs text-muted-foreground">
                           Tanggal komplen: {new Date(complaint.complaintDate).toLocaleDateString('id-ID')}
+                          {complaint.shippedAt && ` • Pengganti dikirim: ${new Date(complaint.shippedAt).toLocaleDateString('id-ID')}`}
+                          {complaint.completedAt && ` • Selesai: ${new Date(complaint.completedAt).toLocaleDateString('id-ID')}`}
                         </p>
                       </div>
 
@@ -679,14 +724,19 @@ export default function ComplaintsPage() {
                           <>
                             <Button
                               size="sm"
-                              variant={isPendingReview ? 'default' : 'outline'}
-                              onClick={() => openComplaintDetail(complaint, isPendingReview ? 'accept' : 'view')}
+                              variant={isPendingReview || isFollowUpRequired ? 'default' : 'outline'}
+                              onClick={() => openComplaintDetail(complaint, isPendingReview || isFollowUpRequired ? 'accept' : 'view')}
                               disabled={claimComplaint.isPending && detailComplaint?.id === complaint.id}
                             >
                               {isPendingReview ? (
                                 <>
                                   <CheckCircle2 className="h-4 w-4 mr-1" />
                                   Terima
+                                </>
+                              ) : isFollowUpRequired ? (
+                                <>
+                                  <RotateCcw className="h-4 w-4 mr-1" />
+                                  Tangani Lagi
                                 </>
                               ) : (
                                 <>
@@ -721,17 +771,28 @@ export default function ComplaintsPage() {
                                 Tandai Pengganti Dikirim
                               </Button>
                             )}
-
-                            {canComplete && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => completeComplaint.mutate({ id: complaint.id })}
-                                disabled={completeComplaint.isPending}
-                              >
-                                Selesai
-                              </Button>
-                            )}
+                          </>
+                        )}
+                        {canUserConfirm && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => completeComplaint.mutate({ id: complaint.id })}
+                              disabled={completeComplaint.isPending}
+                            >
+                              Konfirmasi Selesai
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setFollowUpComplaint(complaint);
+                                setFollowUpReason('');
+                              }}
+                              disabled={requestComplaintFollowUp.isPending}
+                            >
+                              Belum Selesai
+                            </Button>
                           </>
                         )}
                       </div>
@@ -779,10 +840,14 @@ export default function ComplaintsPage() {
         <DialogContent className="max-w-3xl max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {detailMode === 'accept' ? 'Terima untuk Diproses' : 'Detail Komplen'}
+              {detailMode === 'accept'
+                ? detailComplaint?.status === 'FOLLOW_UP_REQUIRED'
+                  ? 'Tangani Lagi'
+                  : 'Terima untuk Diproses'
+                : 'Detail Komplen'}
             </DialogTitle>
             <DialogDescription>
-              Periksa detail pesanan, alasan, foto, dan alamat penerima sebelum diproses TCP.
+              Periksa detail pesanan, alasan, foto, alamat penerima, dan catatan tindak lanjut sebelum diproses TCP.
             </DialogDescription>
           </DialogHeader>
 
@@ -830,6 +895,14 @@ export default function ComplaintsPage() {
                     </p>
                   </>
                 )}
+                {detailComplaint.followUpReason && (
+                  <>
+                    <p>Alasan Tindak Lanjut:</p>
+                    <p className="whitespace-pre-wrap rounded bg-orange-50 p-2 text-orange-800">
+                      {detailComplaint.followUpReason}
+                    </p>
+                  </>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -863,7 +936,9 @@ export default function ComplaintsPage() {
             >
               Tutup
             </Button>
-            {detailComplaint && detailMode === 'accept' && detailComplaint.status === 'PENDING_TCP_REVIEW' && (
+            {detailComplaint &&
+              detailMode === 'accept' &&
+              ['PENDING_TCP_REVIEW', 'FOLLOW_UP_REQUIRED'].includes(detailComplaint.status) && (
               <Button onClick={() => handleClaim(detailComplaint)} disabled={claimComplaint.isPending}>
                 {claimComplaint.isPending ? (
                   <>
@@ -872,12 +947,74 @@ export default function ComplaintsPage() {
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Terima untuk Diproses
+                    {detailComplaint.status === 'FOLLOW_UP_REQUIRED' ? (
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                    )}
+                    {detailComplaint.status === 'FOLLOW_UP_REQUIRED' ? 'Tangani Lagi' : 'Terima untuk Diproses'}
                   </>
                 )}
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!followUpComplaint}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFollowUpComplaint(null);
+            setFollowUpReason('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Belum Selesai</DialogTitle>
+            <DialogDescription>
+              Jelaskan alasan kenapa pengiriman pengganti belum menyelesaikan kasus ini. Komplen akan masuk kembali ke TCP sebagai Perlu Tindak Lanjut.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>
+              No Komplen: <strong>{followUpComplaint?.complaintNumber}</strong>
+            </p>
+            <div className="space-y-2">
+              <Label>Alasan Belum Selesai *</Label>
+              <Textarea
+                rows={4}
+                placeholder="Contoh: barang belum sampai, pengganti masih salah, atau masalah belum terselesaikan"
+                value={followUpReason}
+                onChange={(e) => setFollowUpReason(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Minimal 5 karakter.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setFollowUpComplaint(null);
+                setFollowUpReason('');
+              }}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={handleRequestFollowUp}
+              disabled={followUpReason.trim().length < 5 || requestComplaintFollowUp.isPending}
+            >
+              {requestComplaintFollowUp.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Mengirim...
+                </>
+              ) : (
+                'Kirim Tindak Lanjut'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

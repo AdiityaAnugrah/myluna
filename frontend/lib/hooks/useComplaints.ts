@@ -25,6 +25,7 @@ export function useComplaints(params?: {
   limit?: number;
   status?: string;
   search?: string;
+  scope?: 'active' | 'history';
 }, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['complaints', params],
@@ -78,6 +79,21 @@ export function useMarkComplaintHandled() {
   });
 }
 
+export function useRequestComplaintFollowUp() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => complaintsApi.requestFollowUp(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      toast.success('Komplen berhasil dikembalikan untuk tindak lanjut');
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Gagal meminta tindak lanjut komplen'));
+    },
+  });
+}
+
 export function useCompleteComplaint() {
   const queryClient = useQueryClient();
 
@@ -85,7 +101,7 @@ export function useCompleteComplaint() {
     mutationFn: ({ id }: { id: string }) => complaintsApi.complete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['complaints'] });
-      toast.success('Komplen berhasil ditandai selesai');
+      toast.success('Komplen berhasil diselesaikan');
     },
     onError: (error: unknown) => {
       toast.error(getErrorMessage(error, 'Gagal menyelesaikan komplen'));

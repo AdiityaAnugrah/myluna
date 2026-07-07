@@ -10,6 +10,10 @@ export function getComplaintStatusLabel(status: ComplaintStatus) {
       return 'Sedang Ditangani TCP';
     case 'REPLACEMENT_SHIPPED':
       return 'Pengganti Sudah Dikirim';
+    case 'WAITING_USER_CONFIRMATION':
+      return 'Menunggu Konfirmasi User';
+    case 'FOLLOW_UP_REQUIRED':
+      return 'Perlu Tindak Lanjut';
     case 'COMPLETED':
       return 'Selesai';
     case 'CONVERTED_TO_RETURN':
@@ -29,6 +33,10 @@ export function getComplaintStatusBadgeClass(status: ComplaintStatus) {
       return 'bg-blue-100 text-blue-800 border-blue-300';
     case 'REPLACEMENT_SHIPPED':
       return 'bg-green-100 text-green-800 border-green-300';
+    case 'WAITING_USER_CONFIRMATION':
+      return 'bg-cyan-100 text-cyan-800 border-cyan-300';
+    case 'FOLLOW_UP_REQUIRED':
+      return 'bg-orange-100 text-orange-800 border-orange-300';
     case 'COMPLETED':
       return 'bg-emerald-100 text-emerald-800 border-emerald-300';
     case 'CONVERTED_TO_RETURN':

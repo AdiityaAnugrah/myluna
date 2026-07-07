@@ -6,6 +6,8 @@ export const complaintsApi = {
     const response = await apiClient.get<ApiResponse<{
       activeCount: number;
       pendingReviewCount: number;
+      waitingUserConfirmationCount: number;
+      followUpRequiredCount: number;
       badgeCount: number;
     }>>('/complaints/summary');
     return response.data;
@@ -32,6 +34,7 @@ export const complaintsApi = {
     limit?: number;
     status?: string;
     search?: string;
+    scope?: 'active' | 'history';
   }) => {
     const response = await apiClient.get<ApiResponse<ComplaintListData>>('/complaints', { params });
     return response.data;
@@ -44,6 +47,11 @@ export const complaintsApi = {
 
   markHandled: async (id: string) => {
     const response = await apiClient.patch<ApiResponse<Complaint>>(`/complaints/${id}/mark-handled`);
+    return response.data;
+  },
+
+  requestFollowUp: async (id: string, reason: string) => {
+    const response = await apiClient.patch<ApiResponse<Complaint>>(`/complaints/${id}/request-follow-up`, { reason });
     return response.data;
   },
 

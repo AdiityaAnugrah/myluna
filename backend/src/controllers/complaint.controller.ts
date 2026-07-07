@@ -53,6 +53,8 @@ const complaintActiveStatuses: ComplaintStatus[] = [
   ComplaintStatus.PENDING_TCP_REVIEW,
   ComplaintStatus.ACCEPTED_BY_TCP,
   ComplaintStatus.REPLACEMENT_SHIPPED,
+  ComplaintStatus.WAITING_USER_CONFIRMATION,
+  ComplaintStatus.FOLLOW_UP_REQUIRED,
 ];
 
 export const complaintController = {
@@ -79,12 +81,26 @@ export const complaintController = {
           status: ComplaintStatus.PENDING_TCP_REVIEW,
         },
       });
+      const waitingUserConfirmationCount = await Complaint.count({
+        where: {
+          ...where,
+          status: ComplaintStatus.WAITING_USER_CONFIRMATION,
+        },
+      });
+      const followUpRequiredCount = await Complaint.count({
+        where: {
+          ...where,
+          status: ComplaintStatus.FOLLOW_UP_REQUIRED,
+        },
+      });
 
       return successResponse(
         res,
         {
           activeCount,
           pendingReviewCount,
+          waitingUserConfirmationCount,
+          followUpRequiredCount,
           badgeCount: activeCount,
         },
         'Ringkasan komplen berhasil diambil',
@@ -300,13 +316,23 @@ export const complaintController = {
         throw new AppError('Authentication required', 401);
       }
 
-      const { page = 1, limit = 10, status = '', search = '' } = req.query;
+      const { page = 1, limit = 10, status = '', search = '', scope = '' } = req.query;
       const offset = (Number(page) - 1) * Number(limit);
 
       const where: any = {};
 
       if (status) {
         where.status = status;
+      } else if (scope === 'active') {
+        where.status = { [Op.in]: complaintActiveStatuses };
+      } else if (scope === 'history') {
+        where.status = {
+          [Op.in]: [
+            ComplaintStatus.COMPLETED,
+            ComplaintStatus.REJECTED_BY_TCP,
+            ComplaintStatus.CONVERTED_TO_RETURN,
+          ],
+        };
       }
 
       if (req.user.roleName === 'USER') {
@@ -346,7 +372,7 @@ export const complaintController = {
             totalPages: Math.ceil(count / Number(limit)),
           },
         },
-        'Complaints retrieved successfully',
+        'Daftar komplen berhasil diambil',
         200
       );
     } catch (error) {
@@ -367,11 +393,15 @@ export const complaintController = {
         throw new AppError('Komplen tidak ditemukan', 404);
       }
 
-      if (complaint.status !== ComplaintStatus.PENDING_TCP_REVIEW) {
+      if (
+        complaint.status !== ComplaintStatus.PENDING_TCP_REVIEW &&
+        complaint.status !== ComplaintStatus.FOLLOW_UP_REQUIRED
+      ) {
         throw new AppError('Komplen ini tidak bisa diterima untuk diproses', 400);
       }
 
       const before = complaint.toJSON();
+      const isFollowUp = complaint.status === ComplaintStatus.FOLLOW_UP_REQUIRED;
       await complaint.update({
         status: ComplaintStatus.ACCEPTED_BY_TCP,
         reviewedBy: req.user.id,
@@ -392,12 +422,21 @@ export const complaintController = {
 
       socketService.emitToUser(complaint.createdBy, 'notification:new', {
         message: 'Status komplen diperbarui',
-        description: `Komplen ${complaint.complaintNumber} sudah diterima untuk diproses TCP`,
+        description: isFollowUp
+          ? `Komplen ${complaint.complaintNumber} sedang ditangani kembali oleh TCP`
+          : `Komplen ${complaint.complaintNumber} sudah diterima untuk diproses TCP`,
         type: 'INFO',
       });
       socketService.broadcastDataRefresh('complaints');
 
-      return successResponse(res, complaint, 'Komplen berhasil diterima untuk diproses TCP', 200);
+      return successResponse(
+        res,
+        complaint,
+        isFollowUp
+          ? 'Komplen berhasil ditangani kembali oleh TCP'
+          : 'Komplen berhasil diterima untuk diproses TCP',
+        200
+      );
     } catch (error) {
       return next(error);
     }
@@ -416,7 +455,7 @@ export const complaintController = {
       }
 
       if (complaint.status !== ComplaintStatus.ACCEPTED_BY_TCP) {
-        throw new AppError('Komplen belum dalam status diproses TCP', 400);
+        throw new AppError('Komplen belum dalam status sedang ditangani TCP', 400);
       }
 
       if (!complaint.complaintReceiptPdf) {
@@ -426,7 +465,7 @@ export const complaintController = {
       const before = complaint.toJSON();
 
       await complaint.update({
-        status: ComplaintStatus.REPLACEMENT_SHIPPED,
+        status: ComplaintStatus.WAITING_USER_CONFIRMATION,
         replacementProofDocument: complaint.complaintReceiptPdf,
         shippedBy: req.user.id,
         shippedAt: new Date(),
@@ -445,12 +484,74 @@ export const complaintController = {
 
       socketService.emitToUser(complaint.createdBy, 'notification:new', {
         message: 'Pengganti untuk komplen sudah dikirim',
-        description: `Komplen ${complaint.complaintNumber} sudah masuk tahap pengiriman pengganti`,
+        description: `Komplen ${complaint.complaintNumber} menunggu konfirmasi selesai dari user`,
         type: 'INFO',
       });
       socketService.broadcastDataRefresh('complaints');
 
-      return successResponse(res, complaint, 'Komplen berhasil ditandai pengganti sudah dikirim', 200);
+      return successResponse(res, complaint, 'Komplen berhasil ditandai pengganti sudah dikirim dan menunggu konfirmasi user', 200);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async requestFollowUp(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        throw new AppError('Authentication required', 401);
+      }
+
+      const { id } = req.params;
+      const reason = String(req.body.reason || '').trim();
+
+      if (reason.length < 5) {
+        throw new AppError('Alasan belum selesai wajib diisi minimal 5 karakter', 400);
+      }
+
+      const complaint = await Complaint.findByPk(id);
+      if (!complaint) {
+        throw new AppError('Komplen tidak ditemukan', 404);
+      }
+
+      const isOwner = complaint.createdBy === req.user.id;
+      const isAdmin = req.user.roleName === 'ADMIN' || req.user.roleName === 'SUPER_ADMIN';
+      if (!isOwner && !isAdmin) {
+        throw new AppError('Anda tidak berwenang meminta tindak lanjut komplen ini', 403);
+      }
+
+      if (
+        complaint.status !== ComplaintStatus.WAITING_USER_CONFIRMATION &&
+        complaint.status !== ComplaintStatus.REPLACEMENT_SHIPPED
+      ) {
+        throw new AppError('Komplen belum menunggu konfirmasi user', 400);
+      }
+
+      const before = complaint.toJSON();
+      await complaint.update({
+        status: ComplaintStatus.FOLLOW_UP_REQUIRED,
+        followUpReason: reason,
+        followUpRequestedAt: new Date(),
+      });
+
+      await auditService.log({
+        userId: req.user.id,
+        action: AuditAction.UPDATE,
+        entity: 'Complaint',
+        entityId: complaint.id,
+        before,
+        after: complaint.toJSON(),
+        ip: req.ip || req.socket.remoteAddress || '',
+        userAgent: req.headers['user-agent'] || '',
+      });
+
+      socketService.emitToTCP('notification:new', {
+        message: 'Komplen perlu tindak lanjut',
+        description: `Komplen ${complaint.complaintNumber} belum selesai: ${reason}`,
+        type: 'WARNING',
+      });
+      socketService.broadcastDataRefresh('complaints');
+
+      return successResponse(res, complaint, 'Komplen berhasil dikembalikan untuk tindak lanjut', 200);
     } catch (error) {
       return next(error);
     }
@@ -468,13 +569,24 @@ export const complaintController = {
         throw new AppError('Komplen tidak ditemukan', 404);
       }
 
-      if (complaint.status !== ComplaintStatus.REPLACEMENT_SHIPPED) {
-        throw new AppError('Komplen hanya bisa diselesaikan setelah penanganan/pengiriman dilakukan', 400);
+      const isOwner = complaint.createdBy === req.user.id;
+      const isAdmin = req.user.roleName === 'ADMIN' || req.user.roleName === 'SUPER_ADMIN';
+      if (!isOwner && !isAdmin) {
+        throw new AppError('Anda tidak berwenang menyelesaikan komplen ini', 403);
+      }
+
+      if (
+        complaint.status !== ComplaintStatus.WAITING_USER_CONFIRMATION &&
+        complaint.status !== ComplaintStatus.REPLACEMENT_SHIPPED
+      ) {
+        throw new AppError('Komplen hanya bisa diselesaikan saat menunggu konfirmasi user', 400);
       }
 
       const before = complaint.toJSON();
       await complaint.update({
         status: ComplaintStatus.COMPLETED,
+        completedBy: req.user.id,
+        completedAt: new Date(),
       });
 
       await auditService.log({
@@ -490,12 +602,12 @@ export const complaintController = {
 
       socketService.emitToUser(complaint.createdBy, 'notification:new', {
         message: 'Komplen selesai',
-        description: `Komplen ${complaint.complaintNumber} sudah selesai diproses`,
+        description: `Komplen ${complaint.complaintNumber} sudah selesai`,
         type: 'SUCCESS',
       });
       socketService.broadcastDataRefresh('complaints');
 
-      return successResponse(res, complaint, 'Komplen berhasil ditandai selesai', 200);
+      return successResponse(res, complaint, 'Komplen berhasil diselesaikan', 200);
     } catch (error) {
       return next(error);
     }

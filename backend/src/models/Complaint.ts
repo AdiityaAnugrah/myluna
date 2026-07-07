@@ -6,6 +6,8 @@ export enum ComplaintStatus {
   REJECTED_BY_TCP = 'REJECTED_BY_TCP',
   ACCEPTED_BY_TCP = 'ACCEPTED_BY_TCP',
   REPLACEMENT_SHIPPED = 'REPLACEMENT_SHIPPED',
+  WAITING_USER_CONFIRMATION = 'WAITING_USER_CONFIRMATION',
+  FOLLOW_UP_REQUIRED = 'FOLLOW_UP_REQUIRED',
   COMPLETED = 'COMPLETED',
   CONVERTED_TO_RETURN = 'CONVERTED_TO_RETURN',
 }
@@ -36,6 +38,10 @@ interface ComplaintAttributes {
   replacementProofDocument: string | null;
   shippedBy: string | null;
   shippedAt: Date | null;
+  followUpReason: string | null;
+  followUpRequestedAt: Date | null;
+  completedBy: string | null;
+  completedAt: Date | null;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
@@ -63,6 +69,10 @@ interface ComplaintCreationAttributes
     | 'replacementProofDocument'
     | 'shippedBy'
     | 'shippedAt'
+    | 'followUpReason'
+    | 'followUpRequestedAt'
+    | 'completedBy'
+    | 'completedAt'
     | 'createdAt'
     | 'updatedAt'
   > {}
@@ -96,6 +106,10 @@ class Complaint
   declare replacementProofDocument: string | null;
   declare shippedBy: string | null;
   declare shippedAt: Date | null;
+  declare followUpReason: string | null;
+  declare followUpRequestedAt: Date | null;
+  declare completedBy: string | null;
+  declare completedAt: Date | null;
   declare createdBy: string;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
@@ -215,6 +229,26 @@ Complaint.init(
       },
     },
     shippedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    followUpReason: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    followUpRequestedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    completedBy: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'users',
+        key: 'id',
+      },
+    },
+    completedAt: {
       type: DataTypes.DATE,
       allowNull: true,
     },

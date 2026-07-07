@@ -399,6 +399,8 @@ export type ComplaintStatus =
   | 'REJECTED_BY_TCP'
   | 'ACCEPTED_BY_TCP'
   | 'REPLACEMENT_SHIPPED'
+  | 'WAITING_USER_CONFIRMATION'
+  | 'FOLLOW_UP_REQUIRED'
   | 'COMPLETED'
   | 'CONVERTED_TO_RETURN';
 
@@ -425,6 +427,10 @@ export interface Complaint {
   replacementProofDocument: string | null;
   shippedBy: string | null;
   shippedAt: string | null;
+  followUpReason?: string | null;
+  followUpRequestedAt?: string | null;
+  completedBy?: string | null;
+  completedAt?: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -679,4 +685,87 @@ export interface PaginatedListResponse<T> {
     limit: number;
     totalPages: number;
   };
+}
+
+export type DisplayProductStatus = 'DISPLAYED' | 'STORED' | 'MAINTENANCE' | 'DAMAGED' | 'ARCHIVED';
+export type DisplayProductCondition = 'NEW' | 'GOOD' | 'MINOR_DAMAGE' | 'DAMAGED';
+export type DisplayMovementType = 'IN' | 'OUT' | 'ADJUSTMENT';
+export type DisplayRequestType = 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT';
+export type DisplayRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface DisplayCategory {
+  id: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DisplaySupplier {
+  id: string;
+  name: string;
+  contact?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DisplayProduct {
+  id: string;
+  sku: string;
+  name: string;
+  description?: string | null;
+  categoryId?: string | null;
+  supplierId?: string | null;
+  displayLocation?: string | null;
+  unit: string;
+  stock: number;
+  minStock: number;
+  estimatedValue?: string | null;
+  condition: DisplayProductCondition;
+  status: DisplayProductStatus;
+  notes?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  category?: DisplayCategory | null;
+  supplier?: DisplaySupplier | null;
+}
+
+export interface DisplayStockMovement {
+  id: string;
+  productId: string;
+  type: DisplayMovementType;
+  quantity: number;
+  stockBefore: number;
+  stockAfter: number;
+  reference?: string | null;
+  notes?: string | null;
+  createdBy: string;
+  createdAt: string;
+  product?: DisplayProduct;
+  creator?: Pick<User, 'id' | 'fullName' | 'username'>;
+}
+
+export interface DisplayStockRequest {
+  id: string;
+  productId: string;
+  type: DisplayRequestType;
+  quantity: number;
+  targetStock?: number | null;
+  reason: string;
+  status: DisplayRequestStatus;
+  requestedBy: string;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  rejectionReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  product?: DisplayProduct;
+  requester?: Pick<User, 'id' | 'fullName' | 'username'>;
+  reviewer?: Pick<User, 'id' | 'fullName' | 'username'>;
 }

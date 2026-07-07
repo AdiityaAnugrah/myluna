@@ -23,6 +23,7 @@ import {
   DollarSign,
   Truck,
   RefreshCcw,
+  PackageOpen,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -32,7 +33,8 @@ type NotificationKey =
   | 'overdueSettlements'
   | 'complaints'
   | 'returns'
-  | 'returnTickets';
+  | 'returnTickets'
+  | 'displayRequests';
 
 interface NavigationItem {
   name: string;
@@ -58,6 +60,7 @@ const navigationGroups: NavigationGroup[] = [
     title: 'Inventaris',
     items: [
       { name: 'Data Master', href: '/products', icon: Package },
+      { name: 'Sistem Display', href: '/display', icon: PackageOpen, notificationKey: 'displayRequests' },
       { name: 'Kategori', href: '/categories', icon: FolderTree },
       { name: 'Stok', href: '/stock', icon: BarChart3 },
     ]
@@ -240,6 +243,8 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
                   notificationCount = notifications.returnsCount;
                 } else if (item.notificationKey === 'returnTickets') {
                   notificationCount = notifications.returnTicketsCount;
+                } else if (item.notificationKey === 'displayRequests') {
+                  notificationCount = notifications.displayRequestsCount;
                 }
                   
                 return (

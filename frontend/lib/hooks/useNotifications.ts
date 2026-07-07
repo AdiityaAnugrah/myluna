@@ -5,6 +5,7 @@ import apiClient from '@/lib/api/client';
 import { complaintsApi } from '@/lib/api/complaints';
 import { returnsApi } from '@/lib/api/returns';
 import { returnTicketsApi } from '@/lib/api/returnTickets';
+import { displayApi } from '@/lib/api/display';
 
 /**
  * Hook to get notification counts for various entities
@@ -14,6 +15,7 @@ export function useNotifications() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const hasUser = !!user;
+  const canAccessDisplay = hasUser && user?.role !== 'TCP';
 
   // Fetch ONLY the stats endpoint instead of fetching all 1000 sales
   const { data: statsData, isLoading: statsLoading } = useQuery({
@@ -72,6 +74,13 @@ export function useNotifications() {
     enabled: hasUser,
   });
 
+  const { data: displaySummary } = useQuery({
+    queryKey: ['display', 'summary'],
+    queryFn: () => displayApi.getSummary(),
+    refetchInterval: 30_000,
+    enabled: canAccessDisplay,
+  });
+
   const pendingSalesCount = statsData?.data?.WAITING_APPROVAL || 0;
 
   // Only compute for admin roles to avoid unnecessary API calls influencing count
@@ -83,6 +92,7 @@ export function useNotifications() {
   const complaintsCount = complaintsSummary?.data?.badgeCount || 0;
   const returnsCount = returnsSummary?.data?.badgeCount || 0;
   const returnTicketsCount = returnTicketsSummary?.data?.badgeCount || 0;
+  const displayRequestsCount = displaySummary?.data?.badgeCount || 0;
 
   return {
     pendingSalesCount,
@@ -91,6 +101,7 @@ export function useNotifications() {
     complaintsCount,
     returnsCount,
     returnTicketsCount,
+    displayRequestsCount,
     isLoading: statsLoading,
   };
 }
