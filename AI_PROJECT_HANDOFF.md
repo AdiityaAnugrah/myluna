@@ -110,6 +110,7 @@ Route group aktif:
 - `/upload`
 - `/regions`
 - `/analytics`
+- `/display`
 
 ## Frontend Layering
 
@@ -661,6 +662,46 @@ Hal yang perlu diperhatikan sebelum revisi besar:
 - Role guard ada di backend dan frontend. Saat menambah fitur, update keduanya.
 - React Query key harus konsisten agar invalidation/mutation refresh tidak salah.
 - Testing mode mencegat write request di middleware auth dan mengembalikan response simulasi. Fitur frontend perlu siap menerima `data.simulated`.
+
+
+
+### Update 2026-07-07 - Alur Komplen Baru
+
+Alur Komplen sekarang tidak lagi selesai sepihak oleh TCP. Setelah TCP menandai pengganti dikirim, status menjadi `WAITING_USER_CONFIRMATION` / **Menunggu Konfirmasi User**. User pembuat (atau ADMIN/SUPER_ADMIN) harus memilih:
+
+- **Konfirmasi Selesai** -> status `COMPLETED` dan masuk Riwayat Komplen.
+- **Belum Selesai** -> wajib isi alasan, status `FOLLOW_UP_REQUIRED` / **Perlu Tindak Lanjut**, lalu TCP/Admin bisa **Tangani Lagi** untuk mengembalikan ke `ACCEPTED_BY_TCP`.
+
+Status aktif badge Komplen: `PENDING_TCP_REVIEW`, `ACCEPTED_BY_TCP`, `REPLACEMENT_SHIPPED`, `WAITING_USER_CONFIRMATION`, `FOLLOW_UP_REQUIRED`. Status final/riwayat: `COMPLETED`, `REJECTED_BY_TCP`, `CONVERTED_TO_RETURN`. Endpoint baru: `/complaints/:id/request-follow-up`; endpoint `/complaints/:id/complete` sekarang untuk USER pembuat/ADMIN/SUPER_ADMIN saat menunggu konfirmasi user.
+
+### Update 2026-07-07 - Proses Penjualan
+
+Halaman `/sales/process` tidak lagi menampilkan tombol **ACC** dan **Tolak**. Untuk TCP/ADMIN/SUPER_ADMIN, aksi utama adalah **Cetak**. Saat cetak dari status `WAITING_APPROVAL`, backend `process` tetap auto-approve lalu mengubah status ke `PROCESSED`. Endpoint lama `/sales/:id/approve` dan `/sales/:id/reject` masih ada di backend untuk kompatibilitas/histori, tetapi tidak dipakai di UI Proses Penjualan.
+
+### Update 2026-07-07 - Sistem Display
+
+Modul baru **Sistem Display** berada di `/display` dan backend `/api/v1/display`. Modul ini sengaja terpisah total dari produk/stok operasional, penjualan, settlement, dan finance. Perubahan stok display tidak memengaruhi stok produk utama atau laporan keuangan.
+
+Tabel khusus display:
+
+- `display_categories`
+- `display_suppliers`
+- `display_products`
+- `display_stock_movements`
+- `display_stock_requests`
+
+File utama:
+
+- Backend: `backend/src/controllers/display.controller.ts`, `backend/src/routes/display.routes.ts`, model `Display*`, migration `20260707000002-create-display-system.ts`.
+- Frontend: `frontend/app/(dashboard)/display/page.tsx`, `frontend/lib/api/display.ts`, `frontend/lib/hooks/useDisplay.ts`.
+
+Role:
+
+- `ADMIN`/`SUPER_ADMIN`: kelola produk/kategori/supplier display, adjust stok langsung, approve/reject pengajuan.
+- `USER`: lihat data display dan membuat pengajuan stok display; hanya melihat pengajuannya sendiri.
+- `TCP`: tidak punya akses ke `/display`.
+
+Sidebar menampilkan badge **Sistem Display** berdasarkan jumlah pengajuan stok display pending. Untuk admin/super admin: semua pending; untuk user: pending miliknya sendiri. UI `/display` memakai navigasi internal sendiri agar user awam jelas sedang berada di area display terpisah.
 
 ## Commands Verifikasi
 

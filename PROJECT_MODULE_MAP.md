@@ -57,6 +57,7 @@ Semua endpoint berikut berada di bawah `/api/v1`.
 - `/upload` -> `upload.routes.ts`
 - `/regions` -> `region.routes.ts`
 - `/analytics` -> `analytics.routes.ts`
+- `/display` -> `display.routes.ts`
 
 ## 5) Mapping Modul Fitur End-to-End
 
@@ -230,6 +231,20 @@ Format: `Backend endpoint -> Frontend API/Hook -> Halaman/Komponen`.
 - Data penjualan lama tanpa ID wilayah tetap tampil, tetapi tidak dihitung dalam peringkat wilayah.
 
 
+
+### Update Komplen 2026-07-07
+
+Alur Komplen aktif sekarang:
+
+`PENDING_TCP_REVIEW` -> `ACCEPTED_BY_TCP` -> `WAITING_USER_CONFIRMATION` -> `COMPLETED`
+
+Jika user memilih **Belum Selesai** dari `WAITING_USER_CONFIRMATION`, status menjadi `FOLLOW_UP_REQUIRED`, lalu TCP/Admin dapat **Tangani Lagi** ke `ACCEPTED_BY_TCP`. Komplen selesai masuk tab **Riwayat Komplen** dan tidak dihitung sebagai badge aktif.
+
+Status aktif badge: `PENDING_TCP_REVIEW`, `ACCEPTED_BY_TCP`, `REPLACEMENT_SHIPPED`, `WAITING_USER_CONFIRMATION`, `FOLLOW_UP_REQUIRED`. Status riwayat/final: `COMPLETED`, `REJECTED_BY_TCP`, `CONVERTED_TO_RETURN`.
+
+Endpoint tambahan: `/complaints/:id/request-follow-up`. Endpoint `/complaints/:id/complete` sekarang untuk konfirmasi selesai oleh USER pembuat atau ADMIN/SUPER_ADMIN.
+
+
 ### N. Retur
 
 - `/returns/eligible-sales`, `/returns/summary`, `/returns`, `/returns/:id`
@@ -277,6 +292,50 @@ Format: `Backend endpoint -> Frontend API/Hook -> Halaman/Komponen`.
   - TCP melakukan Mulai Eksekusi dan Selesaikan Eksekusi.
   - Eksekusi dapat membuat penyesuaian stok dan biaya terkait keputusan akhir.
 
+
+### P. Sistem Display
+
+- Backend endpoint mount: `/display` -> `backend/src/routes/display.routes.ts`
+- Controller: `backend/src/controllers/display.controller.ts`
+- Model/tabel khusus display:
+  - `DisplayCategory` -> `display_categories`
+  - `DisplaySupplier` -> `display_suppliers`
+  - `DisplayProduct` -> `display_products`
+  - `DisplayStockMovement` -> `display_stock_movements`
+  - `DisplayStockRequest` -> `display_stock_requests`
+- Migration: `backend/src/migrations/20260707000002-create-display-system.ts`
+- Frontend:
+  - `frontend/lib/api/display.ts`
+  - `frontend/lib/hooks/useDisplay.ts`
+  - `frontend/app/(dashboard)/display/page.tsx`
+  - Sidebar menu: `Inventaris > Sistem Display`
+
+Endpoint utama:
+
+- `/display/summary`
+- `/display/categories`
+- `/display/suppliers`
+- `/display/products`
+- `/display/products/:id/adjust-stock`
+- `/display/movements`
+- `/display/requests`
+- `/display/requests/:id/review`
+
+Catatan isolasi bisnis:
+
+- Sistem Display berdiri sendiri dan tidak boleh memengaruhi `products`, `stock_movements`, `sales`, `settlements`, atau finance.
+- Stok display hanya berubah lewat `display_stock_movements`.
+- Pengajuan display hanya mengubah `display_products` saat disetujui admin/super admin.
+
+Role:
+
+- `ADMIN`/`SUPER_ADMIN`: kelola produk/kategori/supplier display, adjust stok, approve/reject pengajuan.
+- `USER`: melihat data display dan membuat pengajuan stok display; hanya melihat pengajuannya sendiri.
+- `TCP`: tidak mendapat akses `/display`.
+
+UI `/display` memakai navigasi internal sendiri: Produk Display, Stok Display, Pengajuan Display, Kategori Display, Supplier Display, Riwayat Stok. Badge sidebar Sistem Display berasal dari jumlah pengajuan pending sesuai role.
+
+
 ## 6) Realtime & Sinkronisasi Data
 
 - Backend `socket.service.ts`:
@@ -309,6 +368,7 @@ Format: `Backend endpoint -> Frontend API/Hook -> Halaman/Komponen`.
   - `/analytics`
   - `/approvals`
   - `/categories`, `/categories/new`, `/categories/[id]`
+  - `/display`
   - `/expenses`
   - `/finance`, `/finance/global-report`
   - `/financial-summary`
@@ -333,10 +393,11 @@ Format: `Backend endpoint -> Frontend API/Hook -> Halaman/Komponen`.
 
 ## 10) Status Verifikasi Terakhir
 
-Diverifikasi pada 2026-07-04:
+Diverifikasi pada 2026-07-07:
 
 - `backend npm run build`: berhasil.
 - `frontend npm run build`: berhasil.
 - `frontend npm run lint`: berhasil.
+- `frontend npx tsc --noEmit`: berhasil.
 - `backend npm run lint`: berhasil.
 - `backend npm test`: belum siap karena `backend/tests` belum ada sesuai `jest.config.js`.
