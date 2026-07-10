@@ -22,12 +22,23 @@ import ShippingService from './ShippingService';
 import OtherIncome from './OtherIncome';
 import HistoricalSettlement from './HistoricalSettlement';
 import VariantOption from './VariantOption';
-import Complaint, { ComplaintStatus } from './Complaint';
+import Complaint, {
+  ComplaintResolutionStatus,
+  ComplaintResolutionType,
+  ComplaintStatus,
+} from './Complaint';
+import ComplaintComponentShipment from './ComplaintComponentShipment';
 import Province from './Province';
 import Regency from './Regency';
 import District from './District';
 import Village from './Village';
-import SaleReturn, { SaleReturnDecision, SaleReturnStatus } from './SaleReturn';
+import SaleReturn, {
+  ReturnFinalOutcome as SaleReturnFinalOutcome,
+  ReturnInspectionResult,
+  ReturnSourceType,
+  SaleReturnDecision,
+  SaleReturnStatus,
+} from './SaleReturn';
 import SaleReturnItem from './SaleReturnItem';
 import ReturnTicket, { ReturnFinalDecision, ReturnTicketStatus } from './ReturnTicket';
 import ReturnTicketParticipant from './ReturnTicketParticipant';
@@ -114,6 +125,9 @@ Sale.hasOne(Settlement, { foreignKey: 'saleId', as: 'settlement' });
 Settlement.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 User.hasMany(Settlement, { foreignKey: 'createdBy', as: 'settlements'});
 
+Settlement.belongsTo(Complaint, { foreignKey: 'complaintId', as: 'complaint' });
+Complaint.hasOne(Settlement, { foreignKey: 'complaintId', as: 'complaintSettlement' });
+
 // Expense Associations
 Expense.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 User.hasMany(Expense, { foreignKey: 'createdBy', as: 'expenses' });
@@ -137,6 +151,15 @@ User.hasMany(Complaint, { foreignKey: 'shippedBy', as: 'shippedComplaints' });
 
 Complaint.belongsTo(User, { foreignKey: 'completedBy', as: 'completer' });
 User.hasMany(Complaint, { foreignKey: 'completedBy', as: 'completedComplaints' });
+
+Complaint.hasMany(ComplaintComponentShipment, { foreignKey: 'complaintId', as: 'componentShipments' });
+ComplaintComponentShipment.belongsTo(Complaint, { foreignKey: 'complaintId', as: 'complaint' });
+ComplaintComponentShipment.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
+Product.hasMany(ComplaintComponentShipment, { foreignKey: 'productId', as: 'complaintComponentShipments' });
+ComplaintComponentShipment.belongsTo(StockMovement, { foreignKey: 'stockMovementId', as: 'stockMovement' });
+StockMovement.hasOne(ComplaintComponentShipment, { foreignKey: 'stockMovementId', as: 'complaintComponentShipment' });
+ComplaintComponentShipment.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+User.hasMany(ComplaintComponentShipment, { foreignKey: 'createdBy', as: 'createdComplaintComponentShipments' });
 
 // Indonesian administrative regions
 Province.hasMany(Regency, { foreignKey: 'provinceId', as: 'regencies' });
@@ -262,6 +285,9 @@ export {
   VariantOption,
   Complaint,
   ComplaintStatus,
+  ComplaintResolutionType,
+  ComplaintResolutionStatus,
+  ComplaintComponentShipment,
   Province,
   Regency,
   District,
@@ -269,6 +295,9 @@ export {
   SaleReturn,
   SaleReturnStatus,
   SaleReturnDecision,
+  ReturnSourceType,
+  ReturnInspectionResult,
+  SaleReturnFinalOutcome,
   SaleReturnItem,
   ReturnTicket,
   ReturnTicketStatus,

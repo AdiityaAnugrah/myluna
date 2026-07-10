@@ -3,6 +3,8 @@ import { DataTypes, QueryInterface } from 'sequelize';
 module.exports = {
   up: async (queryInterface: QueryInterface) => {
     const tables = await queryInterface.showAllTables();
+    const userIndexes = await queryInterface.showIndex('users');
+    const usersHasPrimaryKey = (userIndexes as any[]).some((index: any) => index.primary);
 
     if (!tables.includes('display_categories')) {
       await queryInterface.createTable('display_categories', {
@@ -67,7 +69,13 @@ module.exports = {
         stockAfter: { type: DataTypes.INTEGER, allowNull: false },
         reference: { type: DataTypes.STRING(255), allowNull: true },
         notes: { type: DataTypes.TEXT, allowNull: true },
-        createdBy: { type: DataTypes.UUID, allowNull: false, references: { model: 'users', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
+        createdBy: {
+          type: DataTypes.UUID,
+          allowNull: false,
+          ...(usersHasPrimaryKey
+            ? { references: { model: 'users', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' }
+            : {}),
+        },
         createdAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
       });
       await queryInterface.addIndex('display_stock_movements', ['productId']);
@@ -83,8 +91,20 @@ module.exports = {
         targetStock: { type: DataTypes.INTEGER, allowNull: true },
         reason: { type: DataTypes.TEXT, allowNull: false },
         status: { type: DataTypes.ENUM('PENDING', 'APPROVED', 'REJECTED'), allowNull: false, defaultValue: 'PENDING' },
-        requestedBy: { type: DataTypes.UUID, allowNull: false, references: { model: 'users', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
-        reviewedBy: { type: DataTypes.UUID, allowNull: true, references: { model: 'users', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
+        requestedBy: {
+          type: DataTypes.UUID,
+          allowNull: false,
+          ...(usersHasPrimaryKey
+            ? { references: { model: 'users', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' }
+            : {}),
+        },
+        reviewedBy: {
+          type: DataTypes.UUID,
+          allowNull: true,
+          ...(usersHasPrimaryKey
+            ? { references: { model: 'users', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' }
+            : {}),
+        },
         reviewedAt: { type: DataTypes.DATE, allowNull: true },
         rejectionReason: { type: DataTypes.TEXT, allowNull: true },
         createdAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },

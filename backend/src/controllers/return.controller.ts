@@ -15,6 +15,9 @@ import {
   ReturnTicketMessage,
   ReturnTicketMessageType,
   ReturnTicketStatus,
+  ReturnInspectionResult,
+  ReturnSourceType,
+  SaleReturnFinalOutcome,
   Sale,
   SaleItem,
   SaleReturn,
@@ -30,7 +33,6 @@ import { AppError } from '../utils/errors';
 import { successResponse } from '../utils/response';
 import { getLocalDateString } from '../utils/dateGuard';
 import { returnEvidenceDir, returnReceivedDir } from '../middlewares/uploadReturn';
-import { returnTicketController } from './returnTicket.controller';
 
 const eligibleSaleStatuses = ['PROCESSED', 'SETTLED', 'COMPLETED'];
 const activeComplaintStatuses = [
@@ -377,6 +379,7 @@ export const returnController = {
           returnNumber: generateReturnNumber(),
           saleId: sale.id,
           requestedBy: req.user.id,
+          sourceType: ReturnSourceType.DIRECT,
           status: SaleReturnStatus.PENDING_REVIEW,
           reason: String(reason).trim(),
           requestDate: new Date(requestDate),
@@ -384,17 +387,6 @@ export const returnController = {
         },
         { transaction }
       );
-
-      await returnTicketController.createForReturn({
-        saleReturnId: createdReturn.id,
-        createdBy: req.user.id,
-        createdByRole: req.user.roleName,
-        transaction,
-        requestMeta: {
-          ip: req.ip || req.socket.remoteAddress || '',
-          userAgent: req.headers['user-agent'] || '',
-        },
-      });
 
       for (const item of items) {
         const saleItem = saleItemsById.get(String(item.saleItemId))!;
@@ -455,7 +447,6 @@ export const returnController = {
       const result = await SaleReturn.findByPk(createdReturn.id, {
         include: [
           { model: Sale, as: 'sale' },
-          { model: ReturnTicket, as: 'ticket' },
           {
             model: SaleReturnItem,
             as: 'items',
@@ -468,8 +459,8 @@ export const returnController = {
       });
 
       socketService.emitToAdmins('notification:new', {
-        message: 'Tiket retur baru',
-        description: `Retur ${createdReturn.returnNumber} siap didiskusikan`,
+        message: 'Retur baru',
+        description: `Retur ${createdReturn.returnNumber} siap diproses`,
         type: 'INFO',
       });
       if (convertedComplaint) {
@@ -481,7 +472,6 @@ export const returnController = {
         socketService.broadcastDataRefresh('complaints');
       }
       socketService.broadcastDataRefresh('returns');
-      socketService.broadcastDataRefresh('return-tickets');
 
       return successResponse(res, result, 'Retur berhasil diajukan', 201);
     } catch (error) {
@@ -746,6 +736,57 @@ export const returnController = {
     }
   },
 
+  async inspect(req: Request, res: Response, next: NextFunction) {
+    const transaction = await sequelize.transaction();
+    try {
+      if (!req.user) throw new AppError('Authentication required', 401);
+
+      const record = await SaleReturn.findByPk(req.params.id, { transaction });
+      if (!record) throw new AppError('Data retur tidak ditemukan', 404);
+      if (record.status !== SaleReturnStatus.ITEM_RECEIVED) {
+        throw new AppError('Inspeksi hanya bisa dilakukan setelah barang retur diterima', 400);
+      }
+
+      const inspectionResult = String(req.body.inspectionResult || '').toUpperCase();
+      if (!Object.values(ReturnInspectionResult).includes(inspectionResult as ReturnInspectionResult)) {
+        throw new AppError('Hasil inspeksi retur tidak valid', 400);
+      }
+
+      const before = record.toJSON();
+      await record.update(
+        {
+          inspectionResult: inspectionResult as ReturnInspectionResult,
+          inspectionNotes: String(req.body.inspectionNotes || '').trim() || record.inspectionNotes || null,
+          inspectedBy: req.user.id,
+          inspectedAt: new Date(),
+        },
+        { transaction }
+      );
+
+      await auditService.log(
+        {
+          userId: req.user.id,
+          action: AuditAction.UPDATE,
+          entity: 'SaleReturn',
+          entityId: record.id,
+          before,
+          after: record.toJSON(),
+          ip: req.ip || req.socket.remoteAddress || '',
+          userAgent: req.headers['user-agent'] || '',
+        },
+        transaction
+      );
+
+      await transaction.commit();
+      socketService.broadcastDataRefresh('returns');
+
+      return successResponse(res, record, 'Hasil inspeksi retur berhasil disimpan', 200);
+    } catch (error) {
+      await transaction.rollback();
+      return next(error);
+    }
+  },
+
   async restock(req: Request, res: Response, next: NextFunction) {
     const transaction = await sequelize.transaction();
     try {
@@ -822,9 +863,13 @@ export const returnController = {
         {
           status: SaleReturnStatus.RESTOCKED,
           inspectionDecision: SaleReturnDecision.RESTOCK,
+          inspectionResult: ReturnInspectionResult.GOOD,
+          finalOutcome: SaleReturnFinalOutcome.RESTOCK,
           inspectionNotes: String(req.body.inspectionNotes || '').trim() || null,
           processedBy: req.user.id,
           processedAt: new Date(),
+          finalizedBy: req.user.id,
+          finalizedAt: new Date(),
           financialImpactAmount: '0',
         },
         { transaction }
@@ -849,6 +894,281 @@ export const returnController = {
       socketService.broadcastDataRefresh('stock');
 
       return successResponse(res, record, 'Retur berhasil dimasukkan kembali ke stok', 200);
+    } catch (error) {
+      await transaction.rollback();
+      return next(error);
+    }
+  },
+
+  async writeOff(req: Request, res: Response, next: NextFunction) {
+    const transaction = await sequelize.transaction();
+    try {
+      if (!req.user) throw new AppError('Authentication required', 401);
+
+      const record = await SaleReturn.findByPk(req.params.id, {
+        include: [{ model: SaleReturnItem, as: 'items' }],
+        transaction,
+      });
+      if (!record) throw new AppError('Data retur tidak ditemukan', 404);
+      if (record.status !== SaleReturnStatus.ITEM_RECEIVED) {
+        throw new AppError('Retur belum berada pada tahap inspeksi', 400);
+      }
+
+      const payloadItems = parseItemsPayload(req.body.items);
+      if (!payloadItems.length) throw new AppError('Detail item hangus wajib diisi', 400);
+
+      const returnItems = (record.items || []) as SaleReturnItem[];
+      const itemsById = new Map<string, SaleReturnItem>(returnItems.map((item) => [item.id, item]));
+      let calculatedLoss = 0;
+
+      for (const item of payloadItems) {
+        const returnItem = itemsById.get(String(item.returnItemId || ''));
+        const qtyWrittenOff = Number(item.qtyWrittenOff || item.qtyReceived || 0);
+        if (!returnItem) throw new AppError('Item retur tidak ditemukan', 400);
+        if (!Number.isInteger(qtyWrittenOff) || qtyWrittenOff <= 0 || qtyWrittenOff > returnItem.qtyRequested) {
+          throw new AppError('Qty hangus tidak valid', 400);
+        }
+
+        const saleItem = await SaleItem.findByPk(returnItem.saleItemId, { transaction });
+        if (saleItem) {
+          const unitValue = Number(saleItem.subtotal) / Number(saleItem.quantity || 1);
+          calculatedLoss += qtyWrittenOff * unitValue;
+        }
+
+        await returnItem.update(
+          {
+            qtyReceived: qtyWrittenOff,
+            resolution: SaleReturnDecision.DAMAGED,
+            inspectionResult: ReturnInspectionResult.NOT_GOOD,
+            finalOutcome: SaleReturnFinalOutcome.WRITE_OFF,
+            qtyWrittenOff,
+            qtyRepaired: null,
+            qtyRestocked: null,
+            itemNotes: String(item.itemNotes || '').trim() || null,
+            replacementProductId: null,
+            replacementVariantName: null,
+            replacementQty: null,
+          },
+          { transaction }
+        );
+      }
+
+      const lossAmount =
+        Number(req.body.lossAmount || 0) > 0 ? Number(req.body.lossAmount) : calculatedLoss;
+      const incomeLostAmount =
+        Number(req.body.incomeLostAmount || 0) > 0 ? Number(req.body.incomeLostAmount) : lossAmount;
+      const notes = String(req.body.finalOutcomeNotes || req.body.inspectionNotes || '').trim() || `Retur hangus ${record.returnNumber}`;
+
+      if (lossAmount > 0) {
+        await Expense.create(
+          {
+            category: 'OTHER',
+            description: `Retur hangus ${record.returnNumber}`,
+            amount: lossAmount.toFixed(2),
+            expenseDate: new Date(),
+            notes,
+            receiptDocument: null,
+            createdBy: req.user.id,
+          },
+          { transaction }
+        );
+      }
+
+      const before = record.toJSON();
+      await record.update(
+        {
+          status: SaleReturnStatus.DAMAGED,
+          inspectionDecision: SaleReturnDecision.DAMAGED,
+          inspectionResult: ReturnInspectionResult.NOT_GOOD,
+          finalOutcome: SaleReturnFinalOutcome.WRITE_OFF,
+          inspectionNotes: String(req.body.inspectionNotes || '').trim() || null,
+          finalOutcomeNotes: notes,
+          processedBy: req.user.id,
+          processedAt: new Date(),
+          finalizedBy: req.user.id,
+          finalizedAt: new Date(),
+          lossAmount: lossAmount.toFixed(2),
+          incomeLostAmount: incomeLostAmount.toFixed(2),
+          financialImpactAmount: lossAmount.toFixed(2),
+        },
+        { transaction }
+      );
+
+      await auditService.log(
+        {
+          userId: req.user.id,
+          action: AuditAction.UPDATE,
+          entity: 'SaleReturn',
+          entityId: record.id,
+          before,
+          after: record.toJSON(),
+          ip: req.ip || req.socket.remoteAddress || '',
+          userAgent: req.headers['user-agent'] || '',
+        },
+        transaction
+      );
+
+      await transaction.commit();
+      socketService.broadcastDataRefresh('returns');
+      socketService.broadcastDataRefresh('expense');
+      socketService.broadcastDataRefresh('finance');
+
+      return successResponse(res, record, 'Retur berhasil ditandai hangus', 200);
+    } catch (error) {
+      await transaction.rollback();
+      return next(error);
+    }
+  },
+
+  async repairRestock(req: Request, res: Response, next: NextFunction) {
+    const transaction = await sequelize.transaction();
+    try {
+      if (!req.user) throw new AppError('Authentication required', 401);
+
+      const record = await SaleReturn.findByPk(req.params.id, {
+        include: [{ model: SaleReturnItem, as: 'items' }],
+        transaction,
+      });
+      if (!record) throw new AppError('Data retur tidak ditemukan', 404);
+      if (record.status !== SaleReturnStatus.ITEM_RECEIVED) {
+        throw new AppError('Retur belum berada pada tahap inspeksi', 400);
+      }
+
+      const payloadItems = parseItemsPayload(req.body.items);
+      if (!payloadItems.length) throw new AppError('Detail item revisi wajib diisi', 400);
+
+      const returnItems = (record.items || []) as SaleReturnItem[];
+      const itemsById = new Map<string, SaleReturnItem>(returnItems.map((item) => [item.id, item]));
+      let calculatedIncomeLost = 0;
+
+      for (const item of payloadItems) {
+        const returnItem = itemsById.get(String(item.returnItemId || ''));
+        const qtyRepaired = Number(item.qtyRepaired || item.qtyRestocked || item.qtyReceived || 0);
+        const qtyRestocked = Number(item.qtyRestocked || qtyRepaired);
+        if (!returnItem) throw new AppError('Item retur tidak ditemukan', 400);
+        if (!Number.isInteger(qtyRepaired) || qtyRepaired <= 0 || qtyRepaired > returnItem.qtyRequested) {
+          throw new AppError('Qty revisi tidak valid', 400);
+        }
+        if (!Number.isInteger(qtyRestocked) || qtyRestocked <= 0 || qtyRestocked > qtyRepaired) {
+          throw new AppError('Qty masuk stok setelah revisi tidak valid', 400);
+        }
+
+        const product = await Product.findByPk(returnItem.productId, { transaction });
+        if (!product) throw new AppError('Produk retur tidak ditemukan', 404);
+
+        const stockBefore = product.stock;
+        await product.update({ stock: product.stock + qtyRestocked }, { transaction });
+
+        if (returnItem.variantName) {
+          const variant = await ProductVariant.findOne({
+            where: { productId: returnItem.productId, value: returnItem.variantName },
+            transaction,
+          });
+          if (variant) {
+            await variant.update({ stock: variant.stock + qtyRestocked }, { transaction });
+          }
+        }
+
+        await StockMovement.create(
+          {
+            productId: returnItem.productId,
+            type: MovementType.IN,
+            quantity: qtyRestocked,
+            stockBefore,
+            stockAfter: stockBefore + qtyRestocked,
+            reference: `RETURN_REPAIR_RESTOCK:${record.returnNumber}`,
+            notes: `Retur revisi masuk stok${returnItem.variantName ? ` (Varian: ${returnItem.variantName})` : ''}`,
+            createdBy: req.user.id,
+          },
+          { transaction }
+        );
+
+        const saleItem = await SaleItem.findByPk(returnItem.saleItemId, { transaction });
+        if (saleItem) {
+          const unitValue = Number(saleItem.subtotal) / Number(saleItem.quantity || 1);
+          calculatedIncomeLost += qtyRepaired * unitValue;
+        }
+
+        await returnItem.update(
+          {
+            qtyReceived: qtyRepaired,
+            resolution: SaleReturnDecision.RESTOCK,
+            inspectionResult: ReturnInspectionResult.NOT_GOOD,
+            finalOutcome: SaleReturnFinalOutcome.REPAIR_AND_RESTOCK,
+            qtyWrittenOff: null,
+            qtyRepaired,
+            qtyRestocked,
+            itemNotes: String(item.itemNotes || '').trim() || null,
+            replacementProductId: null,
+            replacementVariantName: null,
+            replacementQty: null,
+          },
+          { transaction }
+        );
+      }
+
+      const repairCost = Number(req.body.repairCost || 0);
+      const incomeLostAmount =
+        Number(req.body.incomeLostAmount || 0) > 0 ? Number(req.body.incomeLostAmount) : calculatedIncomeLost;
+      const notes = String(req.body.finalOutcomeNotes || req.body.repairNotes || req.body.inspectionNotes || '').trim() || `Retur revisi ${record.returnNumber}`;
+
+      if (repairCost > 0) {
+        await Expense.create(
+          {
+            category: 'OTHER',
+            description: `Biaya revisi retur ${record.returnNumber}`,
+            amount: repairCost.toFixed(2),
+            expenseDate: new Date(),
+            notes,
+            receiptDocument: null,
+            createdBy: req.user.id,
+          },
+          { transaction }
+        );
+      }
+
+      const before = record.toJSON();
+      await record.update(
+        {
+          status: SaleReturnStatus.RESTOCKED,
+          inspectionDecision: SaleReturnDecision.RESTOCK,
+          inspectionResult: ReturnInspectionResult.NOT_GOOD,
+          finalOutcome: SaleReturnFinalOutcome.REPAIR_AND_RESTOCK,
+          inspectionNotes: String(req.body.inspectionNotes || '').trim() || null,
+          repairCost: repairCost.toFixed(2),
+          repairNotes: String(req.body.repairNotes || '').trim() || null,
+          finalOutcomeNotes: notes,
+          processedBy: req.user.id,
+          processedAt: new Date(),
+          finalizedBy: req.user.id,
+          finalizedAt: new Date(),
+          incomeLostAmount: incomeLostAmount.toFixed(2),
+          financialImpactAmount: repairCost.toFixed(2),
+        },
+        { transaction }
+      );
+
+      await auditService.log(
+        {
+          userId: req.user.id,
+          action: AuditAction.UPDATE,
+          entity: 'SaleReturn',
+          entityId: record.id,
+          before,
+          after: record.toJSON(),
+          ip: req.ip || req.socket.remoteAddress || '',
+          userAgent: req.headers['user-agent'] || '',
+        },
+        transaction
+      );
+
+      await transaction.commit();
+      socketService.broadcastDataRefresh('returns');
+      socketService.broadcastDataRefresh('stock');
+      socketService.broadcastDataRefresh('expense');
+      socketService.broadcastDataRefresh('finance');
+
+      return successResponse(res, record, 'Retur revisi berhasil dikembalikan ke stok', 200);
     } catch (error) {
       await transaction.rollback();
       return next(error);

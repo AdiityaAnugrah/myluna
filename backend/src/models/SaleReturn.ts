@@ -18,6 +18,24 @@ export enum SaleReturnDecision {
   RESEND = 'RESEND',
 }
 
+export enum ReturnSourceType {
+  DIRECT = 'DIRECT',
+  COMPLAINT = 'COMPLAINT',
+}
+
+export enum ReturnInspectionResult {
+  GOOD = 'GOOD',
+  NOT_GOOD = 'NOT_GOOD',
+}
+
+export enum ReturnFinalOutcome {
+  RESTOCK = 'RESTOCK',
+  WRITE_OFF = 'WRITE_OFF',
+  REPAIR_AND_RESTOCK = 'REPAIR_AND_RESTOCK',
+  RESEND_UNIT = 'RESEND_UNIT',
+  SEND_COMPONENT = 'SEND_COMPONENT',
+}
+
 interface SaleReturnAttributes {
   id: string;
   returnNumber: string;
@@ -40,6 +58,19 @@ interface SaleReturnAttributes {
   evidencePhotos: string[] | null;
   receivedPhotos: string[] | null;
   rejectionReason: string | null;
+  sourceType: ReturnSourceType | null;
+  sourceComplaintId: string | null;
+  inspectionResult: ReturnInspectionResult | null;
+  finalOutcome: ReturnFinalOutcome | null;
+  lossAmount: string | null;
+  incomeLostAmount: string | null;
+  repairCost: string | null;
+  repairNotes: string | null;
+  finalOutcomeNotes: string | null;
+  inspectedBy: string | null;
+  inspectedAt: Date | null;
+  finalizedBy: string | null;
+  finalizedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -62,6 +93,19 @@ interface SaleReturnCreationAttributes
     | 'evidencePhotos'
     | 'receivedPhotos'
     | 'rejectionReason'
+    | 'sourceType'
+    | 'sourceComplaintId'
+    | 'inspectionResult'
+    | 'finalOutcome'
+    | 'lossAmount'
+    | 'incomeLostAmount'
+    | 'repairCost'
+    | 'repairNotes'
+    | 'finalOutcomeNotes'
+    | 'inspectedBy'
+    | 'inspectedAt'
+    | 'finalizedBy'
+    | 'finalizedAt'
     | 'createdAt'
     | 'updatedAt'
   > {}
@@ -91,6 +135,19 @@ class SaleReturn
   declare evidencePhotos: string[] | null;
   declare receivedPhotos: string[] | null;
   declare rejectionReason: string | null;
+  declare sourceType: ReturnSourceType | null;
+  declare sourceComplaintId: string | null;
+  declare inspectionResult: ReturnInspectionResult | null;
+  declare finalOutcome: ReturnFinalOutcome | null;
+  declare lossAmount: string | null;
+  declare incomeLostAmount: string | null;
+  declare repairCost: string | null;
+  declare repairNotes: string | null;
+  declare finalOutcomeNotes: string | null;
+  declare inspectedBy: string | null;
+  declare inspectedAt: Date | null;
+  declare finalizedBy: string | null;
+  declare finalizedAt: Date | null;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 
@@ -187,6 +244,58 @@ SaleReturn.init(
     },
     rejectionReason: {
       type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    sourceType: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    sourceComplaintId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    inspectionResult: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    finalOutcome: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    lossAmount: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: true,
+    },
+    incomeLostAmount: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: true,
+    },
+    repairCost: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: true,
+    },
+    repairNotes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    finalOutcomeNotes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    inspectedBy: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    inspectedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    finalizedBy: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    finalizedAt: {
+      type: DataTypes.DATE,
       allowNull: true,
     },
     createdAt: {

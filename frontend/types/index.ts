@@ -480,6 +480,17 @@ export type SaleReturnStatus =
 
 export type SaleReturnDecision = 'RESTOCK' | 'DAMAGED' | 'RESEND';
 
+export type ReturnSourceType = 'DIRECT' | 'COMPLAINT';
+
+export type ReturnInspectionResult = 'GOOD' | 'NOT_GOOD';
+
+export type ReturnFinalOutcome =
+  | 'RESTOCK'
+  | 'WRITE_OFF'
+  | 'REPAIR_AND_RESTOCK'
+  | 'RESEND_UNIT'
+  | 'SEND_COMPONENT';
+
 export type ReturnTicketStatus =
   | 'OPEN'
   | 'IN_DISCUSSION'
@@ -509,6 +520,12 @@ export interface ReturnItem {
   replacementProductId?: string | null;
   replacementVariantName?: string | null;
   replacementQty?: number | null;
+  inspectionResult?: ReturnInspectionResult | null;
+  finalOutcome?: ReturnFinalOutcome | null;
+  qtyWrittenOff?: number | null;
+  qtyRepaired?: number | null;
+  qtyRestocked?: number | null;
+  itemNotes?: string | null;
   saleItem?: SaleItem;
   product?: Product;
   replacementProduct?: Product;
@@ -536,6 +553,19 @@ export interface SaleReturn {
   evidencePhotos?: string[] | null;
   receivedPhotos?: string[] | null;
   rejectionReason?: string | null;
+  sourceType?: ReturnSourceType | null;
+  sourceComplaintId?: string | null;
+  inspectionResult?: ReturnInspectionResult | null;
+  finalOutcome?: ReturnFinalOutcome | null;
+  lossAmount?: string | null;
+  incomeLostAmount?: string | null;
+  repairCost?: string | null;
+  repairNotes?: string | null;
+  finalOutcomeNotes?: string | null;
+  inspectedBy?: string | null;
+  inspectedAt?: string | null;
+  finalizedBy?: string | null;
+  finalizedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   sale?: Sale;

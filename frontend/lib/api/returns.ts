@@ -56,8 +56,53 @@ export const returnsApi = {
     return response.data;
   },
 
+  inspect: async (
+    id: string,
+    data: {
+      inspectionResult: 'GOOD' | 'NOT_GOOD';
+      inspectionNotes?: string;
+    }
+  ) => {
+    const response = await apiClient.patch<ApiResponse<SaleReturn>>(`/returns/${id}/inspection`, data);
+    return response.data;
+  },
+
   restock: async (id: string, data: { inspectionNotes?: string; items: Array<{ returnItemId: string; qtyReceived: number }> }) => {
     const response = await apiClient.patch<ApiResponse<SaleReturn>>(`/returns/${id}/restock`, data);
+    return response.data;
+  },
+
+  writeOff: async (
+    id: string,
+    data: {
+      inspectionNotes?: string;
+      finalOutcomeNotes?: string;
+      lossAmount?: number;
+      incomeLostAmount?: number;
+      items: Array<{ returnItemId: string; qtyWrittenOff: number; itemNotes?: string }>;
+    }
+  ) => {
+    const response = await apiClient.patch<ApiResponse<SaleReturn>>(`/returns/${id}/write-off`, data);
+    return response.data;
+  },
+
+  repairRestock: async (
+    id: string,
+    data: {
+      inspectionNotes?: string;
+      repairNotes?: string;
+      finalOutcomeNotes?: string;
+      repairCost?: number;
+      incomeLostAmount?: number;
+      items: Array<{
+        returnItemId: string;
+        qtyRepaired: number;
+        qtyRestocked: number;
+        itemNotes?: string;
+      }>;
+    }
+  ) => {
+    const response = await apiClient.patch<ApiResponse<SaleReturn>>(`/returns/${id}/repair-restock`, data);
     return response.data;
   },
 

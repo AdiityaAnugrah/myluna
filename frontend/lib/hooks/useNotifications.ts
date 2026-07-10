@@ -4,7 +4,6 @@ import { useAuth } from './useAuth';
 import apiClient from '@/lib/api/client';
 import { complaintsApi } from '@/lib/api/complaints';
 import { returnsApi } from '@/lib/api/returns';
-import { returnTicketsApi } from '@/lib/api/returnTickets';
 import { displayApi } from '@/lib/api/display';
 
 /**
@@ -67,13 +66,6 @@ export function useNotifications() {
     enabled: hasUser,
   });
 
-  const { data: returnTicketsSummary } = useQuery({
-    queryKey: ['return-tickets', 'summary'],
-    queryFn: () => returnTicketsApi.getSummary(),
-    refetchInterval: 30_000,
-    enabled: hasUser,
-  });
-
   const { data: displaySummary } = useQuery({
     queryKey: ['display', 'summary'],
     queryFn: () => displayApi.getSummary(),
@@ -91,7 +83,6 @@ export function useNotifications() {
   const overdueSettlementsCount = (overdueData as number) || 0;
   const complaintsCount = complaintsSummary?.data?.badgeCount || 0;
   const returnsCount = returnsSummary?.data?.badgeCount || 0;
-  const returnTicketsCount = returnTicketsSummary?.data?.badgeCount || 0;
   const displayRequestsCount = displaySummary?.data?.badgeCount || 0;
 
   return {
@@ -100,7 +91,6 @@ export function useNotifications() {
     overdueSettlementsCount,
     complaintsCount,
     returnsCount,
-    returnTicketsCount,
     displayRequestsCount,
     isLoading: statsLoading,
   };

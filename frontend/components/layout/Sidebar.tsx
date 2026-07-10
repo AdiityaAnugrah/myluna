@@ -22,7 +22,6 @@ import {
   Coins,
   DollarSign,
   Truck,
-  RefreshCcw,
   PackageOpen,
   type LucideIcon,
 } from 'lucide-react';
@@ -33,7 +32,6 @@ type NotificationKey =
   | 'overdueSettlements'
   | 'complaints'
   | 'returns'
-  | 'returnTickets'
   | 'displayRequests';
 
 interface NavigationItem {
@@ -76,8 +74,6 @@ const navigationGroups: NavigationGroup[] = [
     title: 'Penjualan',
     items: [
       { name: 'Penjualan', href: '/sales', icon: ShoppingBag },
-      { name: 'Retur', href: '/returns', icon: RefreshCcw, notificationKey: 'returns' },
-      { name: 'Tiket Retur', href: '/return-tickets', icon: FileText, notificationKey: 'returnTickets' },
       { name: 'Proses Penjualan', href: '/sales/process', icon: FileCheck, notificationKey: 'pendingSales' },
       { name: 'Komplen', href: '/complaints', icon: MessageSquareWarning, notificationKey: 'complaints' },
     ]
@@ -183,7 +179,7 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
         if (group.title === 'Penjualan') {
             return {
                 ...group,
-                items: group.items.filter(item => item.href === '/sales/process' || item.href === '/complaints' || item.href === '/returns' || item.href === '/return-tickets')
+                items: group.items.filter(item => item.href === '/sales/process' || item.href === '/complaints')
             };
         }
         
@@ -241,8 +237,6 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
                   notificationCount = notifications.complaintsCount;
                 } else if (item.notificationKey === 'returns') {
                   notificationCount = notifications.returnsCount;
-                } else if (item.notificationKey === 'returnTickets') {
-                  notificationCount = notifications.returnTicketsCount;
                 } else if (item.notificationKey === 'displayRequests') {
                   notificationCount = notifications.displayRequestsCount;
                 }

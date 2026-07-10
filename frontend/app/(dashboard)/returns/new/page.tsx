@@ -71,8 +71,7 @@ export default function NewReturnPage() {
 
     createReturn.mutate(formData, {
       onSuccess: (response) => {
-        const ticketId = response.data.ticket?.id;
-        router.push(ticketId ? `/return-tickets/${ticketId}` : '/return-tickets');
+        router.push(`/returns/${response.data.id}`);
       },
     });
   };

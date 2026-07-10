@@ -12,6 +12,20 @@ export enum ComplaintStatus {
   CONVERTED_TO_RETURN = 'CONVERTED_TO_RETURN',
 }
 
+export enum ComplaintResolutionType {
+  SETTLEMENT_DEDUCTION = 'SETTLEMENT_DEDUCTION',
+  SEND_COMPONENT = 'SEND_COMPONENT',
+  CONVERT_TO_RETURN = 'CONVERT_TO_RETURN',
+  NO_ACTION = 'NO_ACTION',
+}
+
+export enum ComplaintResolutionStatus {
+  PENDING_DECISION = 'PENDING_DECISION',
+  IN_PROGRESS = 'IN_PROGRESS',
+  WAITING_USER_CONFIRMATION = 'WAITING_USER_CONFIRMATION',
+  COMPLETED = 'COMPLETED',
+}
+
 interface ComplaintAttributes {
   id: string;
   complaintNumber: string;
@@ -42,6 +56,19 @@ interface ComplaintAttributes {
   followUpRequestedAt: Date | null;
   completedBy: string | null;
   completedAt: Date | null;
+  resolutionType: ComplaintResolutionType | null;
+  resolutionStatus: ComplaintResolutionStatus | null;
+  settlementId: string | null;
+  linkedReturnId: string | null;
+  deductionAmount: string | null;
+  netReceivedAmount: string | null;
+  deductionReason: string | null;
+  componentShipmentStatus: string | null;
+  componentShippingService: string | null;
+  componentShippingCost: string | null;
+  resolutionNotes: string | null;
+  resolvedBy: string | null;
+  resolvedAt: Date | null;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
@@ -73,6 +100,19 @@ interface ComplaintCreationAttributes
     | 'followUpRequestedAt'
     | 'completedBy'
     | 'completedAt'
+    | 'resolutionType'
+    | 'resolutionStatus'
+    | 'settlementId'
+    | 'linkedReturnId'
+    | 'deductionAmount'
+    | 'netReceivedAmount'
+    | 'deductionReason'
+    | 'componentShipmentStatus'
+    | 'componentShippingService'
+    | 'componentShippingCost'
+    | 'resolutionNotes'
+    | 'resolvedBy'
+    | 'resolvedAt'
     | 'createdAt'
     | 'updatedAt'
   > {}
@@ -110,6 +150,19 @@ class Complaint
   declare followUpRequestedAt: Date | null;
   declare completedBy: string | null;
   declare completedAt: Date | null;
+  declare resolutionType: ComplaintResolutionType | null;
+  declare resolutionStatus: ComplaintResolutionStatus | null;
+  declare settlementId: string | null;
+  declare linkedReturnId: string | null;
+  declare deductionAmount: string | null;
+  declare netReceivedAmount: string | null;
+  declare deductionReason: string | null;
+  declare componentShipmentStatus: string | null;
+  declare componentShippingService: string | null;
+  declare componentShippingCost: string | null;
+  declare resolutionNotes: string | null;
+  declare resolvedBy: string | null;
+  declare resolvedAt: Date | null;
   declare createdBy: string;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
@@ -249,6 +302,58 @@ Complaint.init(
       },
     },
     completedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    resolutionType: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    resolutionStatus: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    settlementId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    linkedReturnId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    deductionAmount: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: true,
+    },
+    netReceivedAmount: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: true,
+    },
+    deductionReason: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    componentShipmentStatus: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    componentShippingService: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
+    componentShippingCost: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: true,
+    },
+    resolutionNotes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    resolvedBy: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    resolvedAt: {
       type: DataTypes.DATE,
       allowNull: true,
     },

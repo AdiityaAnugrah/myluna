@@ -87,6 +87,30 @@ export function useReceiveReturn() {
   });
 }
 
+export function useInspectReturn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: {
+        inspectionResult: 'GOOD' | 'NOT_GOOD';
+        inspectionNotes?: string;
+      };
+    }) => returnsApi.inspect(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['returns'] });
+      queryClient.invalidateQueries({ queryKey: ['returns', 'detail', variables.id] });
+      toast.success('Hasil inspeksi retur berhasil disimpan');
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Gagal menyimpan inspeksi retur'));
+    },
+  });
+}
+
 export function useRestockReturn() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -100,6 +124,72 @@ export function useRestockReturn() {
     },
     onError: (error: unknown) => {
       toast.error(getErrorMessage(error, 'Gagal memproses restock retur'));
+    },
+  });
+}
+
+export function useWriteOffReturn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: {
+        inspectionNotes?: string;
+        finalOutcomeNotes?: string;
+        lossAmount?: number;
+        incomeLostAmount?: number;
+        items: Array<{ returnItemId: string; qtyWrittenOff: number; itemNotes?: string }>;
+      };
+    }) => returnsApi.writeOff(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['returns'] });
+      queryClient.invalidateQueries({ queryKey: ['returns', 'detail', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['expense'] });
+      queryClient.invalidateQueries({ queryKey: ['financial'] });
+      toast.success('Retur berhasil ditandai hangus');
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Gagal menandai retur hangus'));
+    },
+  });
+}
+
+export function useRepairRestockReturn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: {
+        inspectionNotes?: string;
+        repairNotes?: string;
+        finalOutcomeNotes?: string;
+        repairCost?: number;
+        incomeLostAmount?: number;
+        items: Array<{
+          returnItemId: string;
+          qtyRepaired: number;
+          qtyRestocked: number;
+          itemNotes?: string;
+        }>;
+      };
+    }) => returnsApi.repairRestock(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['returns'] });
+      queryClient.invalidateQueries({ queryKey: ['returns', 'detail', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['stock'] });
+      queryClient.invalidateQueries({ queryKey: ['expense'] });
+      queryClient.invalidateQueries({ queryKey: ['financial'] });
+      toast.success('Retur revisi berhasil dikembalikan ke stok');
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Gagal memproses retur revisi'));
     },
   });
 }

@@ -16,7 +16,10 @@ router.get('/', rbac(['USER', 'TCP', 'SUPER_ADMIN', 'ADMIN']), returnController.
 router.get('/:id', rbac(['USER', 'TCP', 'SUPER_ADMIN', 'ADMIN']), returnController.getById);
 router.patch('/:id/review', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), returnController.review);
 router.patch('/:id/receive', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), uploadReturnPhotos, validateUploadedFilesContent, returnController.receive);
+router.patch('/:id/inspection', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), returnController.inspect);
 router.patch('/:id/restock', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), returnController.restock);
+router.patch('/:id/write-off', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), returnController.writeOff);
+router.patch('/:id/repair-restock', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), returnController.repairRestock);
 router.patch('/:id/damaged', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), returnController.damaged);
 router.patch('/:id/resend', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), returnController.resend);
 

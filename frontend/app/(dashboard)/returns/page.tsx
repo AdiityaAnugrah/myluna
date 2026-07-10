@@ -91,14 +91,11 @@ export default function ReturnsPage() {
           <h1 className="text-3xl font-bold">Retur Penjualan</h1>
           <p className="mt-1 text-muted-foreground">
             {isUser
-              ? 'Lihat riwayat pengajuan retur Anda. Diskusi dan keputusan lanjutannya ada di Tiket Retur.'
-              : 'Lihat data retur yang masuk. Forum diskusi dan keputusan lanjutannya ada di Tiket Retur.'}
+              ? 'Lihat riwayat pengajuan retur Anda dan pantau prosesnya langsung dari detail retur.'
+              : 'Lihat data retur yang masuk dan proses setiap tahap langsung dari detail retur.'}
           </p>
         </div>
         <div className="flex gap-2">
-          <Link href="/return-tickets">
-            <Button variant="outline">Lihat Tiket Retur</Button>
-          </Link>
           {canCreate && (
             <Link href="/returns/new">
               <Button>

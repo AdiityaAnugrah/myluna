@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
@@ -17,8 +16,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  getReturnTicketStatusBadgeClass,
-  getReturnTicketStatusLabel,
   getSaleReturnStatusBadgeClass,
   getSaleReturnStatusLabel,
 } from '@/lib/constants/workflowStatus';
@@ -130,8 +127,6 @@ export default function ReturnDetailPage() {
     );
   }
 
-  const ticketHref = returnData.ticket ? `/return-tickets/${returnData.ticket.id}` : '/return-tickets';
-
   return (
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: 'Retur', href: '/returns' }, { label: returnData.returnNumber }]} />
@@ -147,31 +142,6 @@ export default function ReturnDetailPage() {
           Kembali
         </Button>
       </div>
-
-      {returnData.ticket && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Tiket Retur Terkait</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="text-sm">
-              <p className="font-medium">{returnData.ticket.ticketNumber}</p>
-              <p className="text-muted-foreground">
-                Status tiket:{' '}
-                <Badge
-                  variant="outline"
-                  className={getReturnTicketStatusBadgeClass(returnData.ticket.status)}
-                >
-                  {getReturnTicketStatusLabel(returnData.ticket.status)}
-                </Badge>
-              </p>
-            </div>
-            <Link href={ticketHref}>
-              <Button>Lihat Tiket Retur</Button>
-            </Link>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader>
@@ -306,11 +276,11 @@ export default function ReturnDetailPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Barang sudah diterima. Diskusi keputusan akhir, finalisasi keputusan, dan eksekusi TCP sekarang dipusatkan di Tiket Retur agar tidak ada keputusan ganda.
+              Barang sudah diterima dan siap masuk tahap inspeksi langsung di modul Retur. Flow baru akan diproses tanpa Tiket Retur.
             </p>
-            <Link href={ticketHref}>
-              <Button>Lanjut ke Tiket Retur</Button>
-            </Link>
+            <Button onClick={() => router.push(`/returns/${returnData.id}/inspection`)}>
+              Lanjut Inspeksi Retur
+            </Button>
           </CardContent>
         </Card>
       )}

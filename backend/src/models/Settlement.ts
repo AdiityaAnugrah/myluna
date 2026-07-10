@@ -9,12 +9,30 @@ interface SettlementAttributes {
   settlementDate: Date;
   proofDocument: string | null;
   notes: string | null;
+  complaintId: string | null;
+  deductionAmount: string | null;
+  deductionReason: string | null;
+  grossAmount: string | null;
+  deductionType: string | null;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-interface SettlementCreationAttributes extends Optional<SettlementAttributes, 'id' | 'proofDocument' | 'notes' | 'createdAt' | 'updatedAt'> {}
+interface SettlementCreationAttributes
+  extends Optional<
+    SettlementAttributes,
+    | 'id'
+    | 'proofDocument'
+    | 'notes'
+    | 'complaintId'
+    | 'deductionAmount'
+    | 'deductionReason'
+    | 'grossAmount'
+    | 'deductionType'
+    | 'createdAt'
+    | 'updatedAt'
+  > {}
 
 class Settlement extends Model<SettlementAttributes, SettlementCreationAttributes> implements SettlementAttributes {
   declare id: string;
@@ -24,6 +42,11 @@ class Settlement extends Model<SettlementAttributes, SettlementCreationAttribute
   declare settlementDate: Date;
   declare proofDocument: string | null;
   declare notes: string | null;
+  declare complaintId: string | null;
+  declare deductionAmount: string | null;
+  declare deductionReason: string | null;
+  declare grossAmount: string | null;
+  declare deductionType: string | null;
   declare createdBy: string;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
@@ -63,6 +86,26 @@ Settlement.init(
     },
     notes: {
       type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    complaintId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    deductionAmount: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: true,
+    },
+    deductionReason: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    grossAmount: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: true,
+    },
+    deductionType: {
+      type: DataTypes.STRING(50),
       allowNull: true,
     },
     createdBy: {

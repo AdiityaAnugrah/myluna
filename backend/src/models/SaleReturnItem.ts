@@ -1,6 +1,6 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../config/database';
-import { SaleReturnDecision } from './SaleReturn';
+import { ReturnFinalOutcome, ReturnInspectionResult, SaleReturnDecision } from './SaleReturn';
 
 interface SaleReturnItemAttributes {
   id: string;
@@ -15,6 +15,12 @@ interface SaleReturnItemAttributes {
   replacementProductId: string | null;
   replacementVariantName: string | null;
   replacementQty: number | null;
+  inspectionResult: ReturnInspectionResult | null;
+  finalOutcome: ReturnFinalOutcome | null;
+  qtyWrittenOff: number | null;
+  qtyRepaired: number | null;
+  qtyRestocked: number | null;
+  itemNotes: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +35,12 @@ interface SaleReturnItemCreationAttributes
     | 'replacementProductId'
     | 'replacementVariantName'
     | 'replacementQty'
+    | 'inspectionResult'
+    | 'finalOutcome'
+    | 'qtyWrittenOff'
+    | 'qtyRepaired'
+    | 'qtyRestocked'
+    | 'itemNotes'
     | 'createdAt'
     | 'updatedAt'
   > {}
@@ -49,6 +61,12 @@ class SaleReturnItem
   declare replacementProductId: string | null;
   declare replacementVariantName: string | null;
   declare replacementQty: number | null;
+  declare inspectionResult: ReturnInspectionResult | null;
+  declare finalOutcome: ReturnFinalOutcome | null;
+  declare qtyWrittenOff: number | null;
+  declare qtyRepaired: number | null;
+  declare qtyRestocked: number | null;
+  declare itemNotes: string | null;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 }
@@ -102,6 +120,30 @@ SaleReturnItem.init(
     },
     replacementQty: {
       type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    inspectionResult: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    finalOutcome: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    qtyWrittenOff: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    qtyRepaired: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    qtyRestocked: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    itemNotes: {
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     createdAt: {
