@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { jsPDF } from 'jspdf';
 import { useAuthStore } from '@/lib/stores/auth';
 import {
@@ -375,11 +376,21 @@ export default function ComplaintsPage() {
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: 'Penjualan' }, { label: 'Komplen' }]} />
 
-      <div>
-        <h1 className="text-3xl font-bold">Komplen Pesanan</h1>
-        <p className="text-muted-foreground mt-1">
-          Komplen untuk pesanan yang sudah diproses, selesai, atau sudah pelunasan.
-        </p>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Komplen Pesanan</h1>
+          <p className="text-muted-foreground mt-1">
+            Komplen untuk pesanan yang sudah diproses, selesai, atau sudah pelunasan.
+          </p>
+        </div>
+        {canTcpProcess && (
+          <Link href="/returns">
+            <Button variant="outline">
+              <FileText className="h-4 w-4 mr-2" />
+              Riwayat Retur
+            </Button>
+          </Link>
+        )}
       </div>
 
       {canCreate && (
