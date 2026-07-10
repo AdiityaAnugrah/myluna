@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import { Request } from 'express';
 import { AppError } from '../utils/errors';
+import { getSafeUploadExtension } from '../utils/uploadSecurity';
 
 const returnEvidenceDir = path.join(process.cwd(), 'uploads/returns/evidence');
 const returnReceivedDir = path.join(process.cwd(), 'uploads/returns/received');
@@ -20,18 +21,17 @@ const returnUpload = multer({
     fileSize: 5 * 1024 * 1024,
   },
   fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!['evidencePhotos', 'receivedPhotos'].includes(file.fieldname)) {
       cb(new AppError('Field upload retur tidak dikenali', 400) as any);
       return;
     }
 
-    if (!allowedImageTypes.includes(file.mimetype)) {
-      cb(new AppError('Foto retur wajib format JPEG/PNG/WebP', 400) as any);
-      return;
+    try {
+      getSafeUploadExtension(file, 'image');
+      cb(null, true);
+    } catch (error) {
+      cb(error as any, false);
     }
-
-    cb(null, true);
   },
 });
 

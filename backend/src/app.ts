@@ -74,14 +74,27 @@ app.get('/health', (_req, res) => {
 // Static files
 import path from 'path';
 app.use('/uploads', (req, res, next) => {
+  const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.pdf']);
+  const ext = path.extname(req.path).toLowerCase();
+  if (!allowedExtensions.has(ext)) {
+    res.status(404).json({ success: false, message: 'File tidak ditemukan' });
+    return;
+  }
+
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
   if (req.path.toLowerCase().endsWith('.pdf')) {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour to speed up re-opening
-    res.setHeader('X-Content-Type-Options', 'nosniff');
   }
   next();
-}, express.static(path.join(process.cwd(), 'uploads')));
+}, express.static(path.join(process.cwd(), 'uploads'), {
+  dotfiles: 'deny',
+  index: false,
+  fallthrough: false,
+}));
 
 // API routes
 import routes from './routes';

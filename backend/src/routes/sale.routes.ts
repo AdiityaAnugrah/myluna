@@ -3,6 +3,7 @@ import { saleController } from '../controllers/sale.controller';
 import { auth } from '../middlewares/auth';
 import { rbac as checkRole } from '../middlewares/rbac';
 import { uploadShippingDocument } from '../middlewares/uploadDocument';
+import { validateUploadedFilesContent } from '../utils/uploadSecurity';
 
 const router = Router();
 
@@ -136,7 +137,7 @@ router.get('/:id', auth, saleController.getById);
  *       201:
  *         description: Sale created successfully
  */
-router.post('/', auth, uploadShippingDocument.single('shippingDocument'), saleController.create);
+router.post('/', auth, uploadShippingDocument.single('shippingDocument'), validateUploadedFilesContent, saleController.create);
 
 /**
  * @swagger

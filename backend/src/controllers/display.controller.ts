@@ -29,6 +29,26 @@ function parsePositiveInt(value: unknown, field: string) {
   return parsed;
 }
 
+async function generateDisplaySku(transaction: any) {
+  const prefix = 'DSP';
+  const latestProduct = await DisplayProduct.findOne({
+    where: { sku: { [Op.like]: `${prefix}-%` } },
+    order: [['createdAt', 'DESC']],
+    transaction,
+  });
+
+  const latestNumber = latestProduct?.sku?.match(/^DSP-(\d+)$/)?.[1];
+  const startNumber = latestNumber ? Number(latestNumber) + 1 : 1;
+
+  for (let offset = 0; offset < 20; offset += 1) {
+    const sku = `${prefix}-${String(startNumber + offset).padStart(5, '0')}`;
+    const existing = await DisplayProduct.findOne({ where: { sku }, transaction });
+    if (!existing) return sku;
+  }
+
+  throw new AppError('Gagal membuat SKU display otomatis', 500);
+}
+
 async function createDisplayMovement(params: {
   product: DisplayProduct;
   type: DisplayMovementType;
@@ -201,9 +221,11 @@ export const displayController = {
   async createProduct(req: Request, res: Response, next: NextFunction) {
     const transaction = await sequelize.transaction();
     try {
-      const sku = String(req.body.sku || '').trim();
+      const requestedSku = String(req.body.sku || '').trim();
+      const sku = requestedSku || await generateDisplaySku(transaction);
       const name = String(req.body.name || '').trim();
-      if (sku.length < 2 || name.length < 2) throw new AppError('SKU dan nama produk display wajib diisi', 400);
+      if (name.length < 2) throw new AppError('Nama produk display wajib diisi', 400);
+      if (sku.length < 2) throw new AppError('SKU produk display tidak valid', 400);
       const existing = await DisplayProduct.findOne({ where: { sku }, transaction });
       if (existing) throw new AppError('SKU produk display sudah digunakan', 400);
       const stock = parsePositiveInt(req.body.stock ?? 0, 'Stok awal');

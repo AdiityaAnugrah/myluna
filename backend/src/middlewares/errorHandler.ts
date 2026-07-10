@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import { logger } from '../utils/logger';
 import {
   AppError,
@@ -22,6 +23,20 @@ export function errorHandler(
     path: req.path,
     method: req.method,
   });
+
+  if (err instanceof multer.MulterError) {
+    const message =
+      err.code === 'LIMIT_FILE_SIZE'
+        ? 'Ukuran file melebihi batas yang diizinkan'
+        : err.code === 'LIMIT_FILE_COUNT'
+          ? 'Jumlah file melebihi batas yang diizinkan'
+          : err.message;
+    return res.status(400).json({
+      success: false,
+      code: 'UPLOAD_ERROR',
+      message,
+    });
+  }
 
   if (err instanceof ValidationError) {
     return res.status(400).json({

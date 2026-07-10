@@ -584,7 +584,7 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                   id="image-upload"
                   type="file"
                   className="hidden"
-                  accept="image/*"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
                   disabled={isPending}
                   onChange={async (e) => {
                     const file = e.target.files?.[0];

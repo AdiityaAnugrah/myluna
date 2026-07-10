@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { Request } from 'express';
 import { AppError } from '../utils/errors';
+import { getSafeUploadExtension } from '../utils/uploadSecurity';
 
 const complaintPhotoDir = path.join(process.cwd(), 'uploads/complaints/photos');
 const complaintReceiptDir = path.join(process.cwd(), 'uploads/complaints/receipts');
@@ -20,26 +21,23 @@ const complaintUpload = multer({
     fileSize: 5 * 1024 * 1024,
   },
   fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    if (file.fieldname === 'complaintPhotos') {
-      const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-      if (!allowedImageTypes.includes(file.mimetype)) {
-        cb(new AppError('Foto komplen wajib format JPEG/PNG/WebP', 400) as any);
+    try {
+      if (file.fieldname === 'complaintPhotos') {
+        getSafeUploadExtension(file, 'image');
+        cb(null, true);
         return;
       }
-      cb(null, true);
-      return;
-    }
 
-    if (file.fieldname === 'complaintReceiptPdf') {
-      if (file.mimetype !== 'application/pdf') {
-        cb(new AppError('Resi komplen wajib format PDF', 400) as any);
+      if (file.fieldname === 'complaintReceiptPdf') {
+        getSafeUploadExtension(file, 'pdf');
+        cb(null, true);
         return;
       }
-      cb(null, true);
-      return;
-    }
 
-    cb(new AppError('Field upload tidak dikenali', 400) as any);
+      cb(new AppError('Field upload tidak dikenali', 400) as any);
+    } catch (error) {
+      cb(error as any, false);
+    }
   },
 });
 

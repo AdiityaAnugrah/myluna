@@ -3,6 +3,9 @@ import { uploadProductImage } from '../middlewares/upload';
 import { successResponse } from '../utils/response';
 import { AppError } from '../utils/errors';
 import { processProductImage } from '../utils/imageProcessor';
+import { validateUploadedFilesContent } from '../utils/uploadSecurity';
+import { auth } from '../middlewares/auth';
+import { rbac } from '../middlewares/rbac';
 
 const router = Router();
 
@@ -26,7 +29,7 @@ const router = Router();
  *       201:
  *         description: Image uploaded successfully
  */
-router.post('/image', uploadProductImage.single('image'), async (req: Request, res: Response) => {
+router.post('/image', auth, rbac(['ADMIN', 'SUPER_ADMIN', 'USER']), uploadProductImage.single('image'), validateUploadedFilesContent, async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       throw new AppError('Tidak ada file yang diunggah.', 400);
