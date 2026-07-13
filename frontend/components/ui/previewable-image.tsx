@@ -45,24 +45,33 @@ export function PreviewableImage({
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="border-0 bg-transparent p-0 shadow-none sm:max-w-6xl" showCloseButton={false}>
+        <DialogContent
+          className="!fixed !inset-0 !left-0 !top-0 !z-50 !h-screen !max-h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 !rounded-none !border-0 !bg-black/95 !p-0 !shadow-none sm:!max-w-none"
+          showCloseButton={false}
+        >
           <DialogTitle className="sr-only">Preview foto</DialogTitle>
-          <DialogDescription className="sr-only">Foto tampil penuh dengan background gelap.</DialogDescription>
+          <DialogDescription className="sr-only">Foto tampil layar penuh dengan background gelap.</DialogDescription>
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="fixed inset-0 z-[-1] bg-black/90"
+            className="absolute inset-0 z-0 bg-black/95"
             aria-label="Tutup preview foto"
           />
-          <div className="relative flex max-h-[92vh] items-center justify-center rounded-xl bg-black/20 p-3">
+          <div className="pointer-events-none relative z-10 flex h-screen w-screen items-center justify-center p-4 md:p-8">
             {previewUrl && (
               <img
                 src={previewUrl}
                 alt={alt}
-                className="max-h-[88vh] max-w-full rounded-lg object-contain shadow-2xl"
+                className="pointer-events-auto max-h-[92vh] max-w-[96vw] rounded-lg object-contain shadow-2xl"
               />
             )}
-            <Button type="button" variant="secondary" size="sm" className="absolute right-4 top-4" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="pointer-events-auto fixed right-4 top-4 z-20"
+              onClick={() => setOpen(false)}
+            >
               Tutup
             </Button>
           </div>
