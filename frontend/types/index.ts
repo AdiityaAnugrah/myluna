@@ -92,14 +92,14 @@ export interface PurchaseItem {
 
 export type SalePlatform = string;
 
-export type SaleStatus = 
-  | 'WAITING_APPROVAL' 
-  | 'APPROVED' 
-  | 'PROCESSED' 
+export type SaleStatus =
+  | 'WAITING_APPROVAL'
+  | 'APPROVED'
+  | 'PROCESSED'
   | 'SETTLED'
   | 'REJECTED'
-  | 'PENDING' 
-  | 'COMPLETED' 
+  | 'PENDING'
+  | 'COMPLETED'
   | 'CANCELLED';
 
 export interface Sale {
@@ -722,6 +722,7 @@ export type DisplayProductCondition = 'NEW' | 'GOOD' | 'MINOR_DAMAGE' | 'DAMAGED
 export type DisplayMovementType = 'IN' | 'OUT' | 'ADJUSTMENT';
 export type DisplayRequestType = 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT';
 export type DisplayRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type DisplayReturnStatus = 'DRAFT' | 'READY_TO_SEND' | 'SENT' | 'RECEIVED' | 'COMPLETED' | 'CANCELLED';
 
 export interface DisplayCategory {
   id: string;
@@ -745,7 +746,8 @@ export interface DisplaySupplier {
 }
 
 export interface DisplayProduct {
-  id: string;
+  id: string | null;
+  productId?: string | null;
   sku: string;
   name: string;
   description?: string | null;
@@ -753,7 +755,11 @@ export interface DisplayProduct {
   supplierId?: string | null;
   displayLocation?: string | null;
   unit: string;
+  salesStock?: number;
   stock: number;
+  slotLimit?: number;
+  displayUsed?: number;
+  displayAvailable?: number;
   minStock: number;
   estimatedValue?: string | null;
   condition: DisplayProductCondition;
@@ -762,8 +768,9 @@ export interface DisplayProduct {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  category?: DisplayCategory | null;
+  category?: DisplayCategory | Category | null;
   supplier?: DisplaySupplier | null;
+  sourceProduct?: Product | null;
 }
 
 export interface DisplayStockMovement {
@@ -798,4 +805,50 @@ export interface DisplayStockRequest {
   product?: DisplayProduct;
   requester?: Pick<User, 'id' | 'fullName' | 'username'>;
   reviewer?: Pick<User, 'id' | 'fullName' | 'username'>;
+}
+
+export interface DisplayReturnItem {
+  id: string;
+  displayReturnId: string;
+  displayProductId: string;
+  productId: string;
+  productVariantId?: string | null;
+  skuSnapshot: string;
+  productNameSnapshot: string;
+  variantSnapshot?: string | null;
+  quantity: number;
+  condition: string;
+  reason: string;
+  notes?: string | null;
+  product?: Product;
+  displayProduct?: DisplayProduct;
+  variant?: ProductVariant | null;
+}
+
+export interface DisplayReturn {
+  id: string;
+  letterNumber: string;
+  letterSequence: number;
+  letterMonth: number;
+  letterYear: number;
+  letterDate: string;
+  recipientName: string;
+  recipientAddress: string;
+  carriedBy?: string | null;
+  status: DisplayReturnStatus;
+  notes?: string | null;
+  createdBy: string;
+  sentBy?: string | null;
+  sentAt?: string | null;
+  receivedBy?: string | null;
+  receivedAt?: string | null;
+  completedBy?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items?: DisplayReturnItem[];
+  creator?: Pick<User, 'id' | 'fullName' | 'username'>;
+  sender?: Pick<User, 'id' | 'fullName' | 'username'>;
+  receiver?: Pick<User, 'id' | 'fullName' | 'username'>;
+  completer?: Pick<User, 'id' | 'fullName' | 'username'>;
 }

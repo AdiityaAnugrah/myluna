@@ -3,6 +3,8 @@ import { ApiResponse } from '@/types';
 import type {
   DisplayCategory,
   DisplayProduct,
+  DisplayReturn,
+  DisplayReturnStatus,
   DisplayStockMovement,
   DisplayStockRequest,
   DisplaySupplier,
@@ -20,7 +22,7 @@ export const displayApi = {
 
   getProducts: async (params?: { page?: number; limit?: number; search?: string; categoryId?: string; status?: string }) =>
     (await apiClient.get<ApiResponse<{ products: DisplayProduct[]; pagination: { total: number; page: number; limit: number; totalPages: number } }>>('/display/products', { params })).data,
-  createProduct: async (data: Partial<DisplayProduct>) => (await apiClient.post<ApiResponse<DisplayProduct>>('/display/products', data)).data,
+  createProduct: async (data: { productId: string }) => (await apiClient.post<ApiResponse<DisplayProduct>>('/display/products', data)).data,
   updateProduct: async (id: string, data: Partial<DisplayProduct>) => (await apiClient.put<ApiResponse<DisplayProduct>>(`/display/products/${id}`, data)).data,
   adjustStock: async (id: string, data: { type: 'IN' | 'OUT' | 'ADJUSTMENT'; quantity: number; targetStock?: number; notes?: string }) =>
     (await apiClient.post<ApiResponse<DisplayProduct>>(`/display/products/${id}/adjust-stock`, data)).data,
@@ -34,4 +36,18 @@ export const displayApi = {
     (await apiClient.post<ApiResponse<DisplayStockRequest>>('/display/requests', data)).data,
   reviewRequest: async (id: string, data: { action: 'approve' | 'reject'; rejectionReason?: string }) =>
     (await apiClient.post<ApiResponse<DisplayStockRequest>>(`/display/requests/${id}/review`, data)).data,
+
+  getReturns: async (params?: { status?: string }) =>
+    (await apiClient.get<ApiResponse<DisplayReturn[]>>('/display/returns', { params })).data,
+  getReturnById: async (id: string) =>
+    (await apiClient.get<ApiResponse<DisplayReturn>>(`/display/returns/${id}`)).data,
+  createReturn: async (data: {
+    recipientName: string;
+    recipientAddress: string;
+    carriedBy?: string;
+    notes?: string;
+    items: Array<{ displayProductId: string; productVariantId?: string | null; variantSnapshot?: string | null; quantity: number; condition: string; reason: string; notes?: string }>;
+  }) => (await apiClient.post<ApiResponse<DisplayReturn>>('/display/returns', data)).data,
+  updateReturnStatus: async (id: string, status: DisplayReturnStatus) =>
+    (await apiClient.post<ApiResponse<DisplayReturn>>(`/display/returns/${id}/status`, { status })).data,
 };

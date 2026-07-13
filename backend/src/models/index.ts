@@ -49,6 +49,8 @@ import DisplaySupplier from './DisplaySupplier';
 import DisplayProduct, { DisplayProductCondition, DisplayProductStatus } from './DisplayProduct';
 import DisplayStockMovement, { DisplayMovementType } from './DisplayStockMovement';
 import DisplayStockRequest, { DisplayRequestStatus, DisplayRequestType } from './DisplayStockRequest';
+import DisplayReturn, { DisplayReturnStatus } from './DisplayReturn';
+import DisplayReturnItem from './DisplayReturnItem';
 
 // Define associations
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -237,6 +239,8 @@ ReturnExecution.belongsTo(User, { foreignKey: 'executedBy', as: 'executor' });
 User.hasMany(ReturnExecution, { foreignKey: 'executedBy', as: 'returnExecutions' });
 
 // Display system associations - isolated from sales, finance, and operational stock
+DisplayProduct.belongsTo(Product, { foreignKey: 'productId', as: 'sourceProduct' });
+Product.hasOne(DisplayProduct, { foreignKey: 'productId', as: 'displaySlot' });
 DisplayProduct.belongsTo(DisplayCategory, { foreignKey: 'categoryId', as: 'category' });
 DisplayCategory.hasMany(DisplayProduct, { foreignKey: 'categoryId', as: 'products' });
 DisplayProduct.belongsTo(DisplaySupplier, { foreignKey: 'supplierId', as: 'supplier' });
@@ -248,6 +252,15 @@ DisplayProduct.hasMany(DisplayStockRequest, { foreignKey: 'productId', as: 'requ
 DisplayStockRequest.belongsTo(DisplayProduct, { foreignKey: 'productId', as: 'product' });
 DisplayStockRequest.belongsTo(User, { foreignKey: 'requestedBy', as: 'requester' });
 DisplayStockRequest.belongsTo(User, { foreignKey: 'reviewedBy', as: 'reviewer' });
+DisplayReturn.hasMany(DisplayReturnItem, { foreignKey: 'displayReturnId', as: 'items' });
+DisplayReturnItem.belongsTo(DisplayReturn, { foreignKey: 'displayReturnId', as: 'displayReturn' });
+DisplayReturnItem.belongsTo(DisplayProduct, { foreignKey: 'displayProductId', as: 'displayProduct' });
+DisplayReturnItem.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
+DisplayReturnItem.belongsTo(ProductVariant, { foreignKey: 'productVariantId', as: 'variant' });
+DisplayReturn.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+DisplayReturn.belongsTo(User, { foreignKey: 'sentBy', as: 'sender' });
+DisplayReturn.belongsTo(User, { foreignKey: 'receivedBy', as: 'receiver' });
+DisplayReturn.belongsTo(User, { foreignKey: 'completedBy', as: 'completer' });
 
 export {
   Role,
@@ -317,4 +330,7 @@ export {
   DisplayStockRequest,
   DisplayRequestType,
   DisplayRequestStatus,
+  DisplayReturn,
+  DisplayReturnStatus,
+  DisplayReturnItem,
 };

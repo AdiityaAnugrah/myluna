@@ -118,7 +118,7 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
     // Logic for USER
     if (role === 'USER') {
       const allowedGroups = ['Ringkasan', 'Inventaris', 'Pengajuan Stok', 'Penjualan', 'Keuangan', 'Sistem'];
-      
+
       if (!allowedGroups.includes(group.title)) {
         return { ...group, items: [] };
       }
@@ -163,8 +163,8 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
 
     // Logic for TCP
     if (role === 'TCP') {
-        const allowedGroups = ['Ringkasan', 'Penjualan', 'Sistem'];
-        
+        const allowedGroups = ['Ringkasan', 'Penjualan', 'Inventaris', 'Sistem'];
+
         if (!allowedGroups.includes(group.title)) {
             return { ...group, items: [] };
         }
@@ -182,7 +182,14 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
                 items: group.items.filter(item => item.href === '/sales/process' || item.href === '/complaints')
             };
         }
-        
+
+        if (group.title === 'Inventaris') {
+            return {
+                ...group,
+                items: group.items.filter(item => item.href === '/display')
+            };
+        }
+
         if (group.title === 'Sistem') {
             return {
                 ...group,
@@ -221,10 +228,10 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
             </div>
             <div className="space-y-1">
               {group.items.map((item) => {
-                const isActive = item.href === '/' 
-                  ? pathname === '/' 
+                const isActive = item.href === '/'
+                  ? pathname === '/'
                   : pathname === item.href || pathname?.startsWith(item.href + '/');
-                
+
                 // Get notification count if item has notificationKey
                 let notificationCount = 0;
                 if (item.notificationKey === 'pendingSales') {
@@ -240,7 +247,7 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
                 } else if (item.notificationKey === 'displayRequests') {
                   notificationCount = notifications.displayRequestsCount;
                 }
-                  
+
                 return (
                   <Link
                     key={item.name}
