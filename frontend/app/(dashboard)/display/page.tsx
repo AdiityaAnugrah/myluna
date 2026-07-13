@@ -10,8 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ImageWithFallback } from '@/components/ui/image-with-fallback';
-import { getImageUrl } from '@/lib/utils/url';
+import { PreviewableImage } from '@/components/ui/previewable-image';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -68,7 +67,6 @@ export default function DisplaySystemPage() {
   const [selectedReturnId, setSelectedReturnId] = useState('');
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [showReturnForm, setShowReturnForm] = useState(false);
-  const [photoPreview, setPhotoPreview] = useState<{ src: string; alt: string } | null>(null);
 
   const summary = useDisplaySummary();
   const products = useDisplayProducts({ page: 1, limit: 100, search: search || undefined });
@@ -119,12 +117,11 @@ export default function DisplaySystemPage() {
     <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Produk Asli" value={summary.data?.data?.totalProducts ?? productRows.length} note="Sumber data master produk" /><Summary title="Sedang Display" value={summary.data?.data?.activeSlots ?? activeDisplayCount} note="Slot terpakai dari jatah 1" /><Summary title="Menunggu Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note="Pengajuan display aktif" /><Summary title="Retur Aktif" value={summary.data?.data?.activeReturns ?? activeReturnCount} note="Perlu dikirim/diterima" /></div>
     <RoleGuide role={role} isAdmin={isAdmin} isTcp={isTcp} />
     <Card className="no-print"><CardContent className="pt-4"><div className="flex flex-wrap gap-2">{tabs.filter((tab) => tab.visible !== false).map((tab) => { const Icon = tab.icon; return <Button key={tab.key} type="button" variant={activeTab === tab.key ? 'default' : 'outline'} onClick={() => setActiveTab(tab.key)} className="gap-2"><Icon className="h-4 w-4" />{tab.label}{tab.count !== undefined && <Badge variant="secondary" className="ml-1">{tab.count}</Badge>}</Button>; })}</div></CardContent></Card>
-    {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); }} ensureSlotThenRequest={ensureSlotThenRequest} setPhotoPreview={setPhotoPreview} />}
+    {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); }} ensureSlotThenRequest={ensureSlotThenRequest} />}
     {activeTab === 'requests' && <RequestsTab isAdmin={isAdmin} showForm={showRequestForm} setShowForm={setShowRequestForm} productRows={productRows} requestForm={requestForm} setRequestForm={setRequestForm} submitRequest={submitRequest} createPending={createRequest.isPending} requestRows={requestRows} reviewRequest={reviewRequest} requestStatusFilter={requestStatusFilter} setRequestStatusFilter={setRequestStatusFilter} />}
     {activeTab === 'returns' && <ReturnsTab isAdmin={isAdmin} isTcp={isTcp} showForm={showReturnForm} setShowForm={setShowReturnForm} productRows={productRows} returnRows={returnRows} returnForm={returnForm} setReturnForm={setReturnForm} submitReturn={submitReturn} createPending={createReturn.isPending} setSelectedReturnId={setSelectedReturnId} setActiveTab={setActiveTab} updateReturnStatus={updateReturnStatus} />}
     {activeTab === 'letter' && <div className="space-y-4"><div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between no-print"><div><h2 className="text-lg font-semibold">Surat Jalan Retur Display</h2><p className="text-sm text-muted-foreground">Pilih surat jalan lalu cetak untuk dibawa bersama barang.</p></div><div className="flex gap-2"><select className="h-10 rounded-md border bg-background px-3 text-sm" value={selectedReturn?.id || ''} onChange={(e) => setSelectedReturnId(e.target.value)}>{returnRows.map((item) => <option key={item.id} value={item.id}>{item.letterNumber} - {item.recipientName}</option>)}</select><Button onClick={() => window.print()} disabled={!selectedReturn}><Printer className="mr-2 h-4 w-4" />Cetak</Button></div></div>{selectedReturn ? <LetterTemplate displayReturn={selectedReturn} /> : <Card><CardContent className="py-10 text-center text-muted-foreground">Belum ada surat jalan. Buat Retur Display terlebih dahulu.</CardContent></Card>}</div>}
     {activeTab === 'history' && <HistoryTab movementRows={movementRows} />}
-    <PhotoPreview photo={photoPreview} onClose={() => setPhotoPreview(null)} />
     {!isTcp && activeDisplayCount === 0 && activeTab === 'products' && <Card className="border-dashed no-print"><CardContent className="flex gap-3 py-5 text-sm text-muted-foreground"><AlertTriangle className="h-5 w-5 text-yellow-600" /><div><div className="font-medium text-foreground">Belum ada produk yang sedang display.</div><div>Pilih produk, siapkan slot, lalu buat pengajuan agar alurnya tercatat dan mudah direview.</div></div></CardContent></Card>}
   </div>;
 }
@@ -158,21 +155,16 @@ function RoleGuide({ role, isAdmin, isTcp }: { role?: string; isAdmin: boolean; 
   );
 }
 
-function ProductPhoto({ product, onPreview }: { product: DisplayProduct; onPreview: (photo: { src: string; alt: string }) => void }) {
-  const imagePath = product.sourceProduct?.imageUrl;
-  const imageUrl = getImageUrl(imagePath);
+function ProductPhoto({ product }: { product: DisplayProduct }) {
   return (
-    <button
-      type="button"
-      disabled={!imageUrl}
-      onClick={() => imageUrl && onPreview({ src: imageUrl, alt: product.name })}
-      className="h-14 w-14 overflow-hidden rounded-lg border bg-muted text-left transition hover:ring-2 hover:ring-primary disabled:cursor-default disabled:hover:ring-0"
-      title={imageUrl ? 'Klik untuk lihat foto penuh' : 'Tidak ada foto'}
-    >
-      <ImageWithFallback src={imageUrl} alt={product.name} className="h-full w-full object-cover" />
-    </button>
+    <PreviewableImage
+      src={product.sourceProduct?.imageUrl}
+      alt={product.name}
+      className="h-14 w-14"
+    />
   );
 }
+
 
 function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, applySearch, reset, ensureSlotThenRequest, setPhotoPreview }: any) {
   return (
@@ -203,7 +195,7 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
             <Card key={product.productId || product.id || product.sku} className="overflow-hidden">
               <CardContent className="p-4">
                 <div className="flex gap-3">
-                  <ProductPhoto product={product} onPreview={setPhotoPreview} />
+                  <ProductPhoto product={product} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-semibold">{product.name}</div>
                     <div className="text-xs text-muted-foreground">SKU: {product.sku}</div>
@@ -289,22 +281,6 @@ function ReturnsTab(props: any) {
 
 function HistoryTab({ movementRows }: any) {
   return <Card className="no-print"><CardHeader><CardTitle>Riwayat Slot Display</CardTitle></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Tanggal</TableHead><TableHead>Produk</TableHead><TableHead>Tipe</TableHead><TableHead>Perubahan</TableHead><TableHead>Catatan</TableHead></TableRow></TableHeader><TableBody>{movementRows.map((movement: any) => <TableRow key={movement.id}><TableCell>{shortDate(movement.createdAt)}</TableCell><TableCell>{movement.product?.sourceProduct?.name || movement.product?.name || '-'}</TableCell><TableCell>{statusBadge(movement.type)}</TableCell><TableCell>{movement.stockBefore} - {movement.stockAfter}</TableCell><TableCell>{movement.notes || '-'}</TableCell></TableRow>)}{movementRows.length === 0 && <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">Belum ada riwayat display.</TableCell></TableRow>}</TableBody></Table></CardContent></Card>;
-}
-
-function PhotoPreview({ photo, onClose }: { photo: { src: string; alt: string } | null; onClose: () => void }) {
-  return (
-    <Dialog open={!!photo} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="border-0 bg-transparent p-0 shadow-none sm:max-w-5xl" showCloseButton={false}>
-        <DialogTitle className="sr-only">Preview foto produk</DialogTitle>
-        <DialogDescription className="sr-only">Foto produk tampil penuh dengan background gelap.</DialogDescription>
-        <button type="button" onClick={onClose} className="fixed inset-0 z-[-1] bg-black/90" aria-label="Tutup preview foto" />
-        <div className="relative flex max-h-[90vh] items-center justify-center rounded-xl bg-black/20 p-3">
-          {photo && <img src={photo.src} alt={photo.alt} className="max-h-[86vh] max-w-full rounded-lg object-contain shadow-2xl" />}
-          <Button type="button" variant="secondary" size="sm" className="absolute right-4 top-4" onClick={onClose}>Tutup</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 function LetterTemplate({ displayReturn }: { displayReturn: DisplayReturn }) { return <Card id="display-letter" className="mx-auto max-w-5xl bg-white text-black shadow-sm"><CardContent className="space-y-8 p-10"><div className="grid grid-cols-2 gap-8"><div className="space-y-2"><div className="flex items-center gap-3"><div className="flex h-14 w-14 items-center justify-center rounded-lg border-2 border-black font-bold">LN</div><div><div className="text-2xl font-bold tracking-wide">LUNAREA</div><div className="text-sm">Furniture & Home Living</div></div></div><div className="text-sm leading-relaxed">Alamat Lunarea<br />Jl. Operasional Lunarea<br />Kontak: -</div></div><div className="space-y-2 text-sm"><div className="font-semibold">Kepada:</div><div className="text-lg font-bold">{displayReturn.recipientName}</div><div className="whitespace-pre-line leading-relaxed">{displayReturn.recipientAddress}</div></div></div><div className="text-center"><h2 className="text-2xl font-bold underline">SURAT JALAN RETUR DISPLAY</h2><div className="mt-2 text-sm">No. Surat: <span className="font-semibold">{displayReturn.letterNumber}</span></div><div className="text-sm">Tanggal: {shortDate(displayReturn.letterDate)}</div></div><table className="w-full border-collapse text-sm"><thead><tr className="bg-slate-100"><th className="border border-black p-2 text-left">No</th><th className="border border-black p-2 text-left">Nama Barang</th><th className="border border-black p-2 text-left">Varian</th><th className="border border-black p-2 text-left">Jumlah</th><th className="border border-black p-2 text-left">Kondisi</th><th className="border border-black p-2 text-left">Keterangan</th></tr></thead><tbody>{displayReturn.items?.map((item, index) => <tr key={item.id}><td className="border border-black p-2">{index + 1}</td><td className="border border-black p-2">{item.productNameSnapshot}<div className="text-xs">SKU: {item.skuSnapshot}</div></td><td className="border border-black p-2">{item.variantSnapshot || '-'}</td><td className="border border-black p-2">{item.quantity}</td><td className="border border-black p-2">{item.condition}</td><td className="border border-black p-2">{item.reason}</td></tr>)}{(!displayReturn.items || displayReturn.items.length === 0) && <tr><td colSpan={6} className="border border-black p-4 text-center">Tidak ada item.</td></tr>}</tbody></table>{displayReturn.notes && <div className="text-sm"><span className="font-semibold">Catatan:</span> {displayReturn.notes}</div>}<div className="grid grid-cols-3 gap-8 pt-10 text-center text-sm"><div><div>Mengetahui</div><div className="h-24" /><div className="border-t border-black pt-2">Admin</div></div><div><div>Diserahkan Oleh</div><div className="h-24" /><div className="border-t border-black pt-2">{displayReturn.carriedBy || 'TCP/Kurir'}</div></div><div><div>Diterima Oleh</div><div className="h-24" /><div className="border-t border-black pt-2">Penerima</div></div></div></CardContent></Card>; }

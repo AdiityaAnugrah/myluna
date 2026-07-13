@@ -5,15 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ImageWithFallback } from '@/components/ui/image-with-fallback';
-import { 
-  Pencil, 
-  ArrowLeft, 
-  Package, 
-  Tag, 
-  Layers, 
-  Ruler, 
-  Weight, 
+import { PreviewableImage } from '@/components/ui/previewable-image';
+import {
+  Pencil,
+  ArrowLeft,
+  Package,
+  Tag,
+  Layers,
+  Ruler,
+  Weight,
   Image as ImageIcon,
   History,
   TrendingUp,
@@ -34,7 +34,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useStockMovements } from '@/lib/hooks/useStock';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { getImageUrl } from '@/lib/utils/url';
 import { getVariants } from '@/lib/utils/sales';
 
 interface ProductDetailProps {
@@ -55,7 +54,7 @@ export function ProductDetail({ product, onEdit }: ProductDetailProps) {
 
   const { data: movementsData } = useStockMovements({ productId: product.id, limit: 10 });
   const movements = movementsData?.data?.movements || [];
-  
+
   // Parse variants safely - can be array, JSON string, or null
   const productVariants = product.variants ? (Array.isArray(product.variants) ? product.variants : []) : [];
 
@@ -176,12 +175,7 @@ export function ProductDetail({ product, onEdit }: ProductDetailProps) {
                 <CardContent className="pt-6 text-center">
                   <div className="aspect-square bg-muted rounded-lg flex items-center justify-center overflow-hidden border mb-4">
                     {product.imageUrl ? (
-                      <ImageWithFallback
-                        src={getImageUrl(product.imageUrl)} 
-                        alt={product.name} 
-                        className="w-full h-full object-cover"
-                        lazy={false}
-                      />
+                      <PreviewableImage src={product.imageUrl} alt={product.name} className="h-full w-full border-0" />
                     ) : (
                       <ImageIcon className="h-20 w-20 text-muted-foreground/20" />
                     )}

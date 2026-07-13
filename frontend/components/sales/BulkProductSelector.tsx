@@ -16,10 +16,9 @@ import { Search, Package, Check, Plus, Minus, X, LayoutGrid } from 'lucide-react
 import { Product, Category } from '@/types';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/format';
-import { getImageUrl } from '@/lib/utils/url';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ImageWithFallback } from '@/components/ui/image-with-fallback';
+import { PreviewableImage } from '@/components/ui/previewable-image';
 
 interface BulkProductSelectorProps {
   onSelect: (items: { productId: string; quantity: number }[]) => void;
@@ -50,17 +49,17 @@ export function BulkProductSelector({ onSelect, trigger, disabled, allowOutOfSto
   }, [search]);
 
   // Infinite Scroll Hook
-  const { 
-    data, 
-    isLoading, 
-    fetchNextPage, 
-    hasNextPage, 
-    isFetchingNextPage 
-  } = useInfiniteProducts({ 
-    search: debouncedSearch, 
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage
+  } = useInfiniteProducts({
+    search: debouncedSearch,
     categoryId: selectedCategoryId === 'all' ? undefined : selectedCategoryId,
     limit: 20,
-    isActive: true 
+    isActive: true
   });
 
   const products = useMemo(() => {
@@ -169,15 +168,15 @@ export function BulkProductSelector({ onSelect, trigger, disabled, allowOutOfSto
         <div className="px-4 py-2 border-b bg-muted/10 shrink-0">
           <Tabs value={selectedCategoryId} onValueChange={setSelectedCategoryId} className="w-full">
             <TabsList className="bg-transparent h-auto p-0 flex justify-start gap-1 overflow-x-auto no-scrollbar">
-              <TabsTrigger 
-                value="all" 
+              <TabsTrigger
+                value="all"
                 className="rounded-full px-4 py-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border"
               >
                 Semua
               </TabsTrigger>
               {categories.map(cat => (
-                <TabsTrigger 
-                  key={cat.id} 
+                <TabsTrigger
+                  key={cat.id}
                   value={cat.id}
                   className="rounded-full px-4 py-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border whitespace-nowrap"
                 >
@@ -187,8 +186,8 @@ export function BulkProductSelector({ onSelect, trigger, disabled, allowOutOfSto
             </TabsList>
           </Tabs>
         </div>
-        
-        <div 
+
+        <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50 dark:bg-slate-900/10 custom-scrollbar"
@@ -230,8 +229,8 @@ export function BulkProductSelector({ onSelect, trigger, disabled, allowOutOfSto
                     }}
                     className={cn(
                       "group flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 relative overflow-hidden",
-                      isSelected 
-                          ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-md translate-x-1" 
+                      isSelected
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-md translate-x-1"
                           : "border-border bg-card hover:border-primary/40 hover:shadow-sm cursor-pointer",
                       !canSelect && "opacity-60 grayscale cursor-not-allowed"
                     )}
@@ -239,19 +238,20 @@ export function BulkProductSelector({ onSelect, trigger, disabled, allowOutOfSto
                     {/* Selection Indicator */}
                     <div className={cn(
                         "h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all shrink-0",
-                        isSelected 
-                            ? "bg-primary border-primary scale-110 shadow-sm" 
+                        isSelected
+                            ? "bg-primary border-primary scale-110 shadow-sm"
                             : "border-muted-foreground/30 group-hover:border-primary/50"
                     )}>
                         {isSelected && <Check className="h-3 w-3 text-primary-foreground stroke-[3px]" />}
                     </div>
 
                     {/* Image with Fallback & Skeleton */}
-                    <div className="h-16 w-16 rounded-xl overflow-hidden border bg-muted shrink-0 relative shadow-inner">
-                        <ImageWithFallback 
-                            src={getImageUrl(product.imageUrl)} 
-                            alt={product.name} 
-                            className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                    <div className="h-16 w-16 shrink-0" onClick={(event) => event.stopPropagation()}>
+                        <PreviewableImage
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="h-16 w-16 rounded-xl shadow-inner"
+                            imageClassName="transition-transform group-hover:scale-110"
                         />
                     </div>
 
@@ -259,7 +259,7 @@ export function BulkProductSelector({ onSelect, trigger, disabled, allowOutOfSto
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-col gap-1">
                           <h4 className={cn(
-                              "font-bold text-base truncate transition-colors", 
+                              "font-bold text-base truncate transition-colors",
                               isSelected ? "text-primary" : "text-foreground"
                           )}>
                               {product.name}
@@ -284,14 +284,14 @@ export function BulkProductSelector({ onSelect, trigger, disabled, allowOutOfSto
 
                     {/* Quantity Selector - Overlay style for selected */}
                     {isSelected && (
-                        <div 
+                        <div
                           className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm border animate-in zoom-in-95 duration-200"
                           onClick={(e) => e.stopPropagation()} // Prevent deselecting when clicking controls
                         >
-                            <Button 
-                                size="icon" 
-                                variant="ghost" 
-                                className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-500" 
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-500"
                                 onClick={() => updateQuantity(product.id, -1)}
                                 disabled={quantity <= 1}
                             >
@@ -300,10 +300,10 @@ export function BulkProductSelector({ onSelect, trigger, disabled, allowOutOfSto
                             <div className="w-10 text-center font-bold text-sm">
                                 {quantity}
                             </div>
-                            <Button 
-                                size="icon" 
-                                variant="ghost" 
-                                className="h-8 w-8 rounded-lg hover:bg-green-50 hover:text-green-500" 
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 rounded-lg hover:bg-green-50 hover:text-green-500"
                                 onClick={() => updateQuantity(product.id, 1)}
                             >
                                 <Plus className="h-4 w-4" />
@@ -334,15 +334,15 @@ export function BulkProductSelector({ onSelect, trigger, disabled, allowOutOfSto
                     <p className="text-[10px] text-muted-foreground">Klik simpan untuk melanjutkan</p>
                 </div>
                 <div className="flex flex-1 sm:flex-none gap-3">
-                    <Button 
-                        variant="outline" 
+                    <Button
+                        variant="outline"
                         onClick={() => setOpen(false)}
                         className="flex-1 sm:flex-none rounded-xl h-11 px-6 border-slate-200 font-semibold"
                     >
                         Batal
                     </Button>
-                    <Button 
-                        onClick={handleConfirm} 
+                    <Button
+                        onClick={handleConfirm}
                         disabled={selectedCount === 0}
                         className="flex-1 sm:flex-none rounded-xl h-11 px-8 font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
                     >

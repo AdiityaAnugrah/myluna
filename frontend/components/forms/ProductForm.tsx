@@ -19,7 +19,6 @@ import { useVariantOptions, useCreateVariantOption, VariantOption } from '@/lib/
 import { useFormTimer } from '@/lib/hooks/useFormTimer';
 import { Product, Category } from '@/types';
 import { cn } from '@/lib/utils';
-import { getImageUrl } from '@/lib/utils/url';
 import { stripHtml } from '@/lib/utils/html';
 
 import { Button } from '@/components/ui/button';
@@ -34,7 +33,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ImageWithFallback } from '@/components/ui/image-with-fallback';
+import { PreviewableImage } from '@/components/ui/previewable-image';
 import { Separator } from '@/components/ui/separator';
 
 interface ProductFormProps {
@@ -46,11 +45,11 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
   const router = useRouter();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
-  
+
   // Hooks
   const { data: categoriesData } = useCategories();
   const categories = categoriesData?.data || [];
-  
+
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
   const { getDurationSeconds } = useFormTimer();
@@ -134,13 +133,13 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
   const categoryId = watch('categoryId');
 
   // --- SAFE CATEGORY LOGIC (No useEffect Loop) ---
-  
+
   // 1. Get Main Categories (Top Level)
-  const mainCategories = useMemo(() => 
-    categories.filter((c: Category) => !c.parentId), 
+  const mainCategories = useMemo(() =>
+    categories.filter((c: Category) => !c.parentId),
     [categories]
   );
-  
+
   // 2. Derive Initial Main Category from Product Data
   const getInitialMainCat = () => {
     if (!product?.categoryId) return "";
@@ -159,11 +158,11 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
   // Handle Main Category Change
   const handleMainCategoryChange = (val: string) => {
     setMainCat(val);
-    
+
     // Auto-select validation logic:
-    setValue('categoryId', val, { shouldValidate: true }); 
+    setValue('categoryId', val, { shouldValidate: true });
   };
-  
+
   // Update local state if product data loads later (rare case if SSR)
   useEffect(() => {
       if (product?.categoryId && categories.length > 0 && !mainCat) {
@@ -209,8 +208,8 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
           { id: product.id, data: apiData },
           {
             onSuccess: () => {
-              const message = isAdmin 
-                ? "Produk berhasil diperbarui" 
+              const message = isAdmin
+                ? "Produk berhasil diperbarui"
                 : "Permintaan pembaruan produk berhasil dikirim dan menunggu persetujuan";
               toast.success(message);
               router.push('/products');
@@ -224,8 +223,8 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
       } else {
         createMutation.mutate(apiData, {
           onSuccess: () => {
-              const message = isAdmin 
-                ? "Produk berhasil dibuat" 
+              const message = isAdmin
+                ? "Produk berhasil dibuat"
                 : "Produk berhasil diajukan dan menunggu persetujuan Admin";
               toast.success(message);
               router.push('/products');
@@ -244,7 +243,7 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
 
   const handleAddNewColor = async () => {
     if (!newColorInput.trim()) return;
-    
+
     createVariantOption.mutate(newColorInput.trim().toUpperCase(), {
       onSuccess: (response) => {
         if (activeVariantIndex !== null) {
@@ -423,11 +422,11 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                     {isEdit && (
                       <div className="space-y-2">
                         <Label>Stok Saat Ini</Label>
-                        <Input 
-                          type="number" 
-                          {...register('stock', { valueAsNumber: true })} 
-                          readOnly 
-                          className="bg-muted pointer-events-none" 
+                        <Input
+                          type="number"
+                          {...register('stock', { valueAsNumber: true })}
+                          readOnly
+                          className="bg-muted pointer-events-none"
                         />
                         <p className="text-xs text-muted-foreground">Gunakan menu Stok untuk mengubah stok.</p>
                       </div>
@@ -483,8 +482,8 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                           }
 
                           return (
-                            <Select 
-                              value={f.value} 
+                            <Select
+                              value={f.value}
                               onValueChange={(val) => {
                                 if (val === 'ADD_NEW') {
                                   setActiveVariantIndex(index);
@@ -492,7 +491,7 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                                 } else {
                                   f.onChange(val);
                                 }
-                              }} 
+                              }}
                               disabled={isPending}
                             >
                               <SelectTrigger>
@@ -567,12 +566,9 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                   onClick={() => document.getElementById('image-upload')?.click()}
                 >
                   {watch('imageUrl') ? (
-                    <ImageWithFallback
-                      src={getImageUrl(watch('imageUrl'))}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                      lazy={false}
-                    />
+                    <div className="h-full w-full" onClick={(event) => event.stopPropagation()}>
+                      <PreviewableImage src={watch('imageUrl')} alt="Preview" className="h-full w-full border-0" />
+                    </div>
                   ) : (
                     <div className="text-center p-4">
                       <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground/30" />
@@ -619,9 +615,9 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="new-color">Nama Warna</Label>
-                <Input 
-                  id="new-color" 
-                  value={newColorInput} 
+                <Input
+                  id="new-color"
+                  value={newColorInput}
                   onChange={(e) => setNewColorInput(e.target.value)}
                   placeholder="Contoh: UNGU, HIJAU DAUN, dll"
                   autoFocus
@@ -631,8 +627,8 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                 />
               </div>
               <div className="flex gap-3 justify-end">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setIsAddingNewColor(false);
                     setActiveVariantIndex(null);
@@ -642,7 +638,7 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
                 >
                   Batal
                 </Button>
-                <Button 
+                <Button
                   onClick={handleAddNewColor}
                   disabled={createVariantOption.isPending || !newColorInput.trim()}
                 >

@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getImageUrl } from '@/lib/utils/url';
+import { PreviewableImage } from '@/components/ui/previewable-image';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import { notify } from '@/lib/notify';
 import { getComplaintStatusBadgeClass, getComplaintStatusLabel } from '@/lib/constants/workflowStatus';
@@ -717,9 +718,12 @@ export default function ComplaintsPage() {
                           ? complaint.complaintPhotos
                           : [complaint.complaintPhoto]
                         ).map((photo, index) => (
-                          <a key={`${complaint.id}-photo-${index}`} href={getImageUrl(photo)} target="_blank" rel="noreferrer">
-                            <Button size="sm" variant="outline">Lihat Foto {index + 1}</Button>
-                          </a>
+                          <PreviewableImage
+                            key={`${complaint.id}-photo-${index}`}
+                            src={photo}
+                            alt={`Foto komplen ${index + 1}`}
+                            className="h-10 w-16"
+                          />
                         ))}
 
                         {receiptPdfPath && (
@@ -921,9 +925,12 @@ export default function ComplaintsPage() {
                   ? detailComplaint.complaintPhotos
                   : [detailComplaint.complaintPhoto]
                 ).map((photo, index) => (
-                  <a key={`${detailComplaint.id}-detail-photo-${index}`} href={getImageUrl(photo)} target="_blank" rel="noreferrer">
-                    <Button size="sm" variant="outline">Lihat Foto {index + 1}</Button>
-                  </a>
+                  <PreviewableImage
+                    key={`${detailComplaint.id}-detail-photo-${index}`}
+                    src={photo}
+                    alt={`Foto detail komplen ${index + 1}`}
+                    className="h-16 w-20"
+                  />
                 ))}
                 {detailComplaint.complaintReceiptPdf && (
                   <a href={getImageUrl(detailComplaint.complaintReceiptPdf)} target="_blank" rel="noreferrer">
@@ -1053,11 +1060,12 @@ export default function ComplaintsPage() {
             {previewPhotoUrls.length > 0 && (
               <div className="grid grid-cols-2 gap-2">
                 {previewPhotoUrls.map((url, index) => (
-                  <img
+                  <PreviewableImage
                     key={url}
                     src={url}
                     alt={`Preview komplen ${index + 1}`}
-                    className="w-full max-h-64 object-contain rounded border"
+                    className="h-40 w-full"
+                    imageClassName="object-contain"
                   />
                 ))}
               </div>

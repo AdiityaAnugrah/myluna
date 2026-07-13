@@ -19,7 +19,7 @@ import {
   getSaleReturnStatusBadgeClass,
   getSaleReturnStatusLabel,
 } from '@/lib/constants/workflowStatus';
-import { getImageUrl } from '@/lib/utils/url';
+import { PreviewableImage } from '@/components/ui/previewable-image';
 import { Loader2 } from 'lucide-react';
 import { SaleReturnStatus } from '@/types';
 
@@ -193,9 +193,7 @@ export default function ReturnDetailPage() {
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             {(returnData.evidencePhotos || []).map((photo) => (
-              <a key={photo} href={getImageUrl(photo)} target="_blank" rel="noreferrer">
-                <img src={getImageUrl(photo)} alt="Bukti retur" className="h-28 w-28 rounded-md border object-cover" />
-              </a>
+              <PreviewableImage key={photo} src={photo} alt="Bukti retur" className="h-28 w-28" />
             ))}
           </CardContent>
         </Card>

@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Eye, FileText, Image, Search, ChevronRight } from 'lucide-react';
+import { PreviewableImage } from '@/components/ui/previewable-image';
 
 interface OtherIncome {
   id: string;
@@ -112,7 +113,7 @@ export function OtherIncomeListDialog({ open, onOpenChange }: Props) {
                   className="pl-9 h-10 rounded-xl"
                 />
               </div>
-              
+
               <div className="bg-primary/5 border border-primary/10 rounded-xl px-4 py-2 flex items-center gap-3">
                 <div className="flex flex-col">
                   <span className="text-[10px] uppercase font-bold text-primary/60 tracking-wider">Total Terpilih</span>
@@ -214,8 +215,8 @@ export function OtherIncomeListDialog({ open, onOpenChange }: Props) {
                 {/* Mobile View */}
                 <div className="md:hidden space-y-3">
                   {filteredIncomes.map((income) => (
-                    <div 
-                      key={income.id} 
+                    <div
+                      key={income.id}
                       className="p-4 rounded-2xl border bg-card hover:border-primary/50 transition-all shadow-sm active:scale-[0.98]"
                       onClick={() => setSelectedIncome(income)}
                     >
@@ -324,14 +325,11 @@ export function OtherIncomeListDialog({ open, onOpenChange }: Props) {
                   </Button>
                 </div>
               ) : (
-                <img
+                <PreviewableImage
                   src={getProofUrl(selectedIncome.proofDocument)}
                   alt="Bukti Transfer"
-                  className="max-w-full max-h-[60vh] object-contain rounded-lg"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = '';
-                    (e.target as HTMLImageElement).alt = 'Gagal memuat gambar';
-                  }}
+                  className="h-[60vh] w-full max-w-3xl border-0"
+                  imageClassName="object-contain"
                 />
               )}
             </div>

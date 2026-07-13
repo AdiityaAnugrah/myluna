@@ -23,6 +23,7 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import { use } from 'react';
 import { formatStatus } from '@/lib/utils/format';
+import { PreviewableImage } from '@/components/ui/previewable-image';
 
 export default function SettlementDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -369,18 +370,12 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="rounded-xl border overflow-hidden max-w-lg shadow-sm">
-              <img
-                src={getProofDocumentUrl(settlement.proofDocument)}
-                alt="Bukti pelunasan"
-                className="w-full h-auto object-contain"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                  (e.target as HTMLImageElement).parentElement!.innerHTML =
-                    '<p class="p-4 text-sm text-muted-foreground">Gambar tidak dapat dimuat</p>';
-                }}
-              />
-            </div>
+            <PreviewableImage
+              src={getProofDocumentUrl(settlement.proofDocument)}
+              alt="Bukti pelunasan"
+              className="max-h-96 w-full max-w-lg"
+              imageClassName="object-contain"
+            />
             <p className="text-xs text-muted-foreground mt-2">{settlement.proofDocument}</p>
           </CardContent>
         </Card>

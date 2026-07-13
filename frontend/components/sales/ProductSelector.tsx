@@ -12,11 +12,10 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Search, Package, AlertTriangle, Check } from 'lucide-react';
-import Image from 'next/image';
 import { Product } from '@/types';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/format';
-import { getImageUrl } from '@/lib/utils/url';
+import { PreviewableImage } from '@/components/ui/previewable-image';
 
 interface ProductSelectorProps {
   onSelect: (productId: string) => void;
@@ -30,7 +29,7 @@ export function ProductSelector({ onSelect, selectedProductId, disabled, allowOu
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  
+
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -39,10 +38,10 @@ export function ProductSelector({ onSelect, selectedProductId, disabled, allowOu
     return () => clearTimeout(timer);
   }, [search]);
 
-  const { data, isLoading } = useProducts({ 
-    search: debouncedSearch, 
+  const { data, isLoading } = useProducts({
+    search: debouncedSearch,
     limit: 50,
-    isActive: true 
+    isActive: true
   });
 
   const products = data?.data?.products || [];
@@ -107,7 +106,7 @@ export function ProductSelector({ onSelect, selectedProductId, disabled, allowOu
             />
           </div>
         </DialogHeader>
-        
+
         <div className="flex-1 overflow-y-auto p-2 space-y-2">
           {isLoading ? (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
@@ -141,8 +140,9 @@ export function ProductSelector({ onSelect, selectedProductId, disabled, allowOu
                   {/* Image Placeholder or Actual Image */}
                   <div className="h-16 w-16 bg-muted rounded-md flex items-center justify-center shrink-0 overflow-hidden border">
                     {product.imageUrl ? (
-                       // eslint-disable-next-line @next/next/no-img-element
-                       <img src={getImageUrl(product.imageUrl)} alt={product.name} className="h-full w-full object-cover" />
+                       <div onClick={(event) => event.stopPropagation()}>
+                         <PreviewableImage src={product.imageUrl} alt={product.name} className="h-16 w-16 border-0" />
+                       </div>
                     ) : (
                        <Package className="h-8 w-8 text-muted-foreground" />
                     )}
@@ -163,7 +163,7 @@ export function ProductSelector({ onSelect, selectedProductId, disabled, allowOu
                       <Badge variant="outline" className="text-xs font-normal">
                         {product.category?.name || 'Uncategorized'}
                       </Badge>
-                      
+
                       {(() => {
                         let vars = product.variants;
                         if (typeof vars === 'string') {
