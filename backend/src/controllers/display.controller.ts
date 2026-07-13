@@ -56,12 +56,12 @@ async function ensureDisplaySlot(productId: string, userId: string, transaction?
       supplierId: null,
       displayLocation: null,
       unit: product.unit || 'pcs',
-      stock: 0,
+      stock: 1,
       minStock: 0,
       slotLimit: 1,
       estimatedValue: String(product.sellingPrice ?? 0),
       condition: 'GOOD' as any,
-      status: 'STORED' as any,
+      status: 'DISPLAYED' as any,
       notes: null,
       isActive: true,
     },
@@ -104,7 +104,7 @@ function slotView(product: any) {
   const slot = product.displaySlot || null;
   const used = Number(slot?.stock ?? 0);
   const limit = Number(slot?.slotLimit ?? 1);
-  const available = Math.max(limit - used, 0);
+  const available = Math.min(Math.max(used, 0), limit);
   return {
     id: slot?.id || null,
     productId: product.id,
