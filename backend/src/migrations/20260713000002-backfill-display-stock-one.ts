@@ -12,7 +12,6 @@ module.exports = {
           p.sku,
           p.name,
           p.description,
-          p.categoryId,
           p.unit,
           p.sellingPrice
         FROM products p
@@ -28,10 +27,10 @@ module.exports = {
         {
           id: queryInterface.sequelize.literal('UUID()') as unknown as string,
           productId: product.id,
-          sku: `DSP-${product.sku}`.slice(0, 80),
+          sku: `DSP-${product.id}`.slice(0, 80),
           name: product.name,
           description: product.description,
-          categoryId: product.categoryId,
+          categoryId: null,
           supplierId: null,
           displayLocation: null,
           unit: product.unit || 'pcs',

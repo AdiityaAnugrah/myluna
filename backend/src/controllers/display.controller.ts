@@ -49,10 +49,10 @@ async function ensureDisplaySlot(productId: string, userId: string, transaction?
   const slot = await DisplayProduct.create(
     {
       productId: product.id,
-      sku: `DSP-${product.sku}`.slice(0, 80),
+      sku: `DSP-${product.id}`.slice(0, 80),
       name: product.name,
       description: product.description,
-      categoryId: product.categoryId,
+      categoryId: null,
       supplierId: null,
       displayLocation: null,
       unit: product.unit || 'pcs',
@@ -359,7 +359,7 @@ export const displayController = {
         if (quantity < 1) throw new AppError('Jumlah retur minimal 1', 400);
         if (slot.stock < quantity) throw new AppError(`Slot display ${slot.name} tidak cukup untuk diretur`, 400);
         const variant = item.productVariantId ? await ProductVariant.findByPk(item.productVariantId, { transaction }) : null;
-        await DisplayReturnItem.create({ displayReturnId: displayReturn.id, displayProductId: slot.id, productId: slot.productId, productVariantId: item.productVariantId || null, skuSnapshot: slot.sku.replace(/^DSP-/, ''), productNameSnapshot: (slot as any).sourceProduct?.name || slot.name, variantSnapshot: variant ? `${variant.name ? `${variant.name}: ` : ''}${variant.value}` : item.variantSnapshot || null, quantity, condition: item.condition || 'Perlu dicek', reason: String(item.reason || '').trim(), notes: item.notes || null }, { transaction });
+        await DisplayReturnItem.create({ displayReturnId: displayReturn.id, displayProductId: slot.id, productId: slot.productId, productVariantId: item.productVariantId || null, skuSnapshot: (slot as any).sourceProduct?.sku || slot.sku.replace(/^DSP-/, ''), productNameSnapshot: (slot as any).sourceProduct?.name || slot.name, variantSnapshot: variant ? `${variant.name ? `${variant.name}: ` : ''}${variant.value}` : item.variantSnapshot || null, quantity, condition: item.condition || 'Perlu dicek', reason: String(item.reason || '').trim(), notes: item.notes || null }, { transaction });
         const stockAfter = slot.stock - quantity;
         await createDisplayMovement({ slot, type: DisplayMovementType.OUT, quantity, stockAfter, reference: `DISPLAY_RETURN:${displayReturn.letterNumber}`, notes: item.reason || 'Retur Display', userId: req.user!.id, transaction });
         await slot.update({ stock: stockAfter, status: 'MAINTENANCE' as any }, { transaction });
