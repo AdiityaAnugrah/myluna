@@ -13,6 +13,11 @@ router.get('/eligible-sales', rbac(['USER', 'SUPER_ADMIN', 'ADMIN']), complaintC
 router.get('/summary', rbac(['USER', 'SUPER_ADMIN', 'ADMIN', 'TCP']), complaintController.getSummary);
 router.post('/', rbac(['USER', 'SUPER_ADMIN', 'ADMIN']), uploadComplaintSubmission, validateUploadedFilesContent, complaintController.create);
 router.get('/', rbac(['USER', 'SUPER_ADMIN', 'ADMIN', 'TCP']), complaintController.getAll);
+router.get('/:id', rbac(['USER', 'SUPER_ADMIN', 'ADMIN', 'TCP']), complaintController.getById);
+router.patch('/:id/decision', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), complaintController.setDecision);
+router.patch('/:id/settlement-deduction', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), complaintController.recordSettlementDeduction);
+router.patch('/:id/component-shipment', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), complaintController.processComponentShipment);
+router.post('/:id/convert-to-return', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), complaintController.convertToReturn);
 router.patch('/:id/claim', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), complaintController.claim);
 router.patch('/:id/mark-handled', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), complaintController.markHandled);
 router.patch('/:id/request-follow-up', rbac(['USER', 'SUPER_ADMIN', 'ADMIN']), complaintController.requestFollowUp);

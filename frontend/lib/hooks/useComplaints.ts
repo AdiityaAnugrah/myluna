@@ -34,6 +34,58 @@ export function useComplaints(params?: {
   });
 }
 
+
+export function useComplaintDetail(id?: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['complaints', 'detail', id],
+    queryFn: () => complaintsApi.getById(id!),
+    enabled: !!id && (options?.enabled ?? true),
+  });
+}
+
+function invalidateComplaintFlow(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['complaints'] });
+  queryClient.invalidateQueries({ queryKey: ['returns'] });
+  queryClient.invalidateQueries({ queryKey: ['stock'] });
+  queryClient.invalidateQueries({ queryKey: ['settlements'] });
+}
+
+export function useSetComplaintDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { resolutionType: string; resolutionNotes?: string } }) => complaintsApi.setDecision(id, data),
+    onSuccess: () => { invalidateComplaintFlow(queryClient); toast.success('Keputusan komplen berhasil disimpan'); },
+    onError: (error: unknown) => toast.error(getErrorMessage(error, 'Gagal menyimpan keputusan komplen')),
+  });
+}
+
+export function useRecordComplaintSettlementDeduction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { deductionAmount: number; netReceivedAmount: number; deductionReason: string; settlementDate?: string; notes?: string } }) => complaintsApi.recordSettlementDeduction(id, data),
+    onSuccess: () => { invalidateComplaintFlow(queryClient); toast.success('Potongan marketplace berhasil dicatat'); },
+    onError: (error: unknown) => toast.error(getErrorMessage(error, 'Gagal mencatat potongan marketplace')),
+  });
+}
+
+export function useProcessComplaintComponentShipment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { items: Array<{ productId: string; variantName?: string | null; quantity: number; notes?: string }>; shippingService?: string; shippingCost?: number; notes?: string } }) => complaintsApi.processComponentShipment(id, data),
+    onSuccess: () => { invalidateComplaintFlow(queryClient); toast.success('Komponen/pengganti berhasil dikirim'); },
+    onError: (error: unknown) => toast.error(getErrorMessage(error, 'Gagal memproses kirim komponen')),
+  });
+}
+
+export function useConvertComplaintToReturn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { items: Array<{ saleItemId: string; qtyRequested: number }>; reason?: string; notes?: string } }) => complaintsApi.convertToReturn(id, data),
+    onSuccess: () => { invalidateComplaintFlow(queryClient); toast.success('Komplen berhasil dijadikan retur'); },
+    onError: (error: unknown) => toast.error(getErrorMessage(error, 'Gagal menjadikan komplen ke retur')),
+  });
+}
+
 export function useCreateComplaint() {
   const queryClient = useQueryClient();
 

@@ -9,10 +9,16 @@ import {
   useComplaints,
   useCompleteComplaint,
   useCreateComplaint,
+  useComplaintDetail,
+  useConvertComplaintToReturn,
   useEligibleComplaintSales,
   useMarkComplaintHandled,
+  useProcessComplaintComponentShipment,
+  useRecordComplaintSettlementDeduction,
   useRequestComplaintFollowUp,
+  useSetComplaintDecision,
 } from '@/lib/hooks/useComplaints';
+import { useProducts } from '@/lib/hooks/useProducts';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -41,7 +47,7 @@ import { PreviewableImage } from '@/components/ui/previewable-image';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import { notify } from '@/lib/notify';
 import { getComplaintStatusBadgeClass, getComplaintStatusLabel } from '@/lib/constants/workflowStatus';
-import { Complaint, ComplaintStatus, Sale } from '@/types';
+import { Complaint, ComplaintResolutionType, ComplaintStatus, Sale } from '@/types';
 import { CheckCircle2, Eye, FileText, Loader2, Printer, RotateCcw, Search, Send } from 'lucide-react';
 
 function statusLabel(status: ComplaintStatus) {
@@ -152,6 +158,18 @@ export default function ComplaintsPage() {
   const [complaintScope, setComplaintScope] = useState<'active' | 'history'>('active');
   const [followUpComplaint, setFollowUpComplaint] = useState<Complaint | null>(null);
   const [followUpReason, setFollowUpReason] = useState('');
+  const [decisionComplaint, setDecisionComplaint] = useState<Complaint | null>(null);
+  const [decisionType, setDecisionType] = useState<ComplaintResolutionType>('SEND_COMPONENT');
+  const [decisionNotes, setDecisionNotes] = useState('');
+  const [deductionAmount, setDeductionAmount] = useState('');
+  const [netReceivedAmount, setNetReceivedAmount] = useState('');
+  const [componentProductId, setComponentProductId] = useState('');
+  const [componentVariantName, setComponentVariantName] = useState('');
+  const [componentQty, setComponentQty] = useState('1');
+  const [componentShippingService, setComponentShippingService] = useState('');
+  const [componentShippingCost, setComponentShippingCost] = useState('0');
+  const [returnSaleItemId, setReturnSaleItemId] = useState('');
+  const [returnQty, setReturnQty] = useState('1');
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchFilter, setSearchFilter] = useState('');
@@ -164,6 +182,12 @@ export default function ComplaintsPage() {
   const completeComplaint = useCompleteComplaint();
   const markComplaintHandled = useMarkComplaintHandled();
   const requestComplaintFollowUp = useRequestComplaintFollowUp();
+  const setDecision = useSetComplaintDecision();
+  const recordDeduction = useRecordComplaintSettlementDeduction();
+  const processComponent = useProcessComplaintComponentShipment();
+  const convertToReturn = useConvertComplaintToReturn();
+  const decisionDetail = useComplaintDetail(decisionComplaint?.id, { enabled: !!decisionComplaint });
+  const productsQuery = useProducts({ page: 1, limit: 100, isActive: true }, { enabled: !!decisionComplaint && decisionType === 'SEND_COMPONENT' });
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSaleQuery(saleQuery), 350);
@@ -199,6 +223,8 @@ export default function ComplaintsPage() {
     () => eligibleSalesQuery.data?.data ?? [],
     [eligibleSalesQuery.data]
   );
+  const componentProducts = productsQuery.data?.data?.products ?? [];
+  const decisionFullComplaint = decisionDetail.data?.data ?? decisionComplaint;
   const complaintPagination = complaintsQuery.data?.data?.pagination;
   const totalComplaints = complaintPagination?.total ?? 0;
   const totalPages = complaintPagination?.totalPages ?? 1;
@@ -373,6 +399,42 @@ export default function ComplaintsPage() {
     );
   };
 
+
+  const openDecisionDialog = (complaint: Complaint) => {
+    setDecisionComplaint(complaint);
+    setDecisionType((complaint.resolutionType as ComplaintResolutionType) || 'SEND_COMPONENT');
+    setDecisionNotes(complaint.resolutionNotes || '');
+    setDeductionAmount(complaint.deductionAmount || '');
+    setNetReceivedAmount(complaint.netReceivedAmount || '');
+    setComponentProductId('');
+    setComponentVariantName('');
+    setComponentQty('1');
+    setComponentShippingService(complaint.componentShippingService || '');
+    setComponentShippingCost(complaint.componentShippingCost || '0');
+    setReturnSaleItemId('');
+    setReturnQty('1');
+  };
+
+  const closeDecisionDialog = () => setDecisionComplaint(null);
+
+  const submitDecisionFlow = () => {
+    if (!decisionComplaint) return;
+    const id = decisionComplaint.id;
+    if (decisionType === 'SETTLEMENT_DEDUCTION') {
+      recordDeduction.mutate({ id, data: { deductionAmount: Number(deductionAmount), netReceivedAmount: Number(netReceivedAmount), deductionReason: decisionNotes, notes: decisionNotes } }, { onSuccess: closeDecisionDialog });
+      return;
+    }
+    if (decisionType === 'SEND_COMPONENT') {
+      processComponent.mutate({ id, data: { items: [{ productId: componentProductId, variantName: componentVariantName || null, quantity: Number(componentQty), notes: decisionNotes }], shippingService: componentShippingService, shippingCost: Number(componentShippingCost || 0), notes: decisionNotes } }, { onSuccess: closeDecisionDialog });
+      return;
+    }
+    if (decisionType === 'CONVERT_TO_RETURN') {
+      convertToReturn.mutate({ id, data: { items: [{ saleItemId: returnSaleItemId, qtyRequested: Number(returnQty) }], reason: decisionNotes || decisionComplaint.reason, notes: decisionNotes } }, { onSuccess: closeDecisionDialog });
+      return;
+    }
+    setDecision.mutate({ id, data: { resolutionType: decisionType, resolutionNotes: decisionNotes } }, { onSuccess: closeDecisionDialog });
+  };
+
   return (
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: 'Penjualan' }, { label: 'Komplen' }]} />
@@ -388,7 +450,7 @@ export default function ComplaintsPage() {
           <Link href="/returns">
             <Button variant="outline">
               <FileText className="h-4 w-4 mr-2" />
-              Riwayat Retur
+              Flow Retur
             </Button>
           </Link>
         )}
@@ -776,6 +838,16 @@ export default function ComplaintsPage() {
                               Print
                             </Button>
 
+                            {['PENDING_TCP_REVIEW', 'ACCEPTED_BY_TCP', 'FOLLOW_UP_REQUIRED'].includes(complaint.status) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openDecisionDialog(complaint)}
+                              >
+                                Pilih Keputusan
+                              </Button>
+                            )}
+
                             {canMarkHandled && (
                               <Button
                                 size="sm"
@@ -975,6 +1047,74 @@ export default function ComplaintsPage() {
                 )}
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!decisionComplaint}
+        onOpenChange={(open) => {
+          if (!open) closeDecisionDialog();
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[85dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Keputusan Komplen</DialogTitle>
+            <DialogDescription>
+              Pilih penyelesaian yang paling sesuai. Flow baru tidak memakai Tiket Retur lagi.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <div className="rounded-md border p-3 bg-muted/30">
+              <div className="font-semibold">{decisionComplaint?.complaintNumber}</div>
+              <div>{decisionComplaint?.saleNumberSnapshot} • {decisionComplaint?.customerNameSnapshot || '-'}</div>
+              <div className="text-muted-foreground">{decisionComplaint?.reason}</div>
+            </div>
+            <div className="space-y-2">
+              <Label>Keputusan</Label>
+              <Select value={decisionType} onValueChange={(value) => setDecisionType(value as ComplaintResolutionType)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SEND_COMPONENT">Kirim Komponen / Pengganti</SelectItem>
+                  <SelectItem value="CONVERT_TO_RETURN">Masuk Retur</SelectItem>
+                  <SelectItem value="SETTLEMENT_DEDUCTION">Kena Potongan Marketplace</SelectItem>
+                  <SelectItem value="NO_ACTION">Selesai Tanpa Tindakan</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {decisionType === 'SETTLEMENT_DEDUCTION' && (
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2"><Label>Nominal Potongan</Label><Input type="number" value={deductionAmount} onChange={(e) => setDeductionAmount(e.target.value)} placeholder="0" /></div>
+                <div className="space-y-2"><Label>Nominal Bersih Diterima</Label><Input type="number" value={netReceivedAmount} onChange={(e) => setNetReceivedAmount(e.target.value)} placeholder="0" /></div>
+              </div>
+            )}
+
+            {decisionType === 'SEND_COMPONENT' && (
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2"><Label>Produk / Komponen</Label><Select value={componentProductId} onValueChange={setComponentProductId}><SelectTrigger><SelectValue placeholder="Pilih produk/komponen" /></SelectTrigger><SelectContent>{componentProducts.map((product: any) => <SelectItem key={product.id} value={product.id}>{product.name} - Stok {product.stock}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-2"><Label>Varian / Warna</Label><Input value={componentVariantName} onChange={(e) => setComponentVariantName(e.target.value)} placeholder="Opsional, contoh: Hitam" /></div>
+                <div className="space-y-2"><Label>Qty</Label><Input type="number" min="1" value={componentQty} onChange={(e) => setComponentQty(e.target.value)} /></div>
+                <div className="space-y-2"><Label>Jasa Kirim</Label><Input value={componentShippingService} onChange={(e) => setComponentShippingService(e.target.value)} placeholder="JNE/J&T/dll" /></div>
+                <div className="space-y-2"><Label>Ongkir</Label><Input type="number" value={componentShippingCost} onChange={(e) => setComponentShippingCost(e.target.value)} /></div>
+              </div>
+            )}
+
+            {decisionType === 'CONVERT_TO_RETURN' && (
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2"><Label>Item Penjualan</Label><Select value={returnSaleItemId} onValueChange={setReturnSaleItemId}><SelectTrigger><SelectValue placeholder={decisionDetail.isLoading ? 'Memuat item...' : 'Pilih item'} /></SelectTrigger><SelectContent>{((decisionFullComplaint as any)?.sale?.items || []).map((item: any) => <SelectItem key={item.id} value={item.id}>{item.product?.name || item.productId} {item.variantName ? `- ${item.variantName}` : ''} - Qty {item.quantity}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-2"><Label>Qty Retur</Label><Input type="number" min="1" value={returnQty} onChange={(e) => setReturnQty(e.target.value)} /></div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Catatan / Alasan</Label>
+              <Textarea rows={4} value={decisionNotes} onChange={(e) => setDecisionNotes(e.target.value)} placeholder="Tulis alasan keputusan supaya jelas untuk semua role" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDecisionDialog}>Batal</Button>
+            <Button onClick={submitDecisionFlow} disabled={setDecision.isPending || recordDeduction.isPending || processComponent.isPending || convertToReturn.isPending}>Simpan Keputusan</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

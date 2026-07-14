@@ -1,15 +1,28 @@
 import { Request, Response, NextFunction } from 'express';
 import { Op } from 'sequelize';
+import { sequelize } from '../config/database';
 import path from 'path';
 import fs from 'fs/promises';
 import sharp from 'sharp';
 import {
   Complaint,
+  ComplaintComponentShipment,
+  ComplaintResolutionStatus,
+  ComplaintResolutionType,
   ComplaintStatus,
+  Expense,
+  MovementType,
+  Product,
+  ProductVariant,
+  ReturnSourceType,
   Sale,
+  SaleItem,
   SaleStatus,
   SaleReturn,
+  SaleReturnItem,
   SaleReturnStatus,
+  Settlement,
+  StockMovement,
   AuditAction,
 } from '../models';
 import { successResponse } from '../utils/response';
@@ -56,6 +69,36 @@ const complaintActiveStatuses: ComplaintStatus[] = [
   ComplaintStatus.WAITING_USER_CONFIRMATION,
   ComplaintStatus.FOLLOW_UP_REQUIRED,
 ];
+
+function generateReturnNumber() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const random = Math.floor(1000 + Math.random() * 9000);
+  return `RTR-${y}${m}${d}-${random}`;
+}
+
+function parseComplaintItems(rawItems: unknown) {
+  if (Array.isArray(rawItems)) return rawItems;
+  if (typeof rawItems === 'string') {
+    try {
+      const parsed = JSON.parse(rawItems);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      throw new AppError('Format item tidak valid', 400);
+    }
+  }
+  return [];
+}
+
+function requireDecisionAllowed(status: ComplaintStatus) {
+  return [
+    ComplaintStatus.PENDING_TCP_REVIEW,
+    ComplaintStatus.ACCEPTED_BY_TCP,
+    ComplaintStatus.FOLLOW_UP_REQUIRED,
+  ].includes(status);
+}
 
 export const complaintController = {
   async getSummary(req: Request, res: Response, next: NextFunction) {
@@ -378,6 +421,170 @@ export const complaintController = {
     } catch (error) {
       return next(error);
     }
+  },
+
+
+  async getById(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new AppError('Authentication required', 401);
+
+      const complaint = await Complaint.findByPk(req.params.id, {
+        include: [
+          {
+            model: Sale,
+            as: 'sale',
+            include: [{ model: SaleItem, as: 'items', include: [{ model: Product, as: 'product' }] }],
+          },
+          { model: ComplaintComponentShipment, as: 'componentShipments', include: [{ model: Product, as: 'product' }] },
+          { model: Settlement, as: 'complaintSettlement' },
+        ],
+      });
+      if (!complaint) throw new AppError('Komplen tidak ditemukan', 404);
+      if (req.user.roleName === 'USER' && complaint.createdBy !== req.user.id) {
+        throw new AppError('Anda tidak berwenang melihat komplen ini', 403);
+      }
+      return successResponse(res, complaint, 'Detail komplen berhasil diambil', 200);
+    } catch (error) { return next(error); }
+  },
+
+  async setDecision(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new AppError('Authentication required', 401);
+      const decision = String(req.body.resolutionType || '').toUpperCase() as ComplaintResolutionType;
+      if (!Object.values(ComplaintResolutionType).includes(decision)) throw new AppError('Keputusan komplen tidak valid', 400);
+
+      const complaint = await Complaint.findByPk(req.params.id);
+      if (!complaint) throw new AppError('Komplen tidak ditemukan', 404);
+      if (!requireDecisionAllowed(complaint.status)) throw new AppError('Komplen ini tidak bisa dipilih keputusannya', 400);
+
+      const before = complaint.toJSON();
+      await complaint.update({
+        status: ComplaintStatus.ACCEPTED_BY_TCP,
+        reviewedBy: complaint.reviewedBy || req.user.id,
+        reviewedAt: complaint.reviewedAt || new Date(),
+        resolutionType: decision,
+        resolutionStatus: decision === ComplaintResolutionType.NO_ACTION ? ComplaintResolutionStatus.COMPLETED : ComplaintResolutionStatus.IN_PROGRESS,
+        resolutionNotes: String(req.body.resolutionNotes || '').trim() || complaint.resolutionNotes,
+        resolvedBy: decision === ComplaintResolutionType.NO_ACTION ? req.user.id : complaint.resolvedBy,
+        resolvedAt: decision === ComplaintResolutionType.NO_ACTION ? new Date() : complaint.resolvedAt,
+        completedBy: decision === ComplaintResolutionType.NO_ACTION ? req.user.id : complaint.completedBy,
+        completedAt: decision === ComplaintResolutionType.NO_ACTION ? new Date() : complaint.completedAt,
+        ...(decision === ComplaintResolutionType.NO_ACTION ? { status: ComplaintStatus.COMPLETED } : {}),
+      });
+
+      await auditService.log({ userId: req.user.id, action: AuditAction.UPDATE, entity: 'ComplaintDecision', entityId: complaint.id, before, after: complaint.toJSON(), ip: req.ip || req.socket.remoteAddress || '', userAgent: req.headers['user-agent'] || '' });
+      socketService.broadcastDataRefresh('complaints');
+      return successResponse(res, complaint, 'Keputusan komplen berhasil disimpan', 200);
+    } catch (error) { return next(error); }
+  },
+
+  async recordSettlementDeduction(req: Request, res: Response, next: NextFunction) {
+    const transaction = await sequelize.transaction();
+    try {
+      if (!req.user) throw new AppError('Authentication required', 401);
+      const complaint = await Complaint.findByPk(req.params.id, { transaction });
+      if (!complaint) throw new AppError('Komplen tidak ditemukan', 404);
+      const deductionAmount = Number(req.body.deductionAmount || 0);
+      const netReceivedAmount = Number(req.body.netReceivedAmount || 0);
+      const deductionReason = String(req.body.deductionReason || '').trim();
+      if (deductionAmount <= 0) throw new AppError('Nominal potongan wajib lebih dari 0', 400);
+      if (netReceivedAmount < 0) throw new AppError('Nominal bersih tidak valid', 400);
+      if (deductionReason.length < 5) throw new AppError('Alasan potongan wajib diisi minimal 5 karakter', 400);
+
+      const before = complaint.toJSON();
+      const settlementDate = String(req.body.settlementDate || getLocalDateString(new Date()));
+      const existingSettlement = await Settlement.findOne({ where: { saleId: complaint.saleId }, transaction });
+      let settlement = existingSettlement;
+      if (settlement) {
+        await settlement.update({ netAmount: netReceivedAmount.toFixed(2), complaintId: complaint.id, deductionAmount: deductionAmount.toFixed(2), deductionReason, deductionType: 'COMPLAINT', notes: String(req.body.notes || settlement.notes || '').trim() || settlement.notes }, { transaction });
+      } else {
+        settlement = await Settlement.create({ saleId: complaint.saleId, invoiceNumber: null, netAmount: netReceivedAmount.toFixed(2), settlementDate: new Date(settlementDate), proofDocument: null, notes: String(req.body.notes || '').trim() || null, complaintId: complaint.id, deductionAmount: deductionAmount.toFixed(2), deductionReason, grossAmount: null, deductionType: 'COMPLAINT', createdBy: req.user.id }, { transaction });
+      }
+
+      await complaint.update({ status: ComplaintStatus.COMPLETED, resolutionType: ComplaintResolutionType.SETTLEMENT_DEDUCTION, resolutionStatus: ComplaintResolutionStatus.COMPLETED, settlementId: settlement.id, deductionAmount: deductionAmount.toFixed(2), netReceivedAmount: netReceivedAmount.toFixed(2), deductionReason, resolutionNotes: String(req.body.notes || '').trim() || complaint.resolutionNotes, resolvedBy: req.user.id, resolvedAt: new Date(), completedBy: req.user.id, completedAt: new Date() }, { transaction });
+      await auditService.log({ userId: req.user.id, action: AuditAction.UPDATE, entity: 'ComplaintSettlementDeduction', entityId: complaint.id, before, after: complaint.toJSON(), ip: req.ip || req.socket.remoteAddress || '', userAgent: req.headers['user-agent'] || '' }, transaction);
+      await transaction.commit();
+      socketService.broadcastDataRefresh('complaints');
+      socketService.broadcastDataRefresh('settlements');
+      socketService.broadcastDataRefresh('finance');
+      return successResponse(res, complaint, 'Potongan marketplace komplen berhasil dicatat', 200);
+    } catch (error) { await transaction.rollback(); return next(error); }
+  },
+
+  async processComponentShipment(req: Request, res: Response, next: NextFunction) {
+    const transaction = await sequelize.transaction();
+    try {
+      if (!req.user) throw new AppError('Authentication required', 401);
+      const complaint = await Complaint.findByPk(req.params.id, { transaction });
+      if (!complaint) throw new AppError('Komplen tidak ditemukan', 404);
+      const items = parseComplaintItems(req.body.items);
+      if (!items.length) throw new AppError('Minimal 1 komponen/produk wajib dipilih', 400);
+      const shippingService = String(req.body.shippingService || '').trim();
+      const shippingCost = Number(req.body.shippingCost || 0);
+      if (shippingCost < 0) throw new AppError('Ongkir tidak valid', 400);
+
+      const before = complaint.toJSON();
+      for (const item of items) {
+        const productId = String(item.productId || '');
+        const qty = Number(item.quantity || 0);
+        const variantName = String(item.variantName || '').trim() || null;
+        if (!productId || !Number.isInteger(qty) || qty <= 0) throw new AppError('Item komponen tidak valid', 400);
+        const product = await Product.findByPk(productId, { transaction });
+        if (!product) throw new AppError('Produk/komponen tidak ditemukan', 404);
+        if (product.stock < qty) throw new AppError(`Stok ${product.name} tidak mencukupi`, 400);
+        let variant = null;
+        if (variantName) {
+          variant = await ProductVariant.findOne({ where: { productId, value: variantName }, transaction });
+          if (!variant) throw new AppError(`Varian ${variantName} tidak ditemukan`, 404);
+          if (variant.stock < qty) throw new AppError(`Stok varian ${variantName} tidak mencukupi`, 400);
+        }
+        const stockBefore = product.stock;
+        await product.update({ stock: product.stock - qty }, { transaction });
+        if (variant) await variant.update({ stock: variant.stock - qty }, { transaction });
+        const movement = await StockMovement.create({ productId, type: MovementType.OUT, quantity: qty, stockBefore, stockAfter: stockBefore - qty, reference: `COMPLAINT_COMPONENT:${complaint.complaintNumber}`, notes: `Kirim komponen komplen${variantName ? ` (Varian: ${variantName})` : ''}`, createdBy: req.user.id }, { transaction });
+        await ComplaintComponentShipment.create({ complaintId: complaint.id, productId, variantName, quantity: qty, stockMovementId: movement.id, notes: String(item.notes || '').trim() || null, createdBy: req.user.id }, { transaction });
+      }
+      if (shippingCost > 0) {
+        await Expense.create({ category: 'SHIPPING', description: `Ongkir kirim komponen komplen ${complaint.complaintNumber}`, amount: shippingCost.toFixed(2), expenseDate: new Date(), notes: shippingService ? `Jasa kirim: ${shippingService}` : null, receiptDocument: null, createdBy: req.user.id }, { transaction });
+      }
+      await complaint.update({ status: ComplaintStatus.WAITING_USER_CONFIRMATION, resolutionType: ComplaintResolutionType.SEND_COMPONENT, resolutionStatus: ComplaintResolutionStatus.WAITING_USER_CONFIRMATION, componentShipmentStatus: 'SHIPPED', componentShippingService: shippingService || null, componentShippingCost: shippingCost.toFixed(2), replacementProofDocument: complaint.complaintReceiptPdf, shippedBy: req.user.id, shippedAt: new Date(), resolutionNotes: String(req.body.notes || '').trim() || complaint.resolutionNotes }, { transaction });
+      await auditService.log({ userId: req.user.id, action: AuditAction.UPDATE, entity: 'ComplaintComponentShipment', entityId: complaint.id, before, after: complaint.toJSON(), ip: req.ip || req.socket.remoteAddress || '', userAgent: req.headers['user-agent'] || '' }, transaction);
+      await transaction.commit();
+      socketService.broadcastDataRefresh('complaints');
+      socketService.broadcastDataRefresh('stock');
+      socketService.broadcastDataRefresh('expense');
+      return successResponse(res, complaint, 'Komponen/pengganti komplen berhasil dikirim', 200);
+    } catch (error) { await transaction.rollback(); return next(error); }
+  },
+
+  async convertToReturn(req: Request, res: Response, next: NextFunction) {
+    const transaction = await sequelize.transaction();
+    try {
+      if (!req.user) throw new AppError('Authentication required', 401);
+      const complaint = await Complaint.findByPk(req.params.id, { include: [{ model: Sale, as: 'sale', include: [{ model: SaleItem, as: 'items' }] }], transaction });
+      if (!complaint) throw new AppError('Komplen tidak ditemukan', 404);
+      if (complaint.linkedReturnId) throw new AppError('Komplen ini sudah pernah dijadikan retur', 400);
+      const sale = (complaint as any).sale as Sale | undefined;
+      if (!sale) throw new AppError('Data penjualan tidak ditemukan', 404);
+      const items = parseComplaintItems(req.body.items);
+      if (!items.length) throw new AppError('Pilih minimal 1 item untuk retur', 400);
+      const saleItemsById = new Map<string, SaleItem>(((sale as any).items || []).map((item: SaleItem) => [item.id, item]));
+      const returnRecord = await SaleReturn.create({ returnNumber: generateReturnNumber(), saleId: complaint.saleId, requestedBy: complaint.createdBy, sourceType: ReturnSourceType.COMPLAINT, sourceComplaintId: complaint.id, status: SaleReturnStatus.PENDING_REVIEW, reason: String(req.body.reason || complaint.reason).trim(), requestDate: new Date(getLocalDateString(new Date())), evidencePhotos: complaint.complaintPhotos || [complaint.complaintPhoto] }, { transaction });
+      for (const item of items) {
+        const saleItem = saleItemsById.get(String(item.saleItemId || ''));
+        const qtyRequested = Number(item.qtyRequested || 0);
+        if (!saleItem) throw new AppError('Item penjualan tidak valid', 400);
+        if (!Number.isInteger(qtyRequested) || qtyRequested <= 0 || qtyRequested > saleItem.quantity) throw new AppError('Qty retur tidak valid', 400);
+        await SaleReturnItem.create({ returnId: returnRecord.id, saleItemId: saleItem.id, productId: saleItem.productId, variantName: saleItem.variantName || null, qtySold: saleItem.quantity, qtyRequested }, { transaction });
+      }
+      const before = complaint.toJSON();
+      await complaint.update({ status: ComplaintStatus.CONVERTED_TO_RETURN, resolutionType: ComplaintResolutionType.CONVERT_TO_RETURN, resolutionStatus: ComplaintResolutionStatus.COMPLETED, linkedReturnId: returnRecord.id, resolutionNotes: String(req.body.notes || '').trim() || complaint.resolutionNotes, resolvedBy: req.user.id, resolvedAt: new Date() }, { transaction });
+      await auditService.log({ userId: req.user.id, action: AuditAction.UPDATE, entity: 'ComplaintConvertToReturn', entityId: complaint.id, before, after: complaint.toJSON(), ip: req.ip || req.socket.remoteAddress || '', userAgent: req.headers['user-agent'] || '' }, transaction);
+      await transaction.commit();
+      socketService.broadcastDataRefresh('complaints');
+      socketService.broadcastDataRefresh('returns');
+      return successResponse(res, { complaint, return: returnRecord }, 'Komplen berhasil dijadikan retur', 200);
+    } catch (error) { await transaction.rollback(); return next(error); }
   },
 
   async claim(req: Request, res: Response, next: NextFunction) {

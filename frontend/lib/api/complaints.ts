@@ -55,6 +55,31 @@ export const complaintsApi = {
     return response.data;
   },
 
+  getById: async (id: string) => {
+    const response = await apiClient.get<ApiResponse<Complaint>>(`/complaints/${id}`);
+    return response.data;
+  },
+
+  setDecision: async (id: string, data: { resolutionType: string; resolutionNotes?: string }) => {
+    const response = await apiClient.patch<ApiResponse<Complaint>>(`/complaints/${id}/decision`, data);
+    return response.data;
+  },
+
+  recordSettlementDeduction: async (id: string, data: { deductionAmount: number; netReceivedAmount: number; deductionReason: string; settlementDate?: string; notes?: string }) => {
+    const response = await apiClient.patch<ApiResponse<Complaint>>(`/complaints/${id}/settlement-deduction`, data);
+    return response.data;
+  },
+
+  processComponentShipment: async (id: string, data: { items: Array<{ productId: string; variantName?: string | null; quantity: number; notes?: string }>; shippingService?: string; shippingCost?: number; notes?: string }) => {
+    const response = await apiClient.patch<ApiResponse<Complaint>>(`/complaints/${id}/component-shipment`, data);
+    return response.data;
+  },
+
+  convertToReturn: async (id: string, data: { items: Array<{ saleItemId: string; qtyRequested: number }>; reason?: string; notes?: string }) => {
+    const response = await apiClient.post<ApiResponse<{ complaint: Complaint; return: unknown }>>(`/complaints/${id}/convert-to-return`, data);
+    return response.data;
+  },
+
   complete: async (id: string) => {
     const response = await apiClient.patch<ApiResponse<Complaint>>(`/complaints/${id}/complete`);
     return response.data;

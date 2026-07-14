@@ -24,7 +24,6 @@ import complaintRoutes from './complaint.routes';
 import regionRoutes from './region.routes';
 import analyticsRoutes from './analytics.routes';
 import returnRoutes from './return.routes';
-import returnTicketRoutes from './returnTicket.routes';
 import displayRoutes from './display.routes';
 
 const router = Router();
@@ -55,7 +54,6 @@ router.use('/complaints', complaintRoutes);
 router.use('/regions', regionRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/returns', returnRoutes);
-router.use('/return-tickets', returnTicketRoutes);
 router.use('/display', displayRoutes);
 
 export default router;

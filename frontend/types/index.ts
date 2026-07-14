@@ -404,6 +404,19 @@ export type ComplaintStatus =
   | 'COMPLETED'
   | 'CONVERTED_TO_RETURN';
 
+export type ComplaintResolutionType = 'SETTLEMENT_DEDUCTION' | 'SEND_COMPONENT' | 'CONVERT_TO_RETURN' | 'NO_ACTION';
+export type ComplaintResolutionStatus = 'PENDING_DECISION' | 'IN_PROGRESS' | 'WAITING_USER_CONFIRMATION' | 'COMPLETED';
+
+export interface ComplaintComponentShipment {
+  id: string;
+  complaintId: string;
+  productId: string;
+  variantName?: string | null;
+  quantity: number;
+  notes?: string | null;
+  product?: Product;
+}
+
 export interface Complaint {
   id: string;
   complaintNumber: string;
@@ -431,6 +444,20 @@ export interface Complaint {
   followUpRequestedAt?: string | null;
   completedBy?: string | null;
   completedAt?: string | null;
+  resolutionType?: ComplaintResolutionType | null;
+  resolutionStatus?: ComplaintResolutionStatus | null;
+  settlementId?: string | null;
+  linkedReturnId?: string | null;
+  deductionAmount?: string | null;
+  netReceivedAmount?: string | null;
+  deductionReason?: string | null;
+  componentShipmentStatus?: string | null;
+  componentShippingService?: string | null;
+  componentShippingCost?: string | null;
+  resolutionNotes?: string | null;
+  resolvedBy?: string | null;
+  resolvedAt?: string | null;
+  componentShipments?: ComplaintComponentShipment[];
   createdBy: string;
   createdAt: string;
   updatedAt: string;

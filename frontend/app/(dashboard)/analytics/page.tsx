@@ -423,7 +423,7 @@ export default function AnalyticsPage() {
         <Card>
           <CardContent className="flex items-start justify-between gap-4 p-5">
             <div>
-              <p className="text-sm text-muted-foreground">Tiket Retur Aktif</p>
+              <p className="text-sm text-muted-foreground">Retur Aktif</p>
               <p className="mt-1 text-2xl font-bold tabular-nums">
                 {operationsQuery.isLoading ? '...' : (operations?.tickets.active || 0)}
               </p>
