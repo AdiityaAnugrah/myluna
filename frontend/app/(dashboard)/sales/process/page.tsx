@@ -46,7 +46,7 @@ interface SalesTableProps {
 const MobileSalesCard = ({ sale, userRole, onPrint, getStatusBadge }: any) => {
     const isUrgent = isUrgentSale(sale);
     const daysSince = getDaysSinceSale(sale.saleDate);
-    const canPrintWaitingApproval = ['TCP', 'ADMIN', 'SUPER_ADMIN'].includes(userRole || '');
+    const canPrintWaitingApproval = ['TCP', 'ADMIN', 'SUPER_ADMIN', 'DEV'].includes(userRole || '');
 
     return (
         <div className={cn(
@@ -242,7 +242,7 @@ const SalesTable = ({
                 const daysSince = getDaysSinceSale(sale.saleDate);
 
                 const processedToday = isHistory && sale.processedAt && isToday(sale.processedAt);
-                const canPrintWaitingApproval = ['TCP', 'ADMIN', 'SUPER_ADMIN'].includes(userRole || '');
+                const canPrintWaitingApproval = ['TCP', 'ADMIN', 'SUPER_ADMIN', 'DEV'].includes(userRole || '');
 
                 return (
                 <TableRow
@@ -680,7 +680,7 @@ export default function SalesProcessPage() {
       <Tabs defaultValue="active" className="w-full">
         <TabsList className={cn("grid w-full mb-4", userRole === 'USER' ? "grid-cols-1" : "grid-cols-2")}>
           <TabsTrigger value="active">Perlu Diproses</TabsTrigger>
-          {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'TCP') && (
+          {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'TCP' || userRole === 'DEV') && (
             <TabsTrigger value="history">Riwayat</TabsTrigger>
           )}
         </TabsList>

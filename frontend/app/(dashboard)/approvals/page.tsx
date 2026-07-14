@@ -191,14 +191,14 @@ function getRequestMeta(req: ChangeRequest): RequestMeta {
 
 export default function ApprovalsPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
   const { pendingRequests: masterRequests } = useChangeRequests({ enabled: isAdmin });
   const { pendingRequests: statusRequests } = useProductRequests({ enabled: isAdmin });
 
   const masterCount = masterRequests.data?.data?.length || 0;
   const statusCount = statusRequests.data?.data?.length || 0;
 
-  if (user && user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN') {
+  if (user && user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN' && user.role !== 'DEV') {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <div className="text-center">
@@ -288,7 +288,7 @@ export default function ApprovalsPage() {
 
 function MasterApprovals() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
   const { pendingRequests, approveRequest, rejectRequest } = useChangeRequests({ enabled: isAdmin });
   const [rejectOpen, setRejectOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -601,7 +601,7 @@ function MasterApprovals() {
 
 function StatusApprovals() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
   const { pendingRequests, approveRequest, rejectRequest } = useProductRequests({ enabled: isAdmin });
   const [rejectOpen, setRejectOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);

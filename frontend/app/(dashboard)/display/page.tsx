@@ -53,13 +53,14 @@ function roleLabel(role?: string) {
   if (role === 'TCP') return 'TCP - Eksekusi Pengiriman';
   if (role === 'USER') return 'USER - Pengajuan';
   if (role === 'ADMIN') return 'ADMIN - Review';
+  if (role === 'DEV') return 'DEV - Kontrol Penuh';
   return 'SUPER ADMIN - Kontrol Penuh';
 }
 
 export default function DisplaySystemPage() {
   const { user } = useAuth();
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
-  const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
   const isTcp = role === 'TCP';
   const [activeTab, setActiveTab] = useState<DisplayTab>(isTcp ? 'returns' : 'products');
   const [searchInput, setSearchInput] = useState('');

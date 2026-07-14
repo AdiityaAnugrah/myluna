@@ -169,7 +169,7 @@ export default function ExpensesPage() {
   };
 
   // Check authorization
-  if (!user || (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN')) {
+  if (!user || (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN' && user.role !== 'DEV')) {
     return (
       <div className="flex h-[80vh] w-full items-center justify-center">
         <div className="text-center space-y-4">
@@ -318,7 +318,7 @@ export default function ExpensesPage() {
                           >
                             <Pencil className="h-3 w-3" />
                           </Button>
-                          {user?.role === 'SUPER_ADMIN' && (
+                          {(user?.role === 'SUPER_ADMIN' || user?.role === 'DEV') && (
                             <Button
                               size="sm"
                               variant="outline"

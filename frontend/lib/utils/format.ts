@@ -38,6 +38,7 @@ export const formatCurrency = (amount: number | string) => {
 
 export const formatRole = (role: string) => {
   const map: Record<string, string> = {
+    DEV: 'Developer',
     SUPER_ADMIN: 'Super Admin',
     ADMIN: 'Administrator',
     USER: 'Pengguna',

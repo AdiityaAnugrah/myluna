@@ -18,7 +18,7 @@ export default function ReturnInspectionPage() {
   const inspectReturn = useInspectReturn();
   const user = useAuthStore((state) => state.user);
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
-  const canProcess = role === 'TCP' || role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const canProcess = role === 'TCP' || role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
   const returnData = returnQuery.data?.data;
 
   const [inspectionNotes, setInspectionNotes] = useState('');

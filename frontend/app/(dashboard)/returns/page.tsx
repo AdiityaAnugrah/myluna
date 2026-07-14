@@ -65,7 +65,7 @@ function statusClass(status: SaleReturnStatus) {
 export default function ReturnsPage() {
   const user = useAuthStore((state) => state.user);
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
-  const canCreate = role === 'USER' || role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const canCreate = role === 'USER' || role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
   const isUser = role === 'USER';
 
   const [statusFilter, setStatusFilter] = useState<string>('all');

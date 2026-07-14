@@ -108,7 +108,7 @@ export default function GlobalReportPage() {
 
   const { data: financialData, isLoading } = useFinancialSummary(
     startDate && endDate ? { startDate, endDate } : undefined,
-    { enabled: user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' }
+    { enabled: user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'DEV' }
   );
 
   const transactions: Transaction[] = (financialData as FinancialData)?.data?.transactions || [];
@@ -324,7 +324,7 @@ export default function GlobalReportPage() {
     setEndDate(lastDay);
   };
 
-  if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN') {
+  if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN' && user?.role !== 'DEV') {
     return (
       <div className="flex h-[80vh] w-full items-center justify-center">
         <div className="text-center space-y-4">
@@ -368,7 +368,7 @@ export default function GlobalReportPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              {user?.role === 'SUPER_ADMIN' && (
+              {(user?.role === 'SUPER_ADMIN' || user?.role === 'DEV') && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -379,7 +379,7 @@ export default function GlobalReportPage() {
                 </Button>
               )}
               <Button variant="outline" size="sm" onClick={handleReset}>Reset</Button>
-              {user?.role === 'SUPER_ADMIN' && (
+              {(user?.role === 'SUPER_ADMIN' || user?.role === 'DEV') && (
                 <>
                   <Button
                     variant="outline"

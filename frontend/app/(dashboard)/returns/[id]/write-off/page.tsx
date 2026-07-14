@@ -19,7 +19,7 @@ export default function ReturnWriteOffPage() {
   const writeOffReturn = useWriteOffReturn();
   const user = useAuthStore((state) => state.user);
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
-  const canProcessRole = role === 'TCP' || role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const canProcessRole = role === 'TCP' || role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
   const returnData = returnQuery.data?.data;
   const [inspectionNotes, setInspectionNotes] = useState('');
   const [finalOutcomeNotes, setFinalOutcomeNotes] = useState('');

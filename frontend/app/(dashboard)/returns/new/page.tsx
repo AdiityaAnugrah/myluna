@@ -18,7 +18,7 @@ export default function NewReturnPage() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
-  const canCreate = role === 'USER' || role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const canCreate = role === 'USER' || role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
 
   const [saleQuery, setSaleQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');

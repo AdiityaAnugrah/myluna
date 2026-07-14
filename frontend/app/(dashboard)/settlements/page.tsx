@@ -203,7 +203,7 @@ export default function SettlementsPage() {
         </div>
         {user?.role !== 'TCP' && (
           <div className="flex items-center gap-2">
-            {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (
+            {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV') && (
               <Button
                 variant="outline"
                 onClick={() => setOtherIncomeListOpen(true)}

@@ -70,7 +70,7 @@ export default function ProductsPage() {
 
   const { user } = useAuthStore();
   
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
 
   const router = useRouter();
 

@@ -217,6 +217,22 @@ export interface ApiResponse<T> {
   data: T;
 }
 
+export type AppRole = 'USER' | 'TCP' | 'ADMIN' | 'SUPER_ADMIN' | 'DEV' | 'TESTING';
+
+export interface FeatureFlag {
+  id: string;
+  key: string;
+  label: string;
+  description: string | null;
+  path: string | null;
+  isEnabled: boolean;
+  isDevelopment: boolean;
+  allowedRoles: AppRole[];
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Role {
   id: string;
   name: string;

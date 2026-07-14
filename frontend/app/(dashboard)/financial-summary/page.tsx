@@ -66,7 +66,7 @@ export default function FinancialSummaryPage() {
 
   const { data, isLoading: summaryLoading, refetch } = useFinancialSummary(
     startDate && endDate ? { startDate, endDate } : undefined,
-    { enabled: user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' }
+    { enabled: user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'DEV' }
   );
 
   const { data: salesData, isLoading: salesLoading } = useSales({
@@ -78,7 +78,7 @@ export default function FinancialSummaryPage() {
 
   const isLoading = summaryLoading || salesLoading || platformsLoading;
 
-  if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN') {
+  if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN' && user?.role !== 'DEV') {
     return (
       <div className="flex h-[80vh] w-full items-center justify-center">
         <div className="text-center space-y-4">

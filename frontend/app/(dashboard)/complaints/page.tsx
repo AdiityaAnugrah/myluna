@@ -136,9 +136,10 @@ export default function ComplaintsPage() {
   const isTcp = role === 'TCP';
   const isAdmin = role === 'ADMIN';
   const isSuperAdmin = role === 'SUPER_ADMIN';
-  const isAdminView = isAdmin || isSuperAdmin;
-  const canCreate = isUser || isAdmin || isSuperAdmin;
-  const canTcpProcess = isTcp || isSuperAdmin || isAdmin;
+  const isDev = role === 'DEV';
+  const isAdminView = isAdmin || isSuperAdmin || isDev;
+  const canCreate = isUser || isAdmin || isSuperAdmin || isDev;
+  const canTcpProcess = isTcp || isSuperAdmin || isAdmin || isDev;
 
   const today = getTodayDateInputValue();
 
@@ -724,7 +725,7 @@ export default function ComplaintsPage() {
                 const isFollowUpRequired = complaint.status === 'FOLLOW_UP_REQUIRED';
                 const canMarkHandled = complaint.status === 'ACCEPTED_BY_TCP';
                 const canUserConfirm =
-                  (isUser || isAdmin || isSuperAdmin) &&
+                  (isUser || isAdmin || isSuperAdmin || isDev) &&
                   ['WAITING_USER_CONFIRMATION', 'REPLACEMENT_SHIPPED'].includes(complaint.status);
                 return (
                   <div key={complaint.id} className="rounded-lg border p-3">

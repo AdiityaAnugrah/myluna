@@ -93,7 +93,7 @@ export default function ReturnDetailPage() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
-  const canProcess = role === 'TCP' || role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const canProcess = role === 'TCP' || role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
   const isUser = role === 'USER';
 
   const returnQuery = useReturn(params.id);

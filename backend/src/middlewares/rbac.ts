@@ -10,8 +10,8 @@ export function rbac(allowedRoles: string[]) {
     const userRole = req.user.roleName.toUpperCase();
     const requiredRoles = allowedRoles.map(r => r.toUpperCase());
 
-    // TESTING role can access protected features for end-to-end simulation.
-    if (userRole === 'TESTING') {
+    // DEV berada di atas semua role, TESTING tetap bisa akses untuk simulasi end-to-end.
+    if (userRole === 'DEV' || userRole === 'TESTING') {
       return next();
     }
 
