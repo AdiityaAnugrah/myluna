@@ -6,110 +6,8 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { useNotifications } from '@/lib/hooks/useNotifications';
 import { useFeatures } from '@/lib/hooks/useFeatures';
 import { Badge } from '@/components/ui/badge';
+import { navigationGroups } from '@/lib/features/catalog';
 import { cn } from '@/lib/utils';
-import {
-  LayoutDashboard,
-  Package,
-  FolderTree,
-  Users,
-  ShoppingCart,
-  ShoppingBag,
-  MessageSquareWarning,
-  BarChart3,
-  FileText,
-  Store,
-  History,
-  Settings,
-  FileCheck,
-  Coins,
-  DollarSign,
-  Truck,
-  PackageOpen,
-  Code2,
-  type LucideIcon,
-} from 'lucide-react';
-
-type NotificationKey =
-  | 'pendingSales'
-  | 'pendingApprovals'
-  | 'overdueSettlements'
-  | 'complaints'
-  | 'returns'
-  | 'displayRequests';
-
-interface NavigationItem {
-  name: string;
-  href: string;
-  icon: LucideIcon;
-  featureKey?: string;
-  notificationKey?: NotificationKey;
-}
-
-interface NavigationGroup {
-  title: string;
-  items: NavigationItem[];
-}
-
-const navigationGroups: NavigationGroup[] = [
-  {
-    title: 'Ringkasan',
-    items: [
-      { name: 'Dasbor', href: '/', icon: LayoutDashboard, featureKey: 'dashboard' },
-      { name: 'Analisa', href: '/analytics', icon: BarChart3, featureKey: 'analytics' },
-    ]
-  },
-  {
-    title: 'Inventaris',
-    items: [
-      { name: 'Data Master', href: '/products', icon: Package, featureKey: 'products' },
-      { name: 'Sistem Display', href: '/display', icon: PackageOpen, featureKey: 'display', notificationKey: 'displayRequests' },
-      { name: 'Kategori', href: '/categories', icon: FolderTree, featureKey: 'categories' },
-      { name: 'Stok', href: '/stock', icon: BarChart3, featureKey: 'stock' },
-    ]
-  },
-  {
-    title: 'Pengajuan Stok',
-    items: [
-      { name: 'Pengajuan Stok', href: '/purchases', icon: ShoppingCart, featureKey: 'purchases' },
-      { name: 'Supplier', href: '/suppliers', icon: Users, featureKey: 'suppliers' },
-    ]
-  },
-  {
-    title: 'Penjualan',
-    items: [
-      { name: 'Penjualan', href: '/sales', icon: ShoppingBag, featureKey: 'sales' },
-      { name: 'Proses Penjualan', href: '/sales/process', icon: FileCheck, featureKey: 'sales-process', notificationKey: 'pendingSales' },
-      { name: 'Komplen', href: '/complaints', icon: MessageSquareWarning, featureKey: 'complaints', notificationKey: 'complaints' },
-    ]
-  },
-  {
-    title: 'Keuangan',
-    items: [
-      { name: 'Ringkasan Keuangan', href: '/financial-summary', icon: DollarSign, featureKey: 'financial-summary' },
-      { name: 'Pelunasan', href: '/settlements', icon: Coins, featureKey: 'settlements', notificationKey: 'overdueSettlements' },
-
-      { name: 'Laporan Global', href: '/finance/global-report', icon: FileText, featureKey: 'finance-global-report' },
-    ]
-  },
-
-  {
-    title: 'Sistem',
-    items: [
-      { name: 'Pengguna', href: '/users', icon: Users, featureKey: 'users' },
-      { name: 'Platform', href: '/platforms', icon: Store, featureKey: 'platforms' },
-      { name: 'Jasa Pengiriman', href: '/shipping', icon: Truck, featureKey: 'shipping' },
-      { name: 'Persetujuan', href: '/approvals', icon: FileText, featureKey: 'approvals', notificationKey: 'pendingApprovals' },
-      { name: 'Pengaturan', href: '/settings', icon: Settings, featureKey: 'settings' },
-      { name: 'Riwayat Aktivitas', href: '/activities', icon: History, featureKey: 'activities' },
-    ]
-  },
-  {
-    title: 'Developer',
-    items: [
-      { name: 'Dev Control', href: '/dev/features', icon: Code2, featureKey: 'dev-feature-control' },
-    ]
-  }
-];
 
 import { Logo } from '@/components/ui/logo';
 
@@ -132,73 +30,35 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
   const filteredGroups = navigationGroups.map(group => {
     let groupItems = group.items;
 
-    // Logic for USER
-    if (role === 'USER') {
-      const allowedGroups = ['Ringkasan', 'Inventaris', 'Pengajuan Stok', 'Penjualan', 'Keuangan', 'Sistem'];
-
-      if (!allowedGroups.includes(group.title)) {
-        groupItems = [];
-      } else if (group.title === 'Ringkasan') {
-        groupItems = group.items.filter(item => item.href === '/');
-      } else if (group.title === 'Keuangan') {
-        groupItems = group.items.filter(item => item.href === '/settlements');
-      } else if (group.title === 'Sistem') {
-        groupItems = group.items.filter(item => item.href === '/settings');
-      }
-    }
-
-    // Logic for ADMIN: full access except /users, /activities, and /platforms
-    if (role === 'ADMIN') {
-      if (group.title === 'Sistem') {
-        groupItems = group.items.filter(item =>
-            item.href !== '/users' && item.href !== '/activities' && item.href !== '/platforms'
-          );
-      } else if (group.title === 'Developer') {
-        groupItems = [];
-      } else {
-        groupItems = group.items;
-      }
-    }
-
-    // Logic for TCP
-    if (role === 'TCP') {
-        const allowedGroups = ['Ringkasan', 'Penjualan', 'Inventaris', 'Sistem'];
-
-        if (!allowedGroups.includes(group.title)) {
-            groupItems = [];
-        } else if (group.title === 'Ringkasan') {
-            groupItems = group.items.filter(item => item.href === '/');
-        } else if (group.title === 'Penjualan') {
-            groupItems = group.items.filter(item => item.href === '/sales/process' || item.href === '/complaints');
-        } else if (group.title === 'Inventaris') {
-            groupItems = group.items.filter(item => item.href === '/display');
-        } else if (group.title === 'Sistem') {
-            groupItems = group.items.filter(item => item.href === '/settings');
-        }
-    }
-
-    // Filter "Proses Penjualan" — only visible to TCP, ADMIN, SUPER_ADMIN
-    if (group.title === 'Penjualan' && role !== 'ADMIN') {
-        if (role !== 'TCP' && role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
-            groupItems = groupItems.filter(item => item.href !== '/sales/process');
-        }
-    }
-
-    if (role === 'SUPER_ADMIN') {
-      groupItems = group.title === 'Developer' ? [] : group.items;
-    }
-
-    if (isDev) {
-      groupItems = group.items;
-    }
-
     if (featureControlReady) {
-      groupItems = groupItems.filter((item) => {
-        const feature = item.featureKey ? featureMap.get(item.featureKey) : undefined;
-        if (!feature) return true;
-        if (isDev) return true;
-        return feature.isEnabled;
+      groupItems = group.items.filter((item) => {
+        const feature = featureMap.get(item.featureKey);
+        if (!feature) return false;
+        return isDev || feature.isEnabled;
       });
+    } else {
+      // Fallback lama hanya dipakai saat API Feature Control belum terbaca.
+      if (role === 'USER') {
+        if (group.title === 'Ringkasan') groupItems = group.items.filter(item => item.href === '/');
+        else if (group.title === 'Keuangan') groupItems = group.items.filter(item => item.href === '/settlements');
+        else if (group.title === 'Sistem') groupItems = group.items.filter(item => item.href === '/settings');
+        else if (group.title === 'Developer') groupItems = [];
+      }
+
+      if (role === 'TCP') {
+        if (group.title === 'Ringkasan') groupItems = group.items.filter(item => item.href === '/');
+        else if (group.title === 'Penjualan') groupItems = group.items.filter(item => item.href === '/sales/process' || item.href === '/complaints');
+        else if (group.title === 'Inventaris') groupItems = group.items.filter(item => item.href === '/display');
+        else if (group.title === 'Sistem') groupItems = group.items.filter(item => item.href === '/settings');
+        else groupItems = [];
+      }
+
+      if (role === 'ADMIN' && group.title === 'Sistem') {
+        groupItems = group.items.filter(item => item.href !== '/users' && item.href !== '/activities' && item.href !== '/platforms');
+      }
+
+      if (group.title === 'Developer' && !isDev) groupItems = [];
+      if (isDev) groupItems = group.items;
     }
 
     return { ...group, items: groupItems };

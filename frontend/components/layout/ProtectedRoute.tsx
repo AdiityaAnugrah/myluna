@@ -3,6 +3,8 @@
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
+import { useFeatures } from '@/lib/hooks/useFeatures';
+import { findNavigationItemByPath } from '@/lib/features/catalog';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -10,6 +12,9 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const pathname = usePathname();
+  const { data: featuresResponse, isLoading: isLoadingFeatures } = useFeatures({ enabled: isAuthenticated });
+  const features = featuresResponse?.data || [];
+  const featureControlReady = features.length > 0;
 
   useEffect(() => {
     // Only redirect after hydration is complete
@@ -27,6 +32,21 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         const effectiveRole = user.isTestingMode ? 'SUPER_ADMIN' : role;
         
         console.log('Role extracted:', role);
+
+        if (featureControlReady) {
+          const navItem = findNavigationItemByPath(pathname);
+          const isDev = effectiveRole === 'DEV';
+          const allowedFeature = navItem
+            ? features.find((feature) => feature.key === navItem.featureKey && feature.isEnabled)
+            : undefined;
+
+          if (navItem && !isDev && !allowedFeature) {
+            console.warn('Feature access denied for:', pathname, 'Role:', effectiveRole, 'Feature:', navItem.featureKey);
+            router.push('/');
+            return;
+          }
+        }
+
         // Define restricted paths
         const restrictions = [
           { path: '/users', roles: ['SUPER_ADMIN', 'DEV'] },
@@ -37,7 +57,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
           // { path: '/products', roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] }, // Temporarily disable product restriction for debugging
         ];
 
-        const restriction = restrictions.find(r => pathname.startsWith(r.path));
+        const restriction = !featureControlReady ? restrictions.find(r => pathname.startsWith(r.path)) : undefined;
         
         if (restriction && !restriction.roles.includes(effectiveRole)) {
           console.warn('Access denied for:', pathname, 'Role:', effectiveRole);
@@ -46,10 +66,10 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [isAuthenticated, hasHydrated, router, user, pathname]);
+  }, [isAuthenticated, hasHydrated, router, user, pathname, featureControlReady, features]);
 
   // Show nothing while hydrating or not authenticated
-  if (!hasHydrated || !isAuthenticated) {
+  if (!hasHydrated || !isAuthenticated || (isAuthenticated && isLoadingFeatures)) {
     return null;
   }
 

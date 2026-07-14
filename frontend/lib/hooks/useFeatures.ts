@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { featuresApi, type UpdateFeaturePayload } from '@/lib/api/features';
 
-export function useFeatures() {
+export function useFeatures(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['features'],
     queryFn: featuresApi.getAll,
+    enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,
   });
 }
