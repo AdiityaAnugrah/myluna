@@ -761,6 +761,9 @@ export interface DisplayProduct {
   displayUsed?: number;
   displayAvailable?: number;
   needsDisplayRequest?: boolean;
+  canRequestDisplay?: boolean;
+  canReturnDisplay?: boolean;
+  isDiscontinued?: boolean;
   minStock: number;
   estimatedValue?: string | null;
   condition: DisplayProductCondition;

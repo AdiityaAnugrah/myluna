@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
 import { sequelize } from '../config/database';
 import {
   Category,
@@ -120,6 +120,9 @@ function slotView(product: any) {
     displayUsed: used,
     displayAvailable: available,
     needsDisplayRequest: used <= 0,
+    canRequestDisplay: Boolean(product.isActive),
+    canReturnDisplay: used > 0,
+    isDiscontinued: !product.isActive,
     minStock: 0,
     estimatedValue: slot?.estimatedValue || product.sellingPrice,
     condition: slot?.condition || 'GOOD',
@@ -193,15 +196,16 @@ export const displayController = {
     try {
       const { page = 1, limit = 20, search = '', categoryId = '', status = '' } = req.query;
       const offset = (Number(page) - 1) * Number(limit);
-      const where: any = { isActive: true };
-      if (categoryId) where.categoryId = categoryId;
-      if (search) where[Op.or] = [{ sku: { [Op.like]: `%${search}%` } }, { name: { [Op.like]: `%${search}%` } }];
+      const andWhere: any[] = [{ [Op.or]: [{ isActive: true }, literal('`displaySlot`.`stock` > 0')] }];
+      if (categoryId) andWhere.push({ categoryId });
+      if (search) andWhere.push({ [Op.or]: [{ sku: { [Op.like]: `%${search}%` } }, { name: { [Op.like]: `%${search}%` } }] });
+      const where: any = { [Op.and]: andWhere };
       const include: any[] = [
         { model: Category, as: 'category' },
         { model: ProductVariant, as: 'variantItems' },
         { model: DisplayProduct, as: 'displaySlot', required: false },
       ];
-      const result = await Product.findAndCountAll({ where, include, order: [['updatedAt', 'DESC']], limit: Number(limit), offset, distinct: true });
+      const result = await Product.findAndCountAll({ where, include, order: [['updatedAt', 'DESC']], limit: Number(limit), offset, distinct: true, subQuery: false });
       let rows = result.rows.map((row: any) => slotView(row));
       if (status) rows = rows.filter((row) => row.status === status);
       return successResponse(res, { products: rows, pagination: { total: result.count, page: Number(page), limit: Number(limit), totalPages: Math.ceil(result.count / Number(limit)) } }, 'Produk display berhasil diambil dari data produk asli', 200);
@@ -275,9 +279,14 @@ export const displayController = {
     try {
       const productId = req.body.productId;
       if (!productId) throw new AppError('Produk wajib dipilih', 400);
-      const { slot } = await ensureDisplaySlot(productId, req.user!.id, transaction);
       const type = req.body.type as DisplayRequestType;
       if (!Object.values(DisplayRequestType).includes(type)) throw new AppError('Tipe pengajuan display tidak valid', 400);
+      if (type === DisplayRequestType.STOCK_IN) {
+        const product = await Product.findByPk(productId, { transaction });
+        if (!product) throw new AppError('Produk asli tidak ditemukan', 404);
+        if (!product.isActive) throw new AppError('Produk ini sudah tidak dijual, tidak bisa diajukan display. Gunakan Retur Display untuk pengembalian barang.', 400);
+      }
+      const { slot } = await ensureDisplaySlot(productId, req.user!.id, transaction);
       const pending = await DisplayStockRequest.findOne({ where: { productId: slot.id, status: DisplayRequestStatus.PENDING }, transaction });
       if (pending) throw new AppError('Produk ini masih memiliki pengajuan display yang menunggu review', 400);
       if (type === DisplayRequestType.STOCK_IN && slot.stock >= slot.slotLimit) throw new AppError('Slot display produk ini sudah terisi', 400);
@@ -307,7 +316,7 @@ export const displayController = {
   async reviewRequest(req: Request, res: Response, next: NextFunction) {
     const transaction = await sequelize.transaction();
     try {
-      const request = await DisplayStockRequest.findByPk(req.params.id, { include: [{ model: DisplayProduct, as: 'product' }], transaction });
+      const request = await DisplayStockRequest.findByPk(req.params.id, { include: [{ model: DisplayProduct, as: 'product', include: [{ model: Product, as: 'sourceProduct' }] }], transaction });
       if (!request) throw new AppError('Pengajuan display tidak ditemukan', 404);
       if (request.status !== DisplayRequestStatus.PENDING) throw new AppError('Pengajuan display sudah diproses', 400);
       const action = String(req.body.action || '').toLowerCase();
@@ -315,6 +324,7 @@ export const displayController = {
         await request.update({ status: DisplayRequestStatus.REJECTED, reviewedBy: req.user!.id, reviewedAt: new Date(), rejectionReason: req.body.rejectionReason || null }, { transaction });
       } else if (action === 'approve') {
         const slot = (request as any).product as DisplayProduct;
+        if (request.type === DisplayRequestType.STOCK_IN && !(slot as any).sourceProduct?.isActive) throw new AppError('Produk sudah tidak dijual, pengajuan display tidak bisa disetujui. Buat Retur Display untuk pengembalian barang.', 400);
         let movementType: DisplayMovementType = DisplayMovementType.IN;
         let stockAfter = slot.stock;
         if (request.type === DisplayRequestType.STOCK_IN) { movementType = DisplayMovementType.IN; stockAfter += request.quantity; }

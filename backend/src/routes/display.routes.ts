@@ -30,7 +30,7 @@ router.post('/requests', rbac(['USER', 'ADMIN', 'SUPER_ADMIN']), displayControll
 router.post('/requests/:id/review', rbac(['ADMIN', 'SUPER_ADMIN']), displayController.reviewRequest);
 
 router.get('/returns', displayController.getReturns);
-router.post('/returns', rbac(['USER', 'ADMIN', 'SUPER_ADMIN']), displayController.createReturn);
+router.post('/returns', rbac(['USER', 'TCP', 'ADMIN', 'SUPER_ADMIN']), displayController.createReturn);
 router.get('/returns/:id', displayController.getReturnById);
 router.post('/returns/:id/status', rbac(['TCP', 'ADMIN', 'SUPER_ADMIN']), displayController.updateReturnStatus);
 

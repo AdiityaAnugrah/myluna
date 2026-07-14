@@ -91,7 +91,7 @@ export default function DisplaySystemPage() {
   const pendingRequestCount = requestRows.filter((request) => request.status === 'PENDING').length;
   const activeReturnCount = returnRows.filter((item) => !['COMPLETED', 'CANCELLED'].includes(item.status)).length;
   const activeDisplayCount = productRows.filter((product) => (product.displayUsed ?? product.stock) > 0).length;
-  const emptyDisplayCount = productRows.filter((product) => (product.displayUsed ?? product.stock) <= 0).length;
+  const emptyDisplayCount = productRows.filter((product) => (product.displayUsed ?? product.stock) <= 0 || product.isDiscontinued).length;
   const tabs: Array<{ key: DisplayTab; label: string; icon: typeof PackageOpen; count?: number; visible?: boolean }> = [
     { key: 'products', label: 'Produk Display', icon: PackageOpen, count: productRows.length, visible: !isTcp },
     { key: 'requests', label: isAdmin ? 'Review Pengajuan' : 'Pengajuan Saya', icon: ClipboardList, count: pendingRequestCount, visible: !isTcp },
@@ -109,6 +109,12 @@ export default function DisplaySystemPage() {
   };
   const ensureSlotThenRequest = (product: DisplayProduct) => {
     const used = product.displayUsed ?? product.stock;
+    if (product.isDiscontinued) {
+      if (used > 0 && product.id) {
+        startReturn(product);
+      }
+      return;
+    }
     setRequestForm((prev) => ({
       ...prev,
       productId: product.productId || '',
@@ -122,15 +128,25 @@ export default function DisplaySystemPage() {
     setShowRequestForm(true);
     setActiveTab('requests');
   };
+  const startReturn = (product: DisplayProduct) => {
+    if (!product.id) return;
+    setReturnForm((prev) => ({
+      ...prev,
+      displayProductId: product.id || '',
+      reason: product.isDiscontinued ? 'Produk sudah tidak dijual, barang display dikembalikan.' : prev.reason,
+    }));
+    setShowReturnForm(true);
+    setActiveTab('returns');
+  };
 
   return <div className="space-y-6">
     <style jsx global>{`@media print { body * { visibility: hidden; } #display-letter, #display-letter * { visibility: visible; } #display-letter { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; border: none !important; } .no-print { display: none !important; } }`}</style>
     <Breadcrumbs items={[{ label: 'Sistem Display' }]} />
-    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">Cek produk display, lalu ajukan produk yang perlu dipasang display. Stok penjualan tidak berubah.</p></div><div className="flex flex-col gap-2 sm:flex-row no-print">{!isTcp && <Button onClick={() => { setDisplayFilter('need-offname'); setActiveTab('products'); }}><ClipboardList className="mr-2 h-4 w-4" /> Cek Display</Button>}{!isTcp && <Button variant="outline" onClick={() => { setShowReturnForm(true); setActiveTab('returns'); }}><Truck className="mr-2 h-4 w-4" /> Retur Display</Button>}</div></div>
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">Cek produk display, lalu ajukan produk yang perlu dipasang display. Jika produk sudah tidak dijual, lakukan Retur Display.</p></div><div className="flex flex-col gap-2 sm:flex-row no-print">{!isTcp && <Button onClick={() => { setDisplayFilter('need-offname'); setActiveTab('products'); }}><ClipboardList className="mr-2 h-4 w-4" /> Cek Display</Button>}<Button variant={isTcp ? 'default' : 'outline'} onClick={() => { setShowReturnForm(true); setActiveTab('returns'); }}><Truck className="mr-2 h-4 w-4" /> Retur Display</Button></div></div>
     <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Produk Asli" value={summary.data?.data?.totalProducts ?? productRows.length} note="Sumber data master produk" /><Summary title="Perlu Dicek" value={emptyDisplayCount} note="Display masih 0/1" /><Summary title="Menunggu Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note="Pengajuan dari user" /><Summary title="Retur Aktif" value={summary.data?.data?.activeReturns ?? activeReturnCount} note="Perlu dikirim/diterima" /></div>
     <RoleGuide role={role} isAdmin={isAdmin} isTcp={isTcp} />
     <Card className="no-print"><CardContent className="pt-4"><div className="flex flex-wrap gap-2">{tabs.filter((tab) => tab.visible !== false).map((tab) => { const Icon = tab.icon; return <Button key={tab.key} type="button" variant={activeTab === tab.key ? 'default' : 'outline'} onClick={() => setActiveTab(tab.key)} className="gap-2"><Icon className="h-4 w-4" />{tab.label}{tab.count !== undefined && <Badge variant="secondary" className="ml-1">{tab.count}</Badge>}</Button>; })}</div></CardContent></Card>
-    {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); }} ensureSlotThenRequest={ensureSlotThenRequest} displayFilter={displayFilter} setDisplayFilter={setDisplayFilter} />}
+    {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); }} ensureSlotThenRequest={ensureSlotThenRequest} startReturn={startReturn} displayFilter={displayFilter} setDisplayFilter={setDisplayFilter} />}
     {activeTab === 'requests' && <RequestsTab isAdmin={isAdmin} showForm={showRequestForm} setShowForm={setShowRequestForm} productRows={productRows} requestForm={requestForm} setRequestForm={setRequestForm} submitRequest={submitRequest} createPending={createRequest.isPending} requestRows={requestRows} reviewRequest={reviewRequest} requestStatusFilter={requestStatusFilter} setRequestStatusFilter={setRequestStatusFilter} />}
     {activeTab === 'returns' && <ReturnsTab isAdmin={isAdmin} isTcp={isTcp} showForm={showReturnForm} setShowForm={setShowReturnForm} productRows={productRows} returnRows={returnRows} returnForm={returnForm} setReturnForm={setReturnForm} submitReturn={submitReturn} createPending={createReturn.isPending} setSelectedReturnId={setSelectedReturnId} setActiveTab={setActiveTab} updateReturnStatus={updateReturnStatus} />}
     {activeTab === 'letter' && <div className="space-y-4"><div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between no-print"><div><h2 className="text-lg font-semibold">Surat Jalan Retur Display</h2><p className="text-sm text-muted-foreground">Pilih surat jalan lalu cetak untuk dibawa bersama barang.</p></div><div className="flex gap-2"><select className="h-10 rounded-md border bg-background px-3 text-sm" value={selectedReturn?.id || ''} onChange={(e) => setSelectedReturnId(e.target.value)}>{returnRows.map((item) => <option key={item.id} value={item.id}>{item.letterNumber} - {item.recipientName}</option>)}</select><Button onClick={() => window.print()} disabled={!selectedReturn}><Printer className="mr-2 h-4 w-4" />Cetak</Button></div></div>{selectedReturn ? <LetterTemplate displayReturn={selectedReturn} /> : <Card><CardContent className="py-10 text-center text-muted-foreground">Belum ada surat jalan. Buat Retur Display terlebih dahulu.</CardContent></Card>}</div>}
@@ -151,7 +167,7 @@ function Summary({ title, value, note }: { title: string; value: number; note: s
 
 function RoleGuide({ role, isAdmin, isTcp }: { role?: string; isAdmin: boolean; isTcp: boolean }) {
   const guide = isTcp
-    ? { title: 'Fokus TCP', desc: 'Lihat tugas Retur Display, buka Surat Jalan, lalu tandai barang dikirim atau diterima.', tone: 'border-blue-200 bg-blue-50/60 text-blue-900' }
+    ? { title: 'Untuk TCP', desc: 'Buat Retur Display, cetak Surat Jalan, lalu tandai barang dikirim atau diterima.', tone: 'border-blue-200 bg-blue-50/60 text-blue-900' }
     : isAdmin
       ? { title: 'Untuk Admin', desc: 'Cukup review pengajuan display dari user, lalu setujui atau tolak.', tone: 'border-primary/20 bg-primary/5 text-primary' }
       : { title: 'Untuk User', desc: 'Cek produk yang perlu display, lalu klik Ajukan Display.', tone: 'border-amber-200 bg-amber-50/70 text-amber-900' };
@@ -179,10 +195,10 @@ function ProductPhoto({ product }: { product: DisplayProduct }) {
 }
 
 
-function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, applySearch, reset, ensureSlotThenRequest, displayFilter, setDisplayFilter }: any) {
+function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, applySearch, reset, ensureSlotThenRequest, startReturn, displayFilter, setDisplayFilter }: any) {
   const filteredRows = productRows.filter((product: DisplayProduct) => {
     const used = product.displayUsed ?? product.stock;
-    if (displayFilter === 'need-offname') return used <= 0;
+    if (displayFilter === 'need-offname') return used <= 0 || product.isDiscontinued;
     return true;
   });
 
@@ -221,6 +237,7 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
           const used = product.displayUsed ?? product.stock;
           const limit = product.slotLimit ?? 1;
           const hasDisplayStock = used > 0;
+          const isDiscontinued = !!product.isDiscontinued;
           return (
             <Card key={product.productId || product.id || product.sku} className="overflow-hidden">
               <CardContent className="p-4">
@@ -229,7 +246,11 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-semibold">{product.name}</div>
                     <div className="text-xs text-muted-foreground">SKU: {product.sku}</div>
-                    <div className="mt-2 flex flex-wrap gap-1">{statusBadge(product.status)} {!hasDisplayStock && <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-200">Perlu Dicek</Badge>}</div>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {statusBadge(product.status)}
+                      {isDiscontinued && <Badge variant="outline" className="border-red-200 bg-red-100 text-red-800">Tidak Dijual Lagi</Badge>}
+                      {!hasDisplayStock && !isDiscontinued && <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-200">Perlu Dicek</Badge>}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg bg-muted/40 p-3 text-center text-sm">
@@ -237,8 +258,13 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
                   <div><div className="text-xs text-muted-foreground">Display</div><div className="font-semibold">{used}/{limit}</div></div>
                   <div><div className="text-xs text-muted-foreground">Kategori</div><div className="truncate font-semibold">{product.category?.name || '-'}</div></div>
                 </div>
-                <Button className="mt-4 w-full" variant={hasDisplayStock ? 'outline' : 'default'} onClick={() => ensureSlotThenRequest(product)}>
-                  {hasDisplayStock ? 'Ajukan Ganti/Kosongkan' : 'Ajukan Display'}
+                <Button
+                  className="mt-4 w-full"
+                  variant={isDiscontinued ? 'destructive' : hasDisplayStock ? 'outline' : 'default'}
+                  disabled={isDiscontinued && !hasDisplayStock}
+                  onClick={() => isDiscontinued ? startReturn(product) : ensureSlotThenRequest(product)}
+                >
+                  {isDiscontinued ? (hasDisplayStock ? 'Retur Display' : 'Tidak Bisa Display') : hasDisplayStock ? 'Ajukan Ganti/Kosongkan' : 'Ajukan Display'}
                 </Button>
               </CardContent>
             </Card>
