@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { Op, literal } from 'sequelize';
+import { Op } from 'sequelize';
 import { sequelize } from '../config/database';
 import {
   Category,
@@ -196,19 +196,18 @@ export const displayController = {
     try {
       const { page = 1, limit = 20, search = '', categoryId = '', status = '' } = req.query;
       const offset = (Number(page) - 1) * Number(limit);
-      const andWhere: any[] = [{ [Op.or]: [{ isActive: true }, literal('`displaySlot`.`stock` > 0')] }];
-      if (categoryId) andWhere.push({ categoryId });
-      if (search) andWhere.push({ [Op.or]: [{ sku: { [Op.like]: `%${search}%` } }, { name: { [Op.like]: `%${search}%` } }] });
-      const where: any = { [Op.and]: andWhere };
+      const where: any = {};
+      if (categoryId) where.categoryId = categoryId;
+      if (search) where[Op.or] = [{ sku: { [Op.like]: `%${search}%` } }, { name: { [Op.like]: `%${search}%` } }];
       const include: any[] = [
         { model: Category, as: 'category' },
         { model: ProductVariant, as: 'variantItems' },
         { model: DisplayProduct, as: 'displaySlot', required: false },
       ];
-      const result = await Product.findAndCountAll({ where, include, order: [['updatedAt', 'DESC']], limit: Number(limit), offset, distinct: true, subQuery: false });
-      let rows = result.rows.map((row: any) => slotView(row));
+      const result = await Product.findAndCountAll({ where, include, order: [['updatedAt', 'DESC']], limit: Number(limit), offset, distinct: true });
+      let rows = result.rows.map((row: any) => slotView(row)).filter((row) => row.isActive || row.displayUsed > 0);
       if (status) rows = rows.filter((row) => row.status === status);
-      return successResponse(res, { products: rows, pagination: { total: result.count, page: Number(page), limit: Number(limit), totalPages: Math.ceil(result.count / Number(limit)) } }, 'Produk display berhasil diambil dari data produk asli', 200);
+      return successResponse(res, { products: rows, pagination: { total: rows.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(rows.length / Number(limit)) } }, 'Produk display berhasil diambil dari data produk asli', 200);
     } catch (error) { return next(error); }
   },
 
