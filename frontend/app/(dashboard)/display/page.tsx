@@ -233,47 +233,59 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {isLoading && <Card className="md:col-span-2 xl:col-span-3"><CardContent className="py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></CardContent></Card>}
-        {!isLoading && filteredRows.map((product: DisplayProduct) => {
-          const used = product.displayUsed ?? product.stock;
-          const limit = product.slotLimit ?? 1;
-          const hasDisplayStock = used > 0;
-          const isDiscontinued = !!product.isDiscontinued;
-          return (
-            <Card key={product.productId || product.id || product.sku} className="overflow-hidden">
-              <CardContent className="p-4">
-                <div className="flex gap-3">
-                  <ProductPhoto product={product} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-semibold">{product.name}</div>
-                    <div className="text-xs text-muted-foreground">SKU: {product.sku}</div>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {statusBadge(product.status)}
-                      {isDiscontinued && <Badge variant="outline" className="border-red-200 bg-red-100 text-red-800">Tidak Dijual Lagi</Badge>}
-                      {!hasDisplayStock && !isDiscontinued && <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-200">Perlu Dicek</Badge>}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg bg-muted/40 p-3 text-center text-sm">
-                  <div><div className="text-xs text-muted-foreground">Penjualan</div><div className="font-semibold">{product.salesStock ?? '-'} {product.unit}</div></div>
-                  <div><div className="text-xs text-muted-foreground">Display</div><div className="font-semibold">{used}/{limit}</div></div>
-                  <div><div className="text-xs text-muted-foreground">Kategori</div><div className="truncate font-semibold">{product.category?.name || '-'}</div></div>
-                </div>
-                <Button
-                  className="mt-4 w-full"
-                  variant={isDiscontinued ? 'destructive' : hasDisplayStock ? 'outline' : 'default'}
-                  disabled={isDiscontinued && !hasDisplayStock}
-                  onClick={() => isDiscontinued ? startReturn(product) : ensureSlotThenRequest(product)}
-                >
-                  {isDiscontinued ? (hasDisplayStock ? 'Retur Display' : 'Tidak Bisa Display') : hasDisplayStock ? 'Ajukan Ganti/Kosongkan' : 'Ajukan Display'}
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
-        {!isLoading && filteredRows.length === 0 && <Card className="md:col-span-2 xl:col-span-3"><CardContent className="py-10 text-center text-muted-foreground">Tidak ada produk pada filter ini.</CardContent></Card>}
-      </div>
+      <Card>
+        <CardContent className="p-0">
+          {isLoading && <div className="py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></div>}
+          {!isLoading && filteredRows.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produk</TableHead>
+                  <TableHead>Status Display</TableHead>
+                  <TableHead className="text-right">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRows.map((product: DisplayProduct) => {
+                  const used = product.displayUsed ?? product.stock;
+                  const hasDisplayStock = used > 0;
+                  const isDiscontinued = !!product.isDiscontinued;
+                  return (
+                    <TableRow key={product.productId || product.id || product.sku}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <ProductPhoto product={product} />
+                          <div className="min-w-0">
+                            <div className="font-medium">{product.name}</div>
+                            <div className="text-xs text-muted-foreground">SKU: {product.sku}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {isDiscontinued && <Badge variant="outline" className="border-red-200 bg-red-100 text-red-800">Tidak Dijual Lagi</Badge>}
+                          {hasDisplayStock ? <Badge variant="outline" className="border-green-200 bg-green-100 text-green-800">Sudah Ada Display</Badge> : <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-200">Display Kosong</Badge>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant={isDiscontinued ? 'destructive' : hasDisplayStock ? 'outline' : 'default'}
+                          disabled={isDiscontinued && !hasDisplayStock}
+                          onClick={() => isDiscontinued ? startReturn(product) : ensureSlotThenRequest(product)}
+                        >
+                          {isDiscontinued ? (hasDisplayStock ? 'Retur Display' : 'Tidak Bisa Display') : hasDisplayStock ? 'Ajukan Ganti' : 'Ajukan Display'}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+          {!isLoading && filteredRows.length === 0 && <div className="py-10 text-center text-muted-foreground">Tidak ada produk pada filter ini.</div>}
+        </CardContent>
+      </Card>
     </div>
   );
 }
