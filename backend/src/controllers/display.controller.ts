@@ -215,7 +215,7 @@ export const displayController = {
     try {
       const slots = await DisplayProduct.findAll({
         where: { isActive: true, stock: { [Op.gt]: 0 } },
-        include: [{ model: Product, as: 'sourceProduct', include: [{ model: Category, as: 'category' }] }],
+        include: [{ model: Product, as: 'sourceProduct', include: [{ model: Category, as: 'category' }, { model: ProductVariant, as: 'variantItems' }] }],
         order: [['updatedAt', 'DESC']],
       });
 
@@ -353,7 +353,7 @@ export const displayController = {
       const where: any = {};
       if (status) where.status = status;
       if (!isAdminRole(req.user?.roleName)) where.requestedBy = req.user!.id;
-      const requests = await DisplayStockRequest.findAll({ where, include: [{ model: DisplayProduct, as: 'product', include: [{ model: Product, as: 'sourceProduct', include: [{ model: Category, as: 'category' }] }] }, { model: User, as: 'requester', attributes: ['id', 'fullName', 'username'] }, { model: User, as: 'reviewer', attributes: ['id', 'fullName', 'username'] }], order: [['createdAt', 'DESC']] });
+      const requests = await DisplayStockRequest.findAll({ where, include: [{ model: DisplayProduct, as: 'product', include: [{ model: Product, as: 'sourceProduct', include: [{ model: Category, as: 'category' }, { model: ProductVariant, as: 'variantItems' }] }] }, { model: User, as: 'requester', attributes: ['id', 'fullName', 'username'] }, { model: User, as: 'reviewer', attributes: ['id', 'fullName', 'username'] }], order: [['createdAt', 'DESC']] });
       return successResponse(res, requests, 'Pengajuan display berhasil diambil', 200);
     } catch (error) { return next(error); }
   },

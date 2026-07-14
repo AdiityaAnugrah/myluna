@@ -197,6 +197,34 @@ function ProductPhoto({ product }: { product: DisplayProduct }) {
 }
 
 
+function getDisplayVariants(product: DisplayProduct | any) {
+  return product?.sourceProduct?.variantItems
+    || product?.sourceProduct?.variants
+    || product?.variantItems
+    || product?.variants
+    || [];
+}
+
+function variantSummary(product: DisplayProduct | any, emptyText = 'Varian: -') {
+  const variants = getDisplayVariants(product);
+  if (!Array.isArray(variants) || variants.length === 0) return emptyText;
+
+  const text = variants
+    .slice(0, 4)
+    .map((variant: any) => {
+      const name = String(variant?.name || '').trim();
+      const value = String(variant?.value || '').trim();
+      if (name && value) return `${name}: ${value}`;
+      return name || value;
+    })
+    .filter(Boolean)
+    .join(' • ');
+
+  if (!text) return emptyText;
+  return `Varian: ${text}${variants.length > 4 ? ` • +${variants.length - 4} lagi` : ''}`;
+}
+
+
 function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, applySearch, reset, ensureSlotThenRequest, startReturn, displayFilter, setDisplayFilter }: any) {
   const filteredRows = productRows.filter((product: DisplayProduct) => {
     const used = product.displayUsed ?? product.stock;
@@ -258,6 +286,7 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
                           <div className="min-w-0">
                             <div className="font-medium">{product.name}</div>
                             <div className="text-xs text-muted-foreground">SKU: {product.sku}</div>
+                            <div className="mt-1 max-w-xl text-xs text-muted-foreground">{variantSummary(product)}</div>
                           </div>
                         </div>
                       </TableCell>
@@ -298,7 +327,7 @@ function RequestsTab(props: any) {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle>Ajukan Display</DialogTitle><DialogDescription>Pilih produk dan tulis alasan singkat. Jumlah display otomatis 1 slot.</DialogDescription></DialogHeader>
           <div className="grid gap-4">
-            <label className="space-y-1"><span className="text-sm font-medium">Produk</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={requestForm.productId} onChange={(e) => setRequestForm((p: any) => ({ ...p, productId: e.target.value }))}><option value="">Pilih produk...</option>{productRows.map((p: DisplayProduct) => <option key={p.productId || p.id || p.sku} value={p.productId || ''}>{p.name} - Display {(p.displayUsed ?? p.stock)}/{p.slotLimit ?? 1}</option>)}</select></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Produk</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={requestForm.productId} onChange={(e) => setRequestForm((p: any) => ({ ...p, productId: e.target.value }))}><option value="">Pilih produk...</option>{productRows.map((p: DisplayProduct) => <option key={p.productId || p.id || p.sku} value={p.productId || ''}>{p.name} - {variantSummary(p)} - Display {(p.displayUsed ?? p.stock)}/{p.slotLimit ?? 1}</option>)}</select></label>
             <label className="space-y-1"><span className="text-sm font-medium">Kebutuhan</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={requestForm.type} onChange={(e) => setRequestForm((p: any) => ({ ...p, type: e.target.value, targetStock: e.target.value === 'STOCK_OUT' ? '0' : '1' }))}><option value="STOCK_IN">Ajukan Display</option><option value="STOCK_OUT">Kosongkan / Ganti Display</option></select></label>
             <label className="space-y-1"><span className="text-sm font-medium">Alasan</span><Textarea value={requestForm.reason} onChange={(e) => setRequestForm((p: any) => ({ ...p, reason: e.target.value }))} placeholder="Contoh: produk ini perlu dipasang display." /></label>
           </div>
@@ -309,7 +338,7 @@ function RequestsTab(props: any) {
       <Card>
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><CardTitle>{isAdmin ? 'Review Pengajuan Display' : 'Pengajuan Display Saya'}</CardTitle><select className="h-10 rounded-md border bg-background px-3 text-sm" value={requestStatusFilter || 'all'} onChange={(e) => setRequestStatusFilter(e.target.value === 'all' ? '' : e.target.value)}>{requestStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></CardHeader>
         <CardContent className="space-y-3">
-          {requestRows.map((request: any) => <div key={request.id} className="rounded-lg border p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><div className="font-semibold">{request.product?.sourceProduct?.name || request.product?.name || '-'}</div><div className="text-xs text-muted-foreground">{request.product?.sourceProduct?.sku || request.product?.sku} • {request.requester?.fullName || request.requester?.username || '-'}</div><p className="mt-2 text-sm">{request.reason}</p></div><div className="flex flex-wrap items-center gap-2">{statusBadge(request.type)}{statusBadge(request.status)}</div></div>{isAdmin && request.status === 'PENDING' && <div className="mt-3 flex justify-end gap-2"><Button size="sm" variant="outline" className="text-green-700" onClick={() => reviewRequest.mutate({ id: request.id, action: 'approve' })}><CheckCircle2 className="mr-1 h-4 w-4" />Setujui</Button><Button size="sm" variant="outline" className="text-red-700" onClick={() => reviewRequest.mutate({ id: request.id, action: 'reject', rejectionReason: 'Pengajuan belum sesuai.' })}><XCircle className="mr-1 h-4 w-4" />Tolak</Button></div>}</div>)}
+          {requestRows.map((request: any) => <div key={request.id} className="rounded-lg border p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><div className="font-semibold">{request.product?.sourceProduct?.name || request.product?.name || '-'}</div><div className="text-xs text-muted-foreground">{request.product?.sourceProduct?.sku || request.product?.sku} • {request.requester?.fullName || request.requester?.username || '-'}</div><div className="mt-1 text-xs text-muted-foreground">{variantSummary(request.product, 'Varian: -')}</div><p className="mt-2 text-sm">{request.reason}</p></div><div className="flex flex-wrap items-center gap-2">{statusBadge(request.type)}{statusBadge(request.status)}</div></div>{isAdmin && request.status === 'PENDING' && <div className="mt-3 flex justify-end gap-2"><Button size="sm" variant="outline" className="text-green-700" onClick={() => reviewRequest.mutate({ id: request.id, action: 'approve' })}><CheckCircle2 className="mr-1 h-4 w-4" />Setujui</Button><Button size="sm" variant="outline" className="text-red-700" onClick={() => reviewRequest.mutate({ id: request.id, action: 'reject', rejectionReason: 'Pengajuan belum sesuai.' })}><XCircle className="mr-1 h-4 w-4" />Tolak</Button></div>}</div>)}
           {requestRows.length === 0 && <div className="py-8 text-center text-muted-foreground">Belum ada pengajuan display.</div>}
         </CardContent>
       </Card>
@@ -326,7 +355,7 @@ function ReturnsTab(props: any) {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle>Buat Retur Display + Surat Jalan</DialogTitle><DialogDescription>Surat jalan otomatis dibuat setelah retur disimpan.</DialogDescription></DialogHeader>
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1"><span className="text-sm font-medium">Barang Display</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={returnForm.displayProductId} disabled={isLoadingProducts || returnableRows.length === 0} onChange={(e) => setReturnForm((p: any) => ({ ...p, displayProductId: e.target.value }))}><option value="">{isLoadingProducts ? 'Memuat barang display...' : returnableRows.length === 0 ? 'Tidak ada barang display' : 'Pilih barang...'}</option>{returnableRows.map((p: DisplayProduct) => <option key={p.id!} value={p.id!}>{p.name} - {p.sku}{p.isDiscontinued ? ' (Tidak dijual lagi)' : ''}</option>)}</select><span className="text-xs text-muted-foreground">Hanya barang yang sedang display yang muncul di sini.</span></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Barang Display</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={returnForm.displayProductId} disabled={isLoadingProducts || returnableRows.length === 0} onChange={(e) => setReturnForm((p: any) => ({ ...p, displayProductId: e.target.value }))}><option value="">{isLoadingProducts ? 'Memuat barang display...' : returnableRows.length === 0 ? 'Tidak ada barang display' : 'Pilih barang...'}</option>{returnableRows.map((p: DisplayProduct) => <option key={p.id!} value={p.id!}>{p.name} - {p.sku} - {variantSummary(p).replace('Varian: ', '')}{p.isDiscontinued ? ' (Tidak dijual lagi)' : ''}</option>)}</select><span className="text-xs text-muted-foreground">Hanya barang yang sedang display yang muncul di sini.</span></label>
             <label className="space-y-1"><span className="text-sm font-medium">Kondisi</span><Input value={returnForm.condition} onChange={(e) => setReturnForm((p: any) => ({ ...p, condition: e.target.value }))} /></label>
             <label className="space-y-1"><span className="text-sm font-medium">Kepada</span><Input value={returnForm.recipientName} onChange={(e) => setReturnForm((p: any) => ({ ...p, recipientName: e.target.value }))} /></label>
             <label className="space-y-1"><span className="text-sm font-medium">Dibawa Oleh</span><Input value={returnForm.carriedBy} onChange={(e) => setReturnForm((p: any) => ({ ...p, carriedBy: e.target.value }))} /></label>
