@@ -37,8 +37,17 @@ router.use('/products', auth, featureAccess('products', { readFallbackFeatureKey
 router.use('/categories', auth, featureAccess('categories', { readFallbackFeatureKeys: ['stock', 'products', 'sales', 'purchases', 'display'] }), categoryRoutes);
 router.use('/suppliers', auth, featureAccess('suppliers', { readFallbackFeatureKeys: ['purchases'] }), supplierRoutes);
 router.use('/purchases', auth, featureAccess('purchases'), purchaseRoutes);
-router.use('/sales/process', auth, featureAccess('sales-process'));
-router.use('/sales', auth, featureAccess('sales'), saleRoutes);
+router.use(
+  '/sales',
+  auth,
+  featureAccess('sales', {
+    readFallbackFeatureKeys: ['sales-process', 'complaints', 'returns', 'settlements'],
+    actionFallbackFeatureKeys: ['sales-process'],
+    actionFallbackMethods: ['POST'],
+    actionFallbackPathPattern: /^\/[^/]+\/(process|approve|reject)$/,
+  }),
+  saleRoutes
+);
 router.use('/stock', auth, featureAccess('stock'), stockRoutes);
 router.use('/product-requests', productRequestRoutes);
 router.use('/sale-requests', saleRequestRoutes);

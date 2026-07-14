@@ -4,6 +4,9 @@ import { ForbiddenError } from '../utils/errors';
 
 interface FeatureAccessOptions {
   readFallbackFeatureKeys?: string[];
+  actionFallbackFeatureKeys?: string[];
+  actionFallbackPathPattern?: RegExp;
+  actionFallbackMethods?: string[];
 }
 
 function isRoleAllowed(feature: FeatureFlag, role: string) {
@@ -35,6 +38,18 @@ export function featureAccess(featureKey: string, options: FeatureAccessOptions 
       if (isReadMethod && options.readFallbackFeatureKeys?.length) {
         const fallbackFeatures = await FeatureFlag.findAll({
           where: { key: options.readFallbackFeatureKeys },
+        });
+        if (fallbackFeatures.some((item) => isRoleAllowed(item, role))) {
+          return next();
+        }
+      }
+
+      const allowedActionMethods = (options.actionFallbackMethods || []).map((method) => method.toUpperCase());
+      const isActionFallbackMethod = allowedActionMethods.includes(req.method.toUpperCase());
+      const isActionFallbackPath = options.actionFallbackPathPattern?.test(req.path) ?? false;
+      if (isActionFallbackMethod && isActionFallbackPath && options.actionFallbackFeatureKeys?.length) {
+        const fallbackFeatures = await FeatureFlag.findAll({
+          where: { key: options.actionFallbackFeatureKeys },
         });
         if (fallbackFeatures.some((item) => isRoleAllowed(item, role))) {
           return next();
