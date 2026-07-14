@@ -8,10 +8,16 @@ export function featureAccess(featureKey: string) {
       if (!req.user) return next();
 
       const role = req.user.roleName.toUpperCase();
-      if (role === 'DEV' || role === 'TESTING') return next();
+      if (role === 'DEV') return next();
 
       const feature = await FeatureFlag.findOne({ where: { key: featureKey } });
       if (!feature) return next();
+
+      if (feature.isDevelopment) {
+        return next(new ForbiddenError('Fitur ini sedang dalam maintenance/pengembangan'));
+      }
+
+      if (role === 'TESTING') return next();
 
       const allowedRoles = Array.isArray(feature.allowedRoles)
         ? feature.allowedRoles.map((item) => String(item).toUpperCase())

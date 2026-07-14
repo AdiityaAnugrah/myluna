@@ -79,7 +79,7 @@ function FeatureRow({ feature }: { feature: FeatureFlag }) {
               onCheckedChange={(checked) => updateFeature.mutate({ id: feature.id, data: { isDevelopment: checked } })}
               aria-label={`Tandai ${feature.label} sebagai pengembangan`}
             />
-            <span className="text-sm">Masa Pengembangan</span>
+            <span className="text-sm">Maintenance/Pengembangan</span>
           </div>
         </div>
       </TableCell>
@@ -131,7 +131,7 @@ export default function DevFeatureControlPage() {
             <h1 className="text-2xl font-bold tracking-tight">Dev Control</h1>
           </div>
           <p className="text-sm text-muted-foreground">
-            Atur fitur mana yang aktif, role mana yang boleh melihat, dan tandai fitur yang masih pengembangan.
+            Atur fitur mana yang aktif, role mana yang boleh melihat, dan kunci fitur yang masih maintenance/pengembangan.
           </p>
         </div>
         <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
@@ -168,7 +168,7 @@ export default function DevFeatureControlPage() {
         <CardHeader>
           <CardTitle>Daftar Fitur</CardTitle>
           <CardDescription>
-            Dibuat sederhana: aktif/off, tanda pengembangan, lalu centang role yang boleh melihat fitur.
+            Dibuat sederhana: aktif/off, mode maintenance/pengembangan, lalu centang role yang boleh melihat fitur.
           </CardDescription>
         </CardHeader>
         <CardContent>

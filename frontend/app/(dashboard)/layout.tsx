@@ -10,7 +10,7 @@ import { useActivityTracker } from '@/lib/hooks/useActivityTracker';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { OnboardingTour } from '@/components/ui/OnboardingTour';
 import { useAuthStore } from '@/lib/stores/auth';
-import { FeatureDevelopmentBanner } from '@/components/features/FeatureDevelopmentBanner';
+import { FeatureDevelopmentGate } from '@/components/features/FeatureDevelopmentGate';
 
 export default function DashboardLayout({
   children,
@@ -51,9 +51,8 @@ export default function DashboardLayout({
               MODE TESTING AKTIF: semua aksi tulis hanya simulasi. Data produksi tidak diubah.
             </div>
           )}
-          <FeatureDevelopmentBanner />
           <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8 scroll-smooth">
-            {children}
+            <FeatureDevelopmentGate>{children}</FeatureDevelopmentGate>
           </main>
         </div>
       </div>
