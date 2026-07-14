@@ -33,9 +33,9 @@ const router = Router();
 
 // Mount routes
 router.use('/auth', authRoutes);
-router.use('/products', auth, featureAccess('products'), productRoutes);
-router.use('/categories', auth, featureAccess('categories'), categoryRoutes);
-router.use('/suppliers', auth, featureAccess('suppliers'), supplierRoutes);
+router.use('/products', auth, featureAccess('products', { readFallbackFeatureKeys: ['stock', 'sales', 'purchases', 'display', 'complaints', 'returns'] }), productRoutes);
+router.use('/categories', auth, featureAccess('categories', { readFallbackFeatureKeys: ['stock', 'products', 'sales', 'purchases', 'display'] }), categoryRoutes);
+router.use('/suppliers', auth, featureAccess('suppliers', { readFallbackFeatureKeys: ['purchases'] }), supplierRoutes);
 router.use('/purchases', auth, featureAccess('purchases'), purchaseRoutes);
 router.use('/sales/process', auth, featureAccess('sales-process'));
 router.use('/sales', auth, featureAccess('sales'), saleRoutes);

@@ -45,7 +45,7 @@ const router = Router();
  *       200:
  *         description: Stock movements retrieved successfully
  */
-router.get('/movements', auth, checkRole(['ADMIN', 'SUPER_ADMIN', 'USER']), stockController.getMovements);
+router.get('/movements', auth, checkRole(['ADMIN', 'SUPER_ADMIN', 'USER', 'TCP']), stockController.getMovements);
 
 /**
  * @swagger
@@ -90,6 +90,6 @@ router.post('/adjustment', auth, checkRole(['ADMIN', 'SUPER_ADMIN', 'USER']), st
  *       200:
  *         description: Stock report generated successfully
  */
-router.get('/report', auth, checkRole(['ADMIN', 'SUPER_ADMIN', 'USER']), stockController.getStockReport);
+router.get('/report', auth, checkRole(['ADMIN', 'SUPER_ADMIN', 'USER', 'TCP']), stockController.getStockReport);
 
 export default router;

@@ -2,7 +2,19 @@ import { NextFunction, Request, Response } from 'express';
 import { FeatureFlag } from '../models';
 import { ForbiddenError } from '../utils/errors';
 
-export function featureAccess(featureKey: string) {
+interface FeatureAccessOptions {
+  readFallbackFeatureKeys?: string[];
+}
+
+function isRoleAllowed(feature: FeatureFlag, role: string) {
+  const allowedRoles = Array.isArray(feature.allowedRoles)
+    ? feature.allowedRoles.map((item) => String(item).toUpperCase())
+    : [];
+
+  return feature.isEnabled && !feature.isDevelopment && allowedRoles.includes(role);
+}
+
+export function featureAccess(featureKey: string, options: FeatureAccessOptions = {}) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
       if (!req.user) return next();
@@ -13,17 +25,27 @@ export function featureAccess(featureKey: string) {
       const feature = await FeatureFlag.findOne({ where: { key: featureKey } });
       if (!feature) return next();
 
+      if (role === 'TESTING') return next();
+
+      if (isRoleAllowed(feature, role)) {
+        return next();
+      }
+
+      const isReadMethod = req.method.toUpperCase() === 'GET';
+      if (isReadMethod && options.readFallbackFeatureKeys?.length) {
+        const fallbackFeatures = await FeatureFlag.findAll({
+          where: { key: options.readFallbackFeatureKeys },
+        });
+        if (fallbackFeatures.some((item) => isRoleAllowed(item, role))) {
+          return next();
+        }
+      }
+
       if (feature.isDevelopment) {
         return next(new ForbiddenError('Fitur ini sedang dalam maintenance/pengembangan'));
       }
 
-      if (role === 'TESTING') return next();
-
-      const allowedRoles = Array.isArray(feature.allowedRoles)
-        ? feature.allowedRoles.map((item) => String(item).toUpperCase())
-        : [];
-
-      if (!feature.isEnabled || !allowedRoles.includes(role)) {
+      if (!feature.isEnabled || !isRoleAllowed(feature, role)) {
         return next(new ForbiddenError('Fitur ini sedang tidak aktif untuk role Anda'));
       }
 
