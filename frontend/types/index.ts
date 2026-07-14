@@ -760,6 +760,7 @@ export interface DisplayProduct {
   slotLimit?: number;
   displayUsed?: number;
   displayAvailable?: number;
+  needsDisplayRequest?: boolean;
   minStock: number;
   estimatedValue?: string | null;
   condition: DisplayProductCondition;

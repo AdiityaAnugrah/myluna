@@ -14,10 +14,11 @@ import { PreviewableImage } from '@/components/ui/previewable-image';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { useCreateDisplayProduct, useCreateDisplayRequest, useCreateDisplayReturn, useDisplayMovements, useDisplayProducts, useDisplayRequests, useDisplayReturns, useDisplaySummary, useReviewDisplayRequest, useUpdateDisplayReturnStatus } from '@/lib/hooks/useDisplay';
+import { useCreateDisplayRequest, useCreateDisplayReturn, useDisplayMovements, useDisplayProducts, useDisplayRequests, useDisplayReturns, useDisplaySummary, useReviewDisplayRequest, useUpdateDisplayReturnStatus } from '@/lib/hooks/useDisplay';
 import type { DisplayProduct, DisplayRequestStatus, DisplayReturn, DisplayReturnStatus } from '@/types';
 
 type DisplayTab = 'products' | 'requests' | 'returns' | 'letter' | 'history';
+type DisplayFilter = 'all' | 'need-offname' | 'displayed' | 'empty';
 
 const requestStatusOptions: Array<{ value: 'all' | DisplayRequestStatus; label: string }> = [
   { value: 'all', label: 'Semua Pengajuan' },
@@ -67,13 +68,13 @@ export default function DisplaySystemPage() {
   const [selectedReturnId, setSelectedReturnId] = useState('');
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [showReturnForm, setShowReturnForm] = useState(false);
+  const [displayFilter, setDisplayFilter] = useState<DisplayFilter>('need-offname');
 
   const summary = useDisplaySummary();
   const products = useDisplayProducts({ page: 1, limit: 100, search: search || undefined });
   const requests = useDisplayRequests({ status: requestStatusFilter || undefined });
   const returns = useDisplayReturns();
   const movements = useDisplayMovements({ limit: 100 });
-  const createSlot = useCreateDisplayProduct();
   const createRequest = useCreateDisplayRequest();
   const reviewRequest = useReviewDisplayRequest();
   const createReturn = useCreateDisplayReturn();
@@ -90,6 +91,7 @@ export default function DisplaySystemPage() {
   const pendingRequestCount = requestRows.filter((request) => request.status === 'PENDING').length;
   const activeReturnCount = returnRows.filter((item) => !['COMPLETED', 'CANCELLED'].includes(item.status)).length;
   const activeDisplayCount = productRows.filter((product) => (product.displayUsed ?? product.stock) > 0).length;
+  const emptyDisplayCount = productRows.filter((product) => (product.displayUsed ?? product.stock) <= 0).length;
   const tabs: Array<{ key: DisplayTab; label: string; icon: typeof PackageOpen; count?: number; visible?: boolean }> = [
     { key: 'products', label: 'Produk Display', icon: PackageOpen, count: productRows.length, visible: !isTcp },
     { key: 'requests', label: isAdmin ? 'Review Pengajuan' : 'Pengajuan Saya', icon: ClipboardList, count: pendingRequestCount, visible: !isTcp },
@@ -106,18 +108,29 @@ export default function DisplaySystemPage() {
     createReturn.mutate({ recipientName: returnForm.recipientName, recipientAddress: returnForm.recipientAddress, carriedBy: returnForm.carriedBy, notes: returnForm.notes, items: [{ displayProductId: product.id, quantity: 1, condition: returnForm.condition, reason: returnForm.reason, notes: returnForm.notes }] }, { onSuccess: (response) => { setReturnForm({ displayProductId: '', recipientName: '', recipientAddress: '', carriedBy: '', condition: 'Perlu dicek', reason: '', notes: '' }); setSelectedReturnId(response.data.id); setShowReturnForm(false); setActiveTab('letter'); } });
   };
   const ensureSlotThenRequest = (product: DisplayProduct) => {
-    if (product.id) { setRequestForm((prev) => ({ ...prev, productId: product.productId || '', type: (product.displayAvailable ?? 0) <= 0 ? 'STOCK_OUT' : 'STOCK_IN', reason: (product.displayAvailable ?? 0) <= 0 ? 'Slot display produk ini sudah habis, perlu tindak lanjut.' : '' })); setShowRequestForm(true); setActiveTab('requests'); return; }
-    if (product.productId) createSlot.mutate({ productId: product.productId }, { onSuccess: () => products.refetch() });
+    const used = product.displayUsed ?? product.stock;
+    setRequestForm((prev) => ({
+      ...prev,
+      productId: product.productId || '',
+      type: used > 0 ? 'STOCK_OUT' : 'STOCK_IN',
+      quantity: '1',
+      targetStock: used > 0 ? '0' : '1',
+      reason: used > 0
+        ? 'Hasil offname: produk display perlu dikosongkan/diganti.'
+        : 'Hasil offname: produk ini wajib diajukan untuk display.',
+    }));
+    setShowRequestForm(true);
+    setActiveTab('requests');
   };
 
   return <div className="space-y-6">
     <style jsx global>{`@media print { body * { visibility: hidden; } #display-letter, #display-letter * { visibility: visible; } #display-letter { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; border: none !important; } .no-print { display: none !important; } }`}</style>
     <Breadcrumbs items={[{ label: 'Sistem Display' }]} />
-    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">Produk display diambil dari data produk asli. Setiap produk punya 1 slot display khusus dan tidak mengubah stok penjualan.</p></div><div className="flex flex-col gap-2 sm:flex-row no-print">{!isTcp && <Button variant="outline" onClick={() => { setShowRequestForm(true); setActiveTab('requests'); }}><Send className="mr-2 h-4 w-4" /> Buat Pengajuan</Button>}{!isTcp && <Button onClick={() => { setShowReturnForm(true); setActiveTab('returns'); }}><Truck className="mr-2 h-4 w-4" /> Buat Retur Display</Button>}</div></div>
-    <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Produk Asli" value={summary.data?.data?.totalProducts ?? productRows.length} note="Sumber data master produk" /><Summary title="Sedang Display" value={summary.data?.data?.activeSlots ?? activeDisplayCount} note="Slot terpakai dari jatah 1" /><Summary title="Menunggu Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note="Pengajuan display aktif" /><Summary title="Retur Aktif" value={summary.data?.data?.activeReturns ?? activeReturnCount} note="Perlu dikirim/diterima" /></div>
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline" className="bg-slate-100">Mulai dari 0</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">Stok display dikosongkan ulang. Tim user melakukan offname/cek fisik, lalu mengajukan produk yang wajib display tanpa mengganggu stok penjualan.</p></div><div className="flex flex-col gap-2 sm:flex-row no-print">{!isTcp && <Button variant="outline" onClick={() => { setDisplayFilter('need-offname'); setActiveTab('products'); }}><ClipboardList className="mr-2 h-4 w-4" /> Mulai Offname</Button>}{!isTcp && <Button variant="outline" onClick={() => { setShowRequestForm(true); setActiveTab('requests'); }}><Send className="mr-2 h-4 w-4" /> Buat Pengajuan</Button>}{!isTcp && <Button onClick={() => { setShowReturnForm(true); setActiveTab('returns'); }}><Truck className="mr-2 h-4 w-4" /> Buat Retur Display</Button>}</div></div>
+    <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Produk Asli" value={summary.data?.data?.totalProducts ?? productRows.length} note="Sumber data master produk" /><Summary title="Perlu Offname" value={emptyDisplayCount} note="Stok display masih 0/1" /><Summary title="Menunggu Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note="Hasil offname yang diajukan" /><Summary title="Retur Aktif" value={summary.data?.data?.activeReturns ?? activeReturnCount} note="Perlu dikirim/diterima" /></div>
     <RoleGuide role={role} isAdmin={isAdmin} isTcp={isTcp} />
     <Card className="no-print"><CardContent className="pt-4"><div className="flex flex-wrap gap-2">{tabs.filter((tab) => tab.visible !== false).map((tab) => { const Icon = tab.icon; return <Button key={tab.key} type="button" variant={activeTab === tab.key ? 'default' : 'outline'} onClick={() => setActiveTab(tab.key)} className="gap-2"><Icon className="h-4 w-4" />{tab.label}{tab.count !== undefined && <Badge variant="secondary" className="ml-1">{tab.count}</Badge>}</Button>; })}</div></CardContent></Card>
-    {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); }} ensureSlotThenRequest={ensureSlotThenRequest} />}
+    {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); }} ensureSlotThenRequest={ensureSlotThenRequest} displayFilter={displayFilter} setDisplayFilter={setDisplayFilter} />}
     {activeTab === 'requests' && <RequestsTab isAdmin={isAdmin} showForm={showRequestForm} setShowForm={setShowRequestForm} productRows={productRows} requestForm={requestForm} setRequestForm={setRequestForm} submitRequest={submitRequest} createPending={createRequest.isPending} requestRows={requestRows} reviewRequest={reviewRequest} requestStatusFilter={requestStatusFilter} setRequestStatusFilter={setRequestStatusFilter} />}
     {activeTab === 'returns' && <ReturnsTab isAdmin={isAdmin} isTcp={isTcp} showForm={showReturnForm} setShowForm={setShowReturnForm} productRows={productRows} returnRows={returnRows} returnForm={returnForm} setReturnForm={setReturnForm} submitReturn={submitReturn} createPending={createReturn.isPending} setSelectedReturnId={setSelectedReturnId} setActiveTab={setActiveTab} updateReturnStatus={updateReturnStatus} />}
     {activeTab === 'letter' && <div className="space-y-4"><div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between no-print"><div><h2 className="text-lg font-semibold">Surat Jalan Retur Display</h2><p className="text-sm text-muted-foreground">Pilih surat jalan lalu cetak untuk dibawa bersama barang.</p></div><div className="flex gap-2"><select className="h-10 rounded-md border bg-background px-3 text-sm" value={selectedReturn?.id || ''} onChange={(e) => setSelectedReturnId(e.target.value)}>{returnRows.map((item) => <option key={item.id} value={item.id}>{item.letterNumber} - {item.recipientName}</option>)}</select><Button onClick={() => window.print()} disabled={!selectedReturn}><Printer className="mr-2 h-4 w-4" />Cetak</Button></div></div>{selectedReturn ? <LetterTemplate displayReturn={selectedReturn} /> : <Card><CardContent className="py-10 text-center text-muted-foreground">Belum ada surat jalan. Buat Retur Display terlebih dahulu.</CardContent></Card>}</div>}
@@ -140,8 +153,8 @@ function RoleGuide({ role, isAdmin, isTcp }: { role?: string; isAdmin: boolean; 
   const guide = isTcp
     ? { title: 'Fokus TCP', desc: 'Lihat tugas Retur Display, buka Surat Jalan, lalu tandai barang dikirim atau diterima.', tone: 'border-blue-200 bg-blue-50/60 text-blue-900' }
     : isAdmin
-      ? { title: 'Fokus Admin / Super Admin', desc: 'Data Display, Review Pengajuan, dan Retur Display dipisah per tab supaya tidak padat.', tone: 'border-primary/20 bg-primary/5 text-primary' }
-      : { title: 'Fokus User', desc: 'Lihat stok display, buat pengajuan jika perlu, dan buat Retur Display jika barang display bermasalah.', tone: 'border-amber-200 bg-amber-50/70 text-amber-900' };
+      ? { title: 'Fokus Admin / Super Admin', desc: 'Review hasil offname dari user, setujui display 1/1, pantau retur dan surat jalan.', tone: 'border-primary/20 bg-primary/5 text-primary' }
+      : { title: 'Fokus User', desc: 'Mulai dari tab Produk Display, cek fisik/offname, lalu ajukan produk yang wajib display.', tone: 'border-amber-200 bg-amber-50/70 text-amber-900' };
   return (
     <Card className={cn('no-print border', guide.tone)}>
       <CardContent className="flex flex-col gap-1 py-4 md:flex-row md:items-center md:justify-between">
@@ -166,20 +179,43 @@ function ProductPhoto({ product }: { product: DisplayProduct }) {
 }
 
 
-function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, applySearch, reset, ensureSlotThenRequest, setPhotoPreview }: any) {
+function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, applySearch, reset, ensureSlotThenRequest, displayFilter, setDisplayFilter }: any) {
+  const filteredRows = productRows.filter((product: DisplayProduct) => {
+    const used = product.displayUsed ?? product.stock;
+    if (displayFilter === 'need-offname') return used <= 0;
+    if (displayFilter === 'displayed') return used > 0;
+    if (displayFilter === 'empty') return used <= 0;
+    return true;
+  });
+
   return (
     <div className="space-y-4 no-print">
       <Card>
         <CardContent className="pt-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-4">
             <div>
-              <h2 className="text-lg font-semibold">Produk Display</h2>
-              <p className="text-sm text-muted-foreground">Ringkas: 1/1 berarti stok display ada, 0/1 berarti habis dan wajib pengajuan.</p>
+              <h2 className="text-lg font-semibold">Offname Produk Display</h2>
+              <p className="text-sm text-muted-foreground">Alur sederhana: cek barang fisik → pilih produk → ajukan display 1/1 jika produk wajib display.</p>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') applySearch(); }} placeholder="Cari nama/SKU produk..." className="sm:w-64" />
-              <Button variant="outline" onClick={applySearch}><Search className="mr-2 h-4 w-4" />Cari</Button>
-              <Button variant="ghost" onClick={reset}><RefreshCcw className="mr-2 h-4 w-4" />Reset</Button>
+            <div className="grid gap-2 md:grid-cols-3">
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm"><div className="font-medium">1. Cek Fisik</div><div className="text-xs text-muted-foreground">User cek produk display di lokasi.</div></div>
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm"><div className="font-medium">2. Ajukan</div><div className="text-xs text-muted-foreground">Jika wajib display, kirim pengajuan 1 slot.</div></div>
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm"><div className="font-medium">3. Admin Review</div><div className="text-xs text-muted-foreground">Jika disetujui, stok display jadi 1/1.</div></div>
+            </div>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: 'need-offname', label: 'Perlu Offname' },
+                  { key: 'all', label: 'Semua Produk' },
+                  { key: 'displayed', label: 'Sudah Display' },
+                  { key: 'empty', label: 'Kosong 0/1' },
+                ].map((item) => <Button key={item.key} type="button" size="sm" variant={displayFilter === item.key ? 'default' : 'outline'} onClick={() => setDisplayFilter(item.key)}>{item.label}</Button>)}
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') applySearch(); }} placeholder="Cari nama/SKU produk..." className="sm:w-64" />
+                <Button variant="outline" onClick={applySearch}><Search className="mr-2 h-4 w-4" />Cari</Button>
+                <Button variant="ghost" onClick={reset}><RefreshCcw className="mr-2 h-4 w-4" />Reset</Button>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -187,7 +223,7 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {isLoading && <Card className="md:col-span-2 xl:col-span-3"><CardContent className="py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></CardContent></Card>}
-        {!isLoading && productRows.map((product: DisplayProduct) => {
+        {!isLoading && filteredRows.map((product: DisplayProduct) => {
           const used = product.displayUsed ?? product.stock;
           const limit = product.slotLimit ?? 1;
           const hasDisplayStock = used > 0;
@@ -199,7 +235,7 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-semibold">{product.name}</div>
                     <div className="text-xs text-muted-foreground">SKU: {product.sku}</div>
-                    <div className="mt-2 flex flex-wrap gap-1">{statusBadge(product.status)} {!hasDisplayStock && <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-200">Stok Display Habis</Badge>}</div>
+                    <div className="mt-2 flex flex-wrap gap-1">{statusBadge(product.status)} {!hasDisplayStock && <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-200">Perlu Offname</Badge>}</div>
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg bg-muted/40 p-3 text-center text-sm">
@@ -208,13 +244,13 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
                   <div><div className="text-xs text-muted-foreground">Kategori</div><div className="truncate font-semibold">{product.category?.name || '-'}</div></div>
                 </div>
                 <Button className="mt-4 w-full" variant={hasDisplayStock ? 'outline' : 'default'} onClick={() => ensureSlotThenRequest(product)}>
-                  {product.id ? (hasDisplayStock ? 'Ajukan Perubahan' : 'Buat Pengajuan') : 'Siapkan Slot'}
+                  {hasDisplayStock ? 'Ajukan Kosongkan/Ganti' : 'Ajukan Hasil Offname'}
                 </Button>
               </CardContent>
             </Card>
           );
         })}
-        {!isLoading && productRows.length === 0 && <Card className="md:col-span-2 xl:col-span-3"><CardContent className="py-10 text-center text-muted-foreground">Produk tidak ditemukan.</CardContent></Card>}
+        {!isLoading && filteredRows.length === 0 && <Card className="md:col-span-2 xl:col-span-3"><CardContent className="py-10 text-center text-muted-foreground">Tidak ada produk pada filter ini.</CardContent></Card>}
       </div>
     </div>
   );

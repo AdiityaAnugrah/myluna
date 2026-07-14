@@ -56,12 +56,12 @@ async function ensureDisplaySlot(productId: string, userId: string, transaction?
       supplierId: null,
       displayLocation: null,
       unit: product.unit || 'pcs',
-      stock: 1,
+      stock: 0,
       minStock: 0,
       slotLimit: 1,
       estimatedValue: String(product.sellingPrice ?? 0),
       condition: 'GOOD' as any,
-      status: 'DISPLAYED' as any,
+      status: 'STORED' as any,
       notes: null,
       isActive: true,
     },
@@ -104,7 +104,7 @@ function slotView(product: any) {
   const slot = product.displaySlot || null;
   const used = Number(slot?.stock ?? 0);
   const limit = Number(slot?.slotLimit ?? 1);
-  const available = Math.min(Math.max(used, 0), limit);
+  const available = Math.max(limit - Math.min(Math.max(used, 0), limit), 0);
   return {
     id: slot?.id || null,
     productId: product.id,
@@ -119,6 +119,7 @@ function slotView(product: any) {
     slotLimit: limit,
     displayUsed: used,
     displayAvailable: available,
+    needsDisplayRequest: used <= 0,
     minStock: 0,
     estimatedValue: slot?.estimatedValue || product.sellingPrice,
     condition: slot?.condition || 'GOOD',
@@ -214,7 +215,7 @@ export const displayController = {
       if (!productId) throw new AppError('Produk asli wajib dipilih', 400);
       const { slot } = await ensureDisplaySlot(productId, req.user!.id, transaction);
       await transaction.commit();
-      return successResponse(res, slot, 'Slot display produk berhasil disiapkan', 201);
+      return successResponse(res, slot, 'Slot display produk berhasil disiapkan dalam keadaan kosong', 201);
     } catch (error) { await transaction.rollback(); return next(error); }
   },
 
@@ -277,6 +278,14 @@ export const displayController = {
       const { slot } = await ensureDisplaySlot(productId, req.user!.id, transaction);
       const type = req.body.type as DisplayRequestType;
       if (!Object.values(DisplayRequestType).includes(type)) throw new AppError('Tipe pengajuan display tidak valid', 400);
+      const pending = await DisplayStockRequest.findOne({ where: { productId: slot.id, status: DisplayRequestStatus.PENDING }, transaction });
+      if (pending) throw new AppError('Produk ini masih memiliki pengajuan display yang menunggu review', 400);
+      if (type === DisplayRequestType.STOCK_IN && slot.stock >= slot.slotLimit) throw new AppError('Slot display produk ini sudah terisi', 400);
+      if (type === DisplayRequestType.STOCK_OUT && slot.stock <= 0) throw new AppError('Slot display produk ini sudah kosong', 400);
+      if (type === DisplayRequestType.ADJUSTMENT) {
+        const targetStock = parsePositiveInt(req.body.targetStock ?? 0, 'Target slot');
+        if (targetStock > slot.slotLimit) throw new AppError('Target slot display maksimal 1', 400);
+      }
       const request = await DisplayStockRequest.create({ productId: slot.id, type, quantity: parsePositiveInt(req.body.quantity ?? 1, 'Jumlah'), targetStock: req.body.targetStock !== undefined && req.body.targetStock !== '' ? parsePositiveInt(req.body.targetStock, 'Target slot') : null, reason: String(req.body.reason || '').trim(), requestedBy: req.user!.id }, { transaction });
       await transaction.commit();
       socketService.emitToAdmins('approval:pending', { message: 'Pengajuan display baru', entityType: 'DisplaySlot', requestType: type, requesterName: (req.user as any)?.fullName || req.user?.username });
