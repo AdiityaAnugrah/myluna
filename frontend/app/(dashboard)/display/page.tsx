@@ -355,17 +355,21 @@ function ReturnsTab(props: any) {
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
           <DialogHeader><DialogTitle>Buat Retur Display + Surat Jalan</DialogTitle><DialogDescription>Isi data retur, lalu cek preview surat jalan sebelum disimpan.</DialogDescription></DialogHeader>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1"><span className="text-sm font-medium">Barang Display</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={returnForm.displayProductId} disabled={isLoadingProducts || returnableRows.length === 0} onChange={(e) => setReturnForm((p: any) => ({ ...p, displayProductId: e.target.value }))}><option value="">{isLoadingProducts ? 'Memuat barang display...' : returnableRows.length === 0 ? 'Tidak ada barang display' : 'Pilih barang...'}</option>{returnableRows.map((p: DisplayProduct) => <option key={p.id!} value={p.id!}>{p.name} - {p.sku} - {variantSummary(p).replace('Varian: ', '')}{p.isDiscontinued ? ' (Tidak dijual lagi)' : ''}</option>)}</select><span className="text-xs text-muted-foreground">Hanya barang yang sedang display yang muncul di sini.</span></label>
-            <label className="space-y-1"><span className="text-sm font-medium">Kondisi</span><Input value={returnForm.condition} onChange={(e) => setReturnForm((p: any) => ({ ...p, condition: e.target.value }))} /></label>
-            <label className="space-y-1"><span className="text-sm font-medium">Kepada</span><Input value={returnForm.recipientName} onChange={(e) => setReturnForm((p: any) => ({ ...p, recipientName: e.target.value }))} /></label>
-            <label className="space-y-1"><span className="text-sm font-medium">Dibawa Oleh</span><Input value={returnForm.carriedBy} onChange={(e) => setReturnForm((p: any) => ({ ...p, carriedBy: e.target.value }))} /></label>
-            <label className="space-y-1 md:col-span-2"><span className="text-sm font-medium">Alamat Tujuan</span><Textarea value={returnForm.recipientAddress} onChange={(e) => setReturnForm((p: any) => ({ ...p, recipientAddress: e.target.value }))} /></label>
-            <label className="space-y-1"><span className="text-sm font-medium">Alasan Retur</span><Textarea value={returnForm.reason} onChange={(e) => setReturnForm((p: any) => ({ ...p, reason: e.target.value }))} /></label>
-            <label className="space-y-1"><span className="text-sm font-medium">Catatan</span><Textarea value={returnForm.notes} onChange={(e) => setReturnForm((p: any) => ({ ...p, notes: e.target.value }))} /></label>
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(420px,1.1fr)] lg:items-start">
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                <label className="space-y-1"><span className="text-sm font-medium">Barang Display</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={returnForm.displayProductId} disabled={isLoadingProducts || returnableRows.length === 0} onChange={(e) => setReturnForm((p: any) => ({ ...p, displayProductId: e.target.value }))}><option value="">{isLoadingProducts ? 'Memuat barang display...' : returnableRows.length === 0 ? 'Tidak ada barang display' : 'Pilih barang...'}</option>{returnableRows.map((p: DisplayProduct) => <option key={p.id!} value={p.id!}>{p.name} - {p.sku} - {variantSummary(p).replace('Varian: ', '')}{p.isDiscontinued ? ' (Tidak dijual lagi)' : ''}</option>)}</select><span className="text-xs text-muted-foreground">Hanya barang yang sedang display yang muncul di sini.</span></label>
+                <label className="space-y-1"><span className="text-sm font-medium">Kondisi</span><Input value={returnForm.condition} onChange={(e) => setReturnForm((p: any) => ({ ...p, condition: e.target.value }))} /></label>
+                <label className="space-y-1"><span className="text-sm font-medium">Kepada</span><Input value={returnForm.recipientName} onChange={(e) => setReturnForm((p: any) => ({ ...p, recipientName: e.target.value }))} /></label>
+                <label className="space-y-1"><span className="text-sm font-medium">Dibawa Oleh</span><Input value={returnForm.carriedBy} onChange={(e) => setReturnForm((p: any) => ({ ...p, carriedBy: e.target.value }))} /></label>
+                <label className="space-y-1 md:col-span-2 lg:col-span-1 xl:col-span-2"><span className="text-sm font-medium">Alamat Tujuan</span><Textarea value={returnForm.recipientAddress} onChange={(e) => setReturnForm((p: any) => ({ ...p, recipientAddress: e.target.value }))} /></label>
+                <label className="space-y-1"><span className="text-sm font-medium">Alasan Retur</span><Textarea value={returnForm.reason} onChange={(e) => setReturnForm((p: any) => ({ ...p, reason: e.target.value }))} /></label>
+                <label className="space-y-1"><span className="text-sm font-medium">Catatan</span><Textarea value={returnForm.notes} onChange={(e) => setReturnForm((p: any) => ({ ...p, notes: e.target.value }))} /></label>
+              </div>
+              <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Batal</Button><Button onClick={submitReturn} disabled={!returnForm.displayProductId || !returnForm.recipientName || !returnForm.recipientAddress || !returnForm.reason || createPending}>{createPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Buat Surat Jalan</Button></div>
+            </div>
+            <ReturnLetterPreview form={returnForm} product={selectedProduct} />
           </div>
-          <ReturnLetterPreview form={returnForm} product={selectedProduct} />
-          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Batal</Button><Button onClick={submitReturn} disabled={!returnForm.displayProductId || !returnForm.recipientName || !returnForm.recipientAddress || !returnForm.reason || createPending}>{createPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Buat Surat Jalan</Button></div>
         </DialogContent>
       </Dialog>
 
@@ -384,7 +388,7 @@ function ReturnsTab(props: any) {
 function ReturnLetterPreview({ form, product }: { form: any; product?: DisplayProduct }) {
   const variantText = product ? variantSummary(product).replace('Varian: ', '') : '-';
   return (
-    <div className="rounded-xl border bg-white p-5 text-black shadow-sm">
+    <div className="rounded-xl border bg-white p-5 text-black shadow-sm lg:sticky lg:top-0">
       <div className="mb-3 flex items-center justify-between">
         <div className="text-sm font-semibold text-slate-700">Preview Surat Jalan</div>
         <Badge variant="outline" className="bg-slate-50 text-slate-700">Nomor otomatis setelah disimpan</Badge>
