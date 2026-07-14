@@ -4,6 +4,7 @@ import { User, Role } from '../models';
 import { AppError } from '../utils/errors';
 import { successResponse } from '../utils/response';
 import { auditService } from '../services/audit.service';
+import { Op } from 'sequelize';
 
 type PrimaryColor = 'umber' | 'blue' | 'green' | 'violet' | 'orange' | 'pink' | 'rose' | 'amber' | 'slate';
 
@@ -14,12 +15,54 @@ const normalizePrimaryColor = (color?: string): PrimaryColor => {
   return primaryColors.includes(color as PrimaryColor) ? (color as PrimaryColor) : 'umber';
 };
 
+function isDevActor(req: Request) {
+  return req.user?.roleName?.toUpperCase() === 'DEV';
+}
+
+async function getDevRole() {
+  return Role.findOne({ where: { name: 'DEV' } });
+}
+
+async function hasAnyDevUser() {
+  const devRole = await getDevRole();
+  if (!devRole) return false;
+  const count = await User.count({ where: { roleId: devRole.id } });
+  return count > 0;
+}
+
+async function assertCanAssignRole(req: Request, roleId?: string) {
+  if (!roleId) return;
+
+  const role = await Role.findByPk(roleId);
+  if (!role) {
+    throw new AppError('Role not found', 404);
+  }
+
+  if (role.name !== 'DEV') return;
+  if (isDevActor(req)) return;
+
+  const devExists = await hasAnyDevUser();
+  if (!devExists && req.user?.roleName?.toUpperCase() === 'SUPER_ADMIN') return;
+
+  throw new AppError('Hanya DEV yang boleh membuat atau memberikan role DEV', 403);
+}
+
+async function assertCanTouchUser(req: Request, user: User) {
+  if (isDevActor(req)) return;
+
+  const devRole = await getDevRole();
+  if (devRole && user.roleId === devRole.id) {
+    throw new AppError('Akun DEV hanya bisa diubah oleh DEV', 403);
+  }
+}
+
 export const userController = {
   // Get all roles
-  async getRoles(_req: Request, res: Response, next: NextFunction) {
+  async getRoles(req: Request, res: Response, next: NextFunction) {
     try {
       const roles = await Role.findAll({
         attributes: ['id', 'name', 'description'],
+        where: isDevActor(req) ? undefined : { name: { [Op.ne]: 'DEV' } },
       });
       successResponse(res, roles, 'Roles retrieved successfully');
     } catch (error) {
@@ -123,6 +166,7 @@ export const userController = {
       if (!role) {
         throw new AppError('Role not found', 404);
       }
+      await assertCanAssignRole(req, roleId);
 
       const user = await User.create({
         username,
@@ -169,6 +213,8 @@ export const userController = {
       if (!user) {
         throw new AppError('User not found', 404);
       }
+      await assertCanTouchUser(req, user);
+      await assertCanAssignRole(req, roleId);
 
       // Check uniqueness if changing username/email
       if ((username && username !== user.username) || (email && email !== user.email)) {
@@ -238,13 +284,12 @@ export const userController = {
       if (!user) {
         throw new AppError('User not found', 404);
       }
+      await assertCanTouchUser(req, user);
 
       // Prevent deleting yourself (optional but good practice)
       if (user.id === (req as any).user.id) {
          throw new AppError('Cannot delete your own account', 400);
       }
-
-      await user.destroy();
 
       await user.destroy();
 
