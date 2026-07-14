@@ -22,7 +22,7 @@ import { auditService } from '../services/audit.service';
 import { socketService } from '../services/socket.service';
 
 function isAdminRole(roleName?: string) {
-  return roleName === 'ADMIN' || roleName === 'SUPER_ADMIN';
+  return roleName === 'ADMIN' || roleName === 'SUPER_ADMIN' || roleName === 'DEV';
 }
 
 function isTcpRole(roleName?: string) {
