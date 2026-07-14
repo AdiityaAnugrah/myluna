@@ -448,17 +448,9 @@ export default function ComplaintsPage() {
             Komplen untuk pesanan yang sudah diproses, selesai, atau sudah pelunasan.
           </p>
         </div>
-        {canTcpProcess && !isAdminView && (
-          <Link href="/returns">
-            <Button variant="outline">
-              <FileText className="h-4 w-4 mr-2" />
-              Flow Retur
-            </Button>
-          </Link>
-        )}
       </div>
 
-      {isAdminView && <ComplaintReturnMenu active="complaints" />}
+      <ComplaintReturnMenu active="complaints" role={role} />
 
       {canCreate && (
         <Card>

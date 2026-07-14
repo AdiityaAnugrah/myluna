@@ -6,20 +6,31 @@ import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 type ActiveMenu = 'complaints' | 'returns';
+type MenuRole = 'USER' | 'TCP' | 'ADMIN' | 'SUPER_ADMIN' | string | undefined;
 
-export function ComplaintReturnMenu({ active }: { active: ActiveMenu }) {
+export function ComplaintReturnMenu({ active, role }: { active: ActiveMenu; role?: MenuRole }) {
+  const isUser = role === 'USER';
+  const isTcp = role === 'TCP';
   const menus = [
     {
       key: 'complaints' as const,
-      title: 'Komplen',
-      desc: 'Review, keputusan, kirim komponen, potongan, atau jadikan retur.',
+      title: isUser ? 'Komplen Saya' : isTcp ? 'Tugas Komplen' : 'Komplen',
+      desc: isUser
+        ? 'Buat dan pantau komplen pesanan Anda.'
+        : isTcp
+          ? 'Review dan proses keputusan komplen dari user.'
+          : 'Review, keputusan, kirim komponen, potongan, atau jadikan retur.',
       href: '/complaints',
       icon: MessageSquareWarning,
     },
     {
       key: 'returns' as const,
-      title: 'Retur',
-      desc: 'Review retur, terima barang, inspeksi, restock, hangus, atau revisi.',
+      title: isUser ? 'Retur Saya' : isTcp ? 'Tugas Retur' : 'Retur',
+      desc: isUser
+        ? 'Buat dan pantau pengajuan retur Anda.'
+        : isTcp
+          ? 'Terima barang retur, inspeksi, dan proses hasilnya.'
+          : 'Review retur, terima barang, inspeksi, restock, hangus, atau revisi.',
       href: '/returns',
       icon: FileText,
     },

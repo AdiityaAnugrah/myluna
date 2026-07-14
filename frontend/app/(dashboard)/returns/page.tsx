@@ -67,7 +67,6 @@ export default function ReturnsPage() {
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
   const canCreate = role === 'USER' || role === 'ADMIN' || role === 'SUPER_ADMIN';
   const isUser = role === 'USER';
-  const isAdminView = role === 'ADMIN' || role === 'SUPER_ADMIN';
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
@@ -109,7 +108,7 @@ export default function ReturnsPage() {
         </div>
       </div>
 
-      {isAdminView && <ComplaintReturnMenu active="returns" />}
+      <ComplaintReturnMenu active="returns" role={role} />
 
       <Card>
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
