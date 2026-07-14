@@ -14,7 +14,7 @@ import { PreviewableImage } from '@/components/ui/previewable-image';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { useCreateDisplayRequest, useCreateDisplayReturn, useDisplayMovements, useDisplayProducts, useDisplayRequests, useDisplayReturns, useDisplaySummary, useReviewDisplayRequest, useUpdateDisplayReturnStatus } from '@/lib/hooks/useDisplay';
+import { useCreateDisplayRequest, useCreateDisplayReturn, useDisplayMovements, useDisplayProducts, useDisplayRequests, useDisplayReturnableProducts, useDisplayReturns, useDisplaySummary, useReviewDisplayRequest, useUpdateDisplayReturnStatus } from '@/lib/hooks/useDisplay';
 import type { DisplayProduct, DisplayRequestStatus, DisplayReturn, DisplayReturnStatus } from '@/types';
 
 type DisplayTab = 'products' | 'requests' | 'returns' | 'letter' | 'history';
@@ -72,6 +72,7 @@ export default function DisplaySystemPage() {
 
   const summary = useDisplaySummary();
   const products = useDisplayProducts({ page: 1, limit: 100, search: search || undefined });
+  const returnableProducts = useDisplayReturnableProducts();
   const requests = useDisplayRequests({ status: requestStatusFilter || undefined });
   const returns = useDisplayReturns();
   const movements = useDisplayMovements({ limit: 100 });
@@ -81,6 +82,7 @@ export default function DisplaySystemPage() {
   const updateReturnStatus = useUpdateDisplayReturnStatus();
 
   const productRows = products.data?.data?.products ?? [];
+  const returnableRows = returnableProducts.data?.data ?? [];
   const requestRows = requests.data?.data ?? [];
   const returnRows = returns.data?.data ?? [];
   const movementRows = movements.data?.data ?? [];
@@ -103,7 +105,7 @@ export default function DisplaySystemPage() {
   const applySearch = () => setSearch(searchInput.trim());
   const submitRequest = () => createRequest.mutate({ productId: requestForm.productId, type: requestForm.type as 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT', quantity: Number(requestForm.quantity), targetStock: Number(requestForm.targetStock), reason: requestForm.reason }, { onSuccess: () => { setRequestForm({ productId: '', type: 'STOCK_IN', quantity: '1', targetStock: '1', reason: '' }); setShowRequestForm(false); setActiveTab('requests'); } });
   const submitReturn = () => {
-    const product = productRows.find((row) => row.id === returnForm.displayProductId);
+    const product = returnableRows.find((row) => row.id === returnForm.displayProductId);
     if (!product?.id) return;
     createReturn.mutate({ recipientName: returnForm.recipientName, recipientAddress: returnForm.recipientAddress, carriedBy: returnForm.carriedBy, notes: returnForm.notes, items: [{ displayProductId: product.id, quantity: 1, condition: returnForm.condition, reason: returnForm.reason, notes: returnForm.notes }] }, { onSuccess: (response) => { setReturnForm({ displayProductId: '', recipientName: '', recipientAddress: '', carriedBy: '', condition: 'Perlu dicek', reason: '', notes: '' }); setSelectedReturnId(response.data.id); setShowReturnForm(false); setActiveTab('letter'); } });
   };
@@ -148,7 +150,7 @@ export default function DisplaySystemPage() {
     <Card className="no-print"><CardContent className="pt-4"><div className="flex flex-wrap gap-2">{tabs.filter((tab) => tab.visible !== false).map((tab) => { const Icon = tab.icon; return <Button key={tab.key} type="button" variant={activeTab === tab.key ? 'default' : 'outline'} onClick={() => setActiveTab(tab.key)} className="gap-2"><Icon className="h-4 w-4" />{tab.label}{tab.count !== undefined && <Badge variant="secondary" className="ml-1">{tab.count}</Badge>}</Button>; })}</div></CardContent></Card>
     {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); }} ensureSlotThenRequest={ensureSlotThenRequest} startReturn={startReturn} displayFilter={displayFilter} setDisplayFilter={setDisplayFilter} />}
     {activeTab === 'requests' && <RequestsTab isAdmin={isAdmin} showForm={showRequestForm} setShowForm={setShowRequestForm} productRows={productRows} requestForm={requestForm} setRequestForm={setRequestForm} submitRequest={submitRequest} createPending={createRequest.isPending} requestRows={requestRows} reviewRequest={reviewRequest} requestStatusFilter={requestStatusFilter} setRequestStatusFilter={setRequestStatusFilter} />}
-    {activeTab === 'returns' && <ReturnsTab isAdmin={isAdmin} isTcp={isTcp} showForm={showReturnForm} setShowForm={setShowReturnForm} productRows={productRows} returnRows={returnRows} returnForm={returnForm} setReturnForm={setReturnForm} submitReturn={submitReturn} createPending={createReturn.isPending} setSelectedReturnId={setSelectedReturnId} setActiveTab={setActiveTab} updateReturnStatus={updateReturnStatus} />}
+    {activeTab === 'returns' && <ReturnsTab isAdmin={isAdmin} isTcp={isTcp} showForm={showReturnForm} setShowForm={setShowReturnForm} productRows={returnableRows} isLoadingProducts={returnableProducts.isLoading} returnRows={returnRows} returnForm={returnForm} setReturnForm={setReturnForm} submitReturn={submitReturn} createPending={createReturn.isPending} setSelectedReturnId={setSelectedReturnId} setActiveTab={setActiveTab} updateReturnStatus={updateReturnStatus} />}
     {activeTab === 'letter' && <div className="space-y-4"><div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between no-print"><div><h2 className="text-lg font-semibold">Surat Jalan Retur Display</h2><p className="text-sm text-muted-foreground">Pilih surat jalan lalu cetak untuk dibawa bersama barang.</p></div><div className="flex gap-2"><select className="h-10 rounded-md border bg-background px-3 text-sm" value={selectedReturn?.id || ''} onChange={(e) => setSelectedReturnId(e.target.value)}>{returnRows.map((item) => <option key={item.id} value={item.id}>{item.letterNumber} - {item.recipientName}</option>)}</select><Button onClick={() => window.print()} disabled={!selectedReturn}><Printer className="mr-2 h-4 w-4" />Cetak</Button></div></div>{selectedReturn ? <LetterTemplate displayReturn={selectedReturn} /> : <Card><CardContent className="py-10 text-center text-muted-foreground">Belum ada surat jalan. Buat Retur Display terlebih dahulu.</CardContent></Card>}</div>}
     {activeTab === 'history' && <HistoryTab movementRows={movementRows} />}
     {!isTcp && activeDisplayCount === 0 && activeTab === 'products' && <Card className="border-dashed no-print"><CardContent className="flex gap-3 py-5 text-sm text-muted-foreground"><AlertTriangle className="h-5 w-5 text-yellow-600" /><div><div className="font-medium text-foreground">Belum ada produk yang sedang display.</div><div>Cek produk yang perlu display, lalu klik tombol ajukan.</div></div></CardContent></Card>}
@@ -304,14 +306,15 @@ function RequestsTab(props: any) {
 }
 
 function ReturnsTab(props: any) {
-  const { isAdmin, isTcp, showForm, setShowForm, productRows, returnRows, returnForm, setReturnForm, submitReturn, createPending, setSelectedReturnId, setActiveTab, updateReturnStatus } = props;
+  const { isAdmin, isTcp, showForm, setShowForm, productRows, isLoadingProducts, returnRows, returnForm, setReturnForm, submitReturn, createPending, setSelectedReturnId, setActiveTab, updateReturnStatus } = props;
+  const returnableRows = productRows.filter((p: DisplayProduct) => !!p.id && (p.displayUsed ?? p.stock) > 0);
   return (
     <div className="space-y-4 no-print">
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle>Buat Retur Display + Surat Jalan</DialogTitle><DialogDescription>Surat jalan otomatis dibuat setelah retur disimpan.</DialogDescription></DialogHeader>
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1"><span className="text-sm font-medium">Barang Display</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={returnForm.displayProductId} onChange={(e) => setReturnForm((p: any) => ({ ...p, displayProductId: e.target.value }))}><option value="">Pilih barang...</option>{productRows.filter((p: DisplayProduct) => !!p.id && (p.displayUsed ?? p.stock) > 0).map((p: DisplayProduct) => <option key={p.id!} value={p.id!}>{p.name} - {p.sku}</option>)}</select></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Barang Display</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={returnForm.displayProductId} disabled={isLoadingProducts || returnableRows.length === 0} onChange={(e) => setReturnForm((p: any) => ({ ...p, displayProductId: e.target.value }))}><option value="">{isLoadingProducts ? 'Memuat barang display...' : returnableRows.length === 0 ? 'Tidak ada barang display' : 'Pilih barang...'}</option>{returnableRows.map((p: DisplayProduct) => <option key={p.id!} value={p.id!}>{p.name} - {p.sku}{p.isDiscontinued ? ' (Tidak dijual lagi)' : ''}</option>)}</select><span className="text-xs text-muted-foreground">Hanya barang yang sedang display yang muncul di sini.</span></label>
             <label className="space-y-1"><span className="text-sm font-medium">Kondisi</span><Input value={returnForm.condition} onChange={(e) => setReturnForm((p: any) => ({ ...p, condition: e.target.value }))} /></label>
             <label className="space-y-1"><span className="text-sm font-medium">Kepada</span><Input value={returnForm.recipientName} onChange={(e) => setReturnForm((p: any) => ({ ...p, recipientName: e.target.value }))} /></label>
             <label className="space-y-1"><span className="text-sm font-medium">Dibawa Oleh</span><Input value={returnForm.carriedBy} onChange={(e) => setReturnForm((p: any) => ({ ...p, carriedBy: e.target.value }))} /></label>

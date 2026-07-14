@@ -23,6 +23,10 @@ export function useDisplayProducts(params?: { page?: number; limit?: number; sea
   return useQuery({ queryKey: ['display', 'products', params], queryFn: () => displayApi.getProducts(params) });
 }
 
+export function useDisplayReturnableProducts() {
+  return useQuery({ queryKey: ['display', 'products', 'returnable'], queryFn: displayApi.getReturnableProducts });
+}
+
 export function useDisplayMovements(params?: { productId?: string; limit?: number }) {
   return useQuery({ queryKey: ['display', 'movements', params], queryFn: () => displayApi.getMovements(params) });
 }

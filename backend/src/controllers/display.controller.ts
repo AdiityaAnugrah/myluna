@@ -211,6 +211,52 @@ export const displayController = {
     } catch (error) { return next(error); }
   },
 
+  async getReturnableProducts(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const slots = await DisplayProduct.findAll({
+        where: { isActive: true, stock: { [Op.gt]: 0 } },
+        include: [{ model: Product, as: 'sourceProduct', include: [{ model: Category, as: 'category' }] }],
+        order: [['updatedAt', 'DESC']],
+      });
+
+      const rows = slots.map((slot: any) => {
+        const product = slot.sourceProduct;
+        return {
+          id: slot.id,
+          productId: slot.productId,
+          sku: product?.sku || slot.sku.replace(/^DSP-/, ''),
+          name: product?.name || slot.name,
+          description: product?.description || slot.description,
+          categoryId: product?.categoryId || null,
+          displayLocation: slot.displayLocation,
+          unit: product?.unit || slot.unit,
+          salesStock: product?.stock ?? 0,
+          stock: Number(slot.stock || 0),
+          slotLimit: Number(slot.slotLimit || 1),
+          displayUsed: Number(slot.stock || 0),
+          displayAvailable: 0,
+          minStock: 0,
+          estimatedValue: slot.estimatedValue,
+          condition: slot.condition,
+          status: slot.status,
+          notes: slot.notes,
+          isActive: product?.isActive ?? slot.isActive,
+          createdAt: slot.createdAt,
+          updatedAt: slot.updatedAt,
+          sourceProduct: product,
+          category: product?.category || null,
+          supplier: null,
+          needsDisplayRequest: false,
+          canRequestDisplay: Boolean(product?.isActive),
+          canReturnDisplay: true,
+          isDiscontinued: product ? !product.isActive : false,
+        };
+      });
+
+      return successResponse(res, rows, 'Barang display yang bisa diretur berhasil diambil', 200);
+    } catch (error) { return next(error); }
+  },
+
   async createProduct(req: Request, res: Response, next: NextFunction) {
     const transaction = await sequelize.transaction();
     try {

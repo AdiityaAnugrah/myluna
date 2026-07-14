@@ -19,6 +19,7 @@ router.post('/suppliers', rbac(['ADMIN', 'SUPER_ADMIN']), displayController.crea
 router.put('/suppliers/:id', rbac(['ADMIN', 'SUPER_ADMIN']), displayController.updateSupplier);
 
 router.get('/products', displayController.getProducts);
+router.get('/products/returnable', displayController.getReturnableProducts);
 router.post('/products', rbac(['ADMIN', 'SUPER_ADMIN']), displayController.createProduct);
 router.put('/products/:id', rbac(['ADMIN', 'SUPER_ADMIN']), displayController.updateProduct);
 router.post('/products/:id/adjust-stock', rbac(['ADMIN', 'SUPER_ADMIN']), displayController.adjustStock);

@@ -22,6 +22,8 @@ export const displayApi = {
 
   getProducts: async (params?: { page?: number; limit?: number; search?: string; categoryId?: string; status?: string }) =>
     (await apiClient.get<ApiResponse<{ products: DisplayProduct[]; pagination: { total: number; page: number; limit: number; totalPages: number } }>>('/display/products', { params })).data,
+  getReturnableProducts: async () =>
+    (await apiClient.get<ApiResponse<DisplayProduct[]>>('/display/products/returnable')).data,
   createProduct: async (data: { productId: string }) => (await apiClient.post<ApiResponse<DisplayProduct>>('/display/products', data)).data,
   updateProduct: async (id: string, data: Partial<DisplayProduct>) => (await apiClient.put<ApiResponse<DisplayProduct>>(`/display/products/${id}`, data)).data,
   adjustStock: async (id: string, data: { type: 'IN' | 'OUT' | 'ADJUSTMENT'; quantity: number; targetStock?: number; notes?: string }) =>
