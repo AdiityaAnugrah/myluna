@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useReturns } from '@/lib/hooks/useReturns';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
+import { ComplaintReturnMenu } from '@/components/complaint-return-menu';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -66,6 +67,7 @@ export default function ReturnsPage() {
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
   const canCreate = role === 'USER' || role === 'ADMIN' || role === 'SUPER_ADMIN';
   const isUser = role === 'USER';
+  const isAdminView = role === 'ADMIN' || role === 'SUPER_ADMIN';
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
@@ -106,6 +108,8 @@ export default function ReturnsPage() {
           )}
         </div>
       </div>
+
+      {isAdminView && <ComplaintReturnMenu active="returns" />}
 
       <Card>
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

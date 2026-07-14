@@ -44,6 +44,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getImageUrl } from '@/lib/utils/url';
 import { PreviewableImage } from '@/components/ui/previewable-image';
+import { ComplaintReturnMenu } from '@/components/complaint-return-menu';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import { notify } from '@/lib/notify';
 import { getComplaintStatusBadgeClass, getComplaintStatusLabel } from '@/lib/constants/workflowStatus';
@@ -135,6 +136,7 @@ export default function ComplaintsPage() {
   const isTcp = role === 'TCP';
   const isAdmin = role === 'ADMIN';
   const isSuperAdmin = role === 'SUPER_ADMIN';
+  const isAdminView = isAdmin || isSuperAdmin;
   const canCreate = isUser || isAdmin || isSuperAdmin;
   const canTcpProcess = isTcp || isSuperAdmin || isAdmin;
 
@@ -446,7 +448,7 @@ export default function ComplaintsPage() {
             Komplen untuk pesanan yang sudah diproses, selesai, atau sudah pelunasan.
           </p>
         </div>
-        {canTcpProcess && (
+        {canTcpProcess && !isAdminView && (
           <Link href="/returns">
             <Button variant="outline">
               <FileText className="h-4 w-4 mr-2" />
@@ -455,6 +457,8 @@ export default function ComplaintsPage() {
           </Link>
         )}
       </div>
+
+      {isAdminView && <ComplaintReturnMenu active="complaints" />}
 
       {canCreate && (
         <Card>
