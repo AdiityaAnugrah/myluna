@@ -2,7 +2,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ClipboardList, FileText, History, Loader2, PackageOpen, Printer, RefreshCcw, Search, Send, Truck, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardList, FileText, History, Loader2, PackageOpen, Printer, RefreshCcw, Search, Truck, XCircle } from 'lucide-react';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +18,7 @@ import { useCreateDisplayRequest, useCreateDisplayReturn, useDisplayMovements, u
 import type { DisplayProduct, DisplayRequestStatus, DisplayReturn, DisplayReturnStatus } from '@/types';
 
 type DisplayTab = 'products' | 'requests' | 'returns' | 'letter' | 'history';
-type DisplayFilter = 'all' | 'need-offname' | 'displayed' | 'empty';
+type DisplayFilter = 'need-offname' | 'all';
 
 const requestStatusOptions: Array<{ value: 'all' | DisplayRequestStatus; label: string }> = [
   { value: 'all', label: 'Semua Pengajuan' },
@@ -116,8 +116,8 @@ export default function DisplaySystemPage() {
       quantity: '1',
       targetStock: used > 0 ? '0' : '1',
       reason: used > 0
-        ? 'Hasil offname: produk display perlu dikosongkan/diganti.'
-        : 'Hasil offname: produk ini wajib diajukan untuk display.',
+        ? 'Hasil cek: produk display perlu dikosongkan/diganti.'
+        : 'Hasil cek: produk ini perlu dipasang display.',
     }));
     setShowRequestForm(true);
     setActiveTab('requests');
@@ -126,8 +126,8 @@ export default function DisplaySystemPage() {
   return <div className="space-y-6">
     <style jsx global>{`@media print { body * { visibility: hidden; } #display-letter, #display-letter * { visibility: visible; } #display-letter { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; border: none !important; } .no-print { display: none !important; } }`}</style>
     <Breadcrumbs items={[{ label: 'Sistem Display' }]} />
-    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline" className="bg-slate-100">Mulai dari 0</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">Stok display dikosongkan ulang. Tim user melakukan offname/cek fisik, lalu mengajukan produk yang wajib display tanpa mengganggu stok penjualan.</p></div><div className="flex flex-col gap-2 sm:flex-row no-print">{!isTcp && <Button variant="outline" onClick={() => { setDisplayFilter('need-offname'); setActiveTab('products'); }}><ClipboardList className="mr-2 h-4 w-4" /> Mulai Offname</Button>}{!isTcp && <Button variant="outline" onClick={() => { setShowRequestForm(true); setActiveTab('requests'); }}><Send className="mr-2 h-4 w-4" /> Buat Pengajuan</Button>}{!isTcp && <Button onClick={() => { setShowReturnForm(true); setActiveTab('returns'); }}><Truck className="mr-2 h-4 w-4" /> Buat Retur Display</Button>}</div></div>
-    <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Produk Asli" value={summary.data?.data?.totalProducts ?? productRows.length} note="Sumber data master produk" /><Summary title="Perlu Offname" value={emptyDisplayCount} note="Stok display masih 0/1" /><Summary title="Menunggu Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note="Hasil offname yang diajukan" /><Summary title="Retur Aktif" value={summary.data?.data?.activeReturns ?? activeReturnCount} note="Perlu dikirim/diterima" /></div>
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">Cek produk display, lalu ajukan produk yang perlu dipasang display. Stok penjualan tidak berubah.</p></div><div className="flex flex-col gap-2 sm:flex-row no-print">{!isTcp && <Button onClick={() => { setDisplayFilter('need-offname'); setActiveTab('products'); }}><ClipboardList className="mr-2 h-4 w-4" /> Cek Display</Button>}{!isTcp && <Button variant="outline" onClick={() => { setShowReturnForm(true); setActiveTab('returns'); }}><Truck className="mr-2 h-4 w-4" /> Retur Display</Button>}</div></div>
+    <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Produk Asli" value={summary.data?.data?.totalProducts ?? productRows.length} note="Sumber data master produk" /><Summary title="Perlu Dicek" value={emptyDisplayCount} note="Display masih 0/1" /><Summary title="Menunggu Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note="Pengajuan dari user" /><Summary title="Retur Aktif" value={summary.data?.data?.activeReturns ?? activeReturnCount} note="Perlu dikirim/diterima" /></div>
     <RoleGuide role={role} isAdmin={isAdmin} isTcp={isTcp} />
     <Card className="no-print"><CardContent className="pt-4"><div className="flex flex-wrap gap-2">{tabs.filter((tab) => tab.visible !== false).map((tab) => { const Icon = tab.icon; return <Button key={tab.key} type="button" variant={activeTab === tab.key ? 'default' : 'outline'} onClick={() => setActiveTab(tab.key)} className="gap-2"><Icon className="h-4 w-4" />{tab.label}{tab.count !== undefined && <Badge variant="secondary" className="ml-1">{tab.count}</Badge>}</Button>; })}</div></CardContent></Card>
     {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); }} ensureSlotThenRequest={ensureSlotThenRequest} displayFilter={displayFilter} setDisplayFilter={setDisplayFilter} />}
@@ -135,7 +135,7 @@ export default function DisplaySystemPage() {
     {activeTab === 'returns' && <ReturnsTab isAdmin={isAdmin} isTcp={isTcp} showForm={showReturnForm} setShowForm={setShowReturnForm} productRows={productRows} returnRows={returnRows} returnForm={returnForm} setReturnForm={setReturnForm} submitReturn={submitReturn} createPending={createReturn.isPending} setSelectedReturnId={setSelectedReturnId} setActiveTab={setActiveTab} updateReturnStatus={updateReturnStatus} />}
     {activeTab === 'letter' && <div className="space-y-4"><div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between no-print"><div><h2 className="text-lg font-semibold">Surat Jalan Retur Display</h2><p className="text-sm text-muted-foreground">Pilih surat jalan lalu cetak untuk dibawa bersama barang.</p></div><div className="flex gap-2"><select className="h-10 rounded-md border bg-background px-3 text-sm" value={selectedReturn?.id || ''} onChange={(e) => setSelectedReturnId(e.target.value)}>{returnRows.map((item) => <option key={item.id} value={item.id}>{item.letterNumber} - {item.recipientName}</option>)}</select><Button onClick={() => window.print()} disabled={!selectedReturn}><Printer className="mr-2 h-4 w-4" />Cetak</Button></div></div>{selectedReturn ? <LetterTemplate displayReturn={selectedReturn} /> : <Card><CardContent className="py-10 text-center text-muted-foreground">Belum ada surat jalan. Buat Retur Display terlebih dahulu.</CardContent></Card>}</div>}
     {activeTab === 'history' && <HistoryTab movementRows={movementRows} />}
-    {!isTcp && activeDisplayCount === 0 && activeTab === 'products' && <Card className="border-dashed no-print"><CardContent className="flex gap-3 py-5 text-sm text-muted-foreground"><AlertTriangle className="h-5 w-5 text-yellow-600" /><div><div className="font-medium text-foreground">Belum ada produk yang sedang display.</div><div>Pilih produk, siapkan slot, lalu buat pengajuan agar alurnya tercatat dan mudah direview.</div></div></CardContent></Card>}
+    {!isTcp && activeDisplayCount === 0 && activeTab === 'products' && <Card className="border-dashed no-print"><CardContent className="flex gap-3 py-5 text-sm text-muted-foreground"><AlertTriangle className="h-5 w-5 text-yellow-600" /><div><div className="font-medium text-foreground">Belum ada produk yang sedang display.</div><div>Cek produk yang perlu display, lalu klik tombol ajukan.</div></div></CardContent></Card>}
   </div>;
 }
 
@@ -153,8 +153,8 @@ function RoleGuide({ role, isAdmin, isTcp }: { role?: string; isAdmin: boolean; 
   const guide = isTcp
     ? { title: 'Fokus TCP', desc: 'Lihat tugas Retur Display, buka Surat Jalan, lalu tandai barang dikirim atau diterima.', tone: 'border-blue-200 bg-blue-50/60 text-blue-900' }
     : isAdmin
-      ? { title: 'Fokus Admin / Super Admin', desc: 'Review hasil offname dari user, setujui display 1/1, pantau retur dan surat jalan.', tone: 'border-primary/20 bg-primary/5 text-primary' }
-      : { title: 'Fokus User', desc: 'Mulai dari tab Produk Display, cek fisik/offname, lalu ajukan produk yang wajib display.', tone: 'border-amber-200 bg-amber-50/70 text-amber-900' };
+      ? { title: 'Untuk Admin', desc: 'Cukup review pengajuan display dari user, lalu setujui atau tolak.', tone: 'border-primary/20 bg-primary/5 text-primary' }
+      : { title: 'Untuk User', desc: 'Cek produk yang perlu display, lalu klik Ajukan Display.', tone: 'border-amber-200 bg-amber-50/70 text-amber-900' };
   return (
     <Card className={cn('no-print border', guide.tone)}>
       <CardContent className="flex flex-col gap-1 py-4 md:flex-row md:items-center md:justify-between">
@@ -183,8 +183,6 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
   const filteredRows = productRows.filter((product: DisplayProduct) => {
     const used = product.displayUsed ?? product.stock;
     if (displayFilter === 'need-offname') return used <= 0;
-    if (displayFilter === 'displayed') return used > 0;
-    if (displayFilter === 'empty') return used <= 0;
     return true;
   });
 
@@ -194,21 +192,17 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
         <CardContent className="pt-4">
           <div className="flex flex-col gap-4">
             <div>
-              <h2 className="text-lg font-semibold">Offname Produk Display</h2>
-              <p className="text-sm text-muted-foreground">Alur sederhana: cek barang fisik → pilih produk → ajukan display 1/1 jika produk wajib display.</p>
+              <h2 className="text-lg font-semibold">Cek Display</h2>
+              <p className="text-sm text-muted-foreground">Pilih produk yang perlu display, lalu klik Ajukan Display.</p>
             </div>
-            <div className="grid gap-2 md:grid-cols-3">
-              <div className="rounded-lg border bg-muted/30 p-3 text-sm"><div className="font-medium">1. Cek Fisik</div><div className="text-xs text-muted-foreground">User cek produk display di lokasi.</div></div>
-              <div className="rounded-lg border bg-muted/30 p-3 text-sm"><div className="font-medium">2. Ajukan</div><div className="text-xs text-muted-foreground">Jika wajib display, kirim pengajuan 1 slot.</div></div>
-              <div className="rounded-lg border bg-muted/30 p-3 text-sm"><div className="font-medium">3. Admin Review</div><div className="text-xs text-muted-foreground">Jika disetujui, stok display jadi 1/1.</div></div>
+            <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+              <span className="font-medium">Alur:</span> User cek produk → Ajukan Display → Admin setujui.
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap gap-2">
                 {[
-                  { key: 'need-offname', label: 'Perlu Offname' },
+                  { key: 'need-offname', label: 'Perlu Dicek' },
                   { key: 'all', label: 'Semua Produk' },
-                  { key: 'displayed', label: 'Sudah Display' },
-                  { key: 'empty', label: 'Kosong 0/1' },
                 ].map((item) => <Button key={item.key} type="button" size="sm" variant={displayFilter === item.key ? 'default' : 'outline'} onClick={() => setDisplayFilter(item.key)}>{item.label}</Button>)}
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -235,7 +229,7 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-semibold">{product.name}</div>
                     <div className="text-xs text-muted-foreground">SKU: {product.sku}</div>
-                    <div className="mt-2 flex flex-wrap gap-1">{statusBadge(product.status)} {!hasDisplayStock && <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-200">Perlu Offname</Badge>}</div>
+                    <div className="mt-2 flex flex-wrap gap-1">{statusBadge(product.status)} {!hasDisplayStock && <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-200">Perlu Dicek</Badge>}</div>
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg bg-muted/40 p-3 text-center text-sm">
@@ -244,7 +238,7 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
                   <div><div className="text-xs text-muted-foreground">Kategori</div><div className="truncate font-semibold">{product.category?.name || '-'}</div></div>
                 </div>
                 <Button className="mt-4 w-full" variant={hasDisplayStock ? 'outline' : 'default'} onClick={() => ensureSlotThenRequest(product)}>
-                  {hasDisplayStock ? 'Ajukan Kosongkan/Ganti' : 'Ajukan Hasil Offname'}
+                  {hasDisplayStock ? 'Ajukan Ganti/Kosongkan' : 'Ajukan Display'}
                 </Button>
               </CardContent>
             </Card>
@@ -262,12 +256,11 @@ function RequestsTab(props: any) {
     <div className="space-y-4 no-print">
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="sm:max-w-2xl">
-          <DialogHeader><DialogTitle>Form Pengajuan Display</DialogTitle><DialogDescription>Isi singkat saja. Admin akan review dari tab pengajuan.</DialogDescription></DialogHeader>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1"><span className="text-sm font-medium">Pilih Produk</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={requestForm.productId} onChange={(e) => setRequestForm((p: any) => ({ ...p, productId: e.target.value }))}><option value="">Pilih produk...</option>{productRows.map((p: DisplayProduct) => <option key={p.productId || p.id || p.sku} value={p.productId || ''}>{p.name} - Display {(p.displayUsed ?? p.stock)}/{p.slotLimit ?? 1}</option>)}</select></label>
-            <label className="space-y-1"><span className="text-sm font-medium">Jenis Pengajuan</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={requestForm.type} onChange={(e) => setRequestForm((p: any) => ({ ...p, type: e.target.value }))}><option value="STOCK_IN">Pakai/Tambah Stok Display</option><option value="STOCK_OUT">Kosongkan Stok Display</option><option value="ADJUSTMENT">Atur Stok Display</option></select></label>
-            <label className="space-y-1"><span className="text-sm font-medium">Jumlah</span><Input type="number" min="1" max="1" value={requestForm.quantity} onChange={(e) => setRequestForm((p: any) => ({ ...p, quantity: e.target.value }))} /><span className="text-xs text-muted-foreground">Saat ini display hanya 1 per produk.</span></label>
-            <label className="space-y-1 md:col-span-2"><span className="text-sm font-medium">Alasan</span><Textarea value={requestForm.reason} onChange={(e) => setRequestForm((p: any) => ({ ...p, reason: e.target.value }))} placeholder="Contoh: stok display habis, perlu ganti barang display." /></label>
+          <DialogHeader><DialogTitle>Ajukan Display</DialogTitle><DialogDescription>Pilih produk dan tulis alasan singkat. Jumlah display otomatis 1 slot.</DialogDescription></DialogHeader>
+          <div className="grid gap-4">
+            <label className="space-y-1"><span className="text-sm font-medium">Produk</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={requestForm.productId} onChange={(e) => setRequestForm((p: any) => ({ ...p, productId: e.target.value }))}><option value="">Pilih produk...</option>{productRows.map((p: DisplayProduct) => <option key={p.productId || p.id || p.sku} value={p.productId || ''}>{p.name} - Display {(p.displayUsed ?? p.stock)}/{p.slotLimit ?? 1}</option>)}</select></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Kebutuhan</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={requestForm.type} onChange={(e) => setRequestForm((p: any) => ({ ...p, type: e.target.value, targetStock: e.target.value === 'STOCK_OUT' ? '0' : '1' }))}><option value="STOCK_IN">Ajukan Display</option><option value="STOCK_OUT">Kosongkan / Ganti Display</option></select></label>
+            <label className="space-y-1"><span className="text-sm font-medium">Alasan</span><Textarea value={requestForm.reason} onChange={(e) => setRequestForm((p: any) => ({ ...p, reason: e.target.value }))} placeholder="Contoh: produk ini perlu dipasang display." /></label>
           </div>
           <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Batal</Button><Button onClick={submitRequest} disabled={!requestForm.productId || !requestForm.reason || createPending}>{createPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Kirim Pengajuan</Button></div>
         </DialogContent>
