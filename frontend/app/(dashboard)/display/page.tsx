@@ -349,11 +349,12 @@ function RequestsTab(props: any) {
 function ReturnsTab(props: any) {
   const { isAdmin, isTcp, showForm, setShowForm, productRows, isLoadingProducts, returnRows, returnForm, setReturnForm, submitReturn, createPending, setSelectedReturnId, setActiveTab, updateReturnStatus } = props;
   const returnableRows = productRows.filter((p: DisplayProduct) => !!p.id && (p.displayUsed ?? p.stock) > 0);
+  const selectedProduct = returnableRows.find((p: DisplayProduct) => p.id === returnForm.displayProductId);
   return (
     <div className="space-y-4 no-print">
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader><DialogTitle>Buat Retur Display + Surat Jalan</DialogTitle><DialogDescription>Surat jalan otomatis dibuat setelah retur disimpan.</DialogDescription></DialogHeader>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
+          <DialogHeader><DialogTitle>Buat Retur Display + Surat Jalan</DialogTitle><DialogDescription>Isi data retur, lalu cek preview surat jalan sebelum disimpan.</DialogDescription></DialogHeader>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-1"><span className="text-sm font-medium">Barang Display</span><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={returnForm.displayProductId} disabled={isLoadingProducts || returnableRows.length === 0} onChange={(e) => setReturnForm((p: any) => ({ ...p, displayProductId: e.target.value }))}><option value="">{isLoadingProducts ? 'Memuat barang display...' : returnableRows.length === 0 ? 'Tidak ada barang display' : 'Pilih barang...'}</option>{returnableRows.map((p: DisplayProduct) => <option key={p.id!} value={p.id!}>{p.name} - {p.sku} - {variantSummary(p).replace('Varian: ', '')}{p.isDiscontinued ? ' (Tidak dijual lagi)' : ''}</option>)}</select><span className="text-xs text-muted-foreground">Hanya barang yang sedang display yang muncul di sini.</span></label>
             <label className="space-y-1"><span className="text-sm font-medium">Kondisi</span><Input value={returnForm.condition} onChange={(e) => setReturnForm((p: any) => ({ ...p, condition: e.target.value }))} /></label>
@@ -363,6 +364,7 @@ function ReturnsTab(props: any) {
             <label className="space-y-1"><span className="text-sm font-medium">Alasan Retur</span><Textarea value={returnForm.reason} onChange={(e) => setReturnForm((p: any) => ({ ...p, reason: e.target.value }))} /></label>
             <label className="space-y-1"><span className="text-sm font-medium">Catatan</span><Textarea value={returnForm.notes} onChange={(e) => setReturnForm((p: any) => ({ ...p, notes: e.target.value }))} /></label>
           </div>
+          <ReturnLetterPreview form={returnForm} product={selectedProduct} />
           <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Batal</Button><Button onClick={submitReturn} disabled={!returnForm.displayProductId || !returnForm.recipientName || !returnForm.recipientAddress || !returnForm.reason || createPending}>{createPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Buat Surat Jalan</Button></div>
         </DialogContent>
       </Dialog>
@@ -374,6 +376,43 @@ function ReturnsTab(props: any) {
           {returnRows.length === 0 && <div className="py-8 text-center text-muted-foreground">Belum ada Retur Display.</div>}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+
+function ReturnLetterPreview({ form, product }: { form: any; product?: DisplayProduct }) {
+  const variantText = product ? variantSummary(product).replace('Varian: ', '') : '-';
+  return (
+    <div className="rounded-xl border bg-white p-5 text-black shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-sm font-semibold text-slate-700">Preview Surat Jalan</div>
+        <Badge variant="outline" className="bg-slate-50 text-slate-700">Nomor otomatis setelah disimpan</Badge>
+      </div>
+      <div className="grid grid-cols-2 gap-6 text-sm">
+        <div>
+          <div className="flex items-center gap-2"><div className="flex h-10 w-10 items-center justify-center rounded border-2 border-black font-bold">LN</div><div><div className="text-lg font-bold">LUNAREA</div><div className="text-xs">Furniture & Home Living</div></div></div>
+          <div className="mt-2 text-xs leading-relaxed">Alamat Lunarea<br />Jl. Operasional Lunarea<br />Kontak: -</div>
+        </div>
+        <div>
+          <div className="font-semibold">Kepada:</div>
+          <div className="font-bold">{form.recipientName || '(nama tujuan)'}</div>
+          <div className="whitespace-pre-line text-xs leading-relaxed">{form.recipientAddress || '(alamat tujuan)'}</div>
+        </div>
+      </div>
+      <div className="my-4 text-center">
+        <div className="text-lg font-bold underline">SURAT JALAN RETUR DISPLAY</div>
+        <div className="text-xs">No. Surat: <span className="font-semibold">Otomatis</span></div>
+        <div className="text-xs">Tanggal: {shortDate(new Date().toISOString())}</div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-xs">
+          <thead><tr className="bg-slate-100"><th className="border border-black p-2 text-left">No</th><th className="border border-black p-2 text-left">Nama Barang</th><th className="border border-black p-2 text-left">Varian</th><th className="border border-black p-2 text-left">Jumlah</th><th className="border border-black p-2 text-left">Kondisi</th><th className="border border-black p-2 text-left">Keterangan</th></tr></thead>
+          <tbody><tr><td className="border border-black p-2">1</td><td className="border border-black p-2">{product?.name || '(pilih barang)'}<div>SKU: {product?.sku || '-'}</div></td><td className="border border-black p-2">{variantText}</td><td className="border border-black p-2">1</td><td className="border border-black p-2">{form.condition || '-'}</td><td className="border border-black p-2">{form.reason || '-'}</td></tr></tbody>
+        </table>
+      </div>
+      {form.notes && <div className="mt-3 text-xs"><span className="font-semibold">Catatan:</span> {form.notes}</div>}
+      <div className="grid grid-cols-3 gap-5 pt-8 text-center text-xs"><div><div>Mengetahui</div><div className="h-12" /><div className="border-t border-black pt-1">(...........)</div></div><div><div>Diserahkan Oleh</div><div className="h-12" /><div className="border-t border-black pt-1">(...........)</div></div><div><div>Diterima Oleh</div><div className="h-12" /><div className="border-t border-black pt-1">(...........)</div></div></div>
     </div>
   );
 }
