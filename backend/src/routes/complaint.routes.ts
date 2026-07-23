@@ -21,6 +21,8 @@ router.post('/:id/convert-to-return', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), com
 router.patch('/:id/claim', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), complaintController.claim);
 router.patch('/:id/mark-handled', rbac(['TCP', 'SUPER_ADMIN', 'ADMIN']), complaintController.markHandled);
 router.patch('/:id/request-follow-up', rbac(['USER', 'SUPER_ADMIN', 'ADMIN']), complaintController.requestFollowUp);
+router.patch('/:id/confirm-delivered', rbac(['USER', 'SUPER_ADMIN', 'ADMIN']), complaintController.confirmDelivered);
+router.patch('/:id/close-case', rbac(['USER', 'SUPER_ADMIN', 'ADMIN']), complaintController.closeCase);
 router.patch('/:id/complete', rbac(['USER', 'SUPER_ADMIN', 'ADMIN']), complaintController.complete);
 
 export default router;

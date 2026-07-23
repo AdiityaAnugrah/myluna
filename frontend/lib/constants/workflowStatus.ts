@@ -12,6 +12,10 @@ export function getComplaintStatusLabel(status: ComplaintStatus) {
       return 'Pengganti Sudah Dikirim';
     case 'WAITING_USER_CONFIRMATION':
       return 'Menunggu Konfirmasi User';
+    case 'WAITING_USER_DELIVERY_CONFIRMATION':
+      return 'Menunggu Konfirmasi Barang Sampai';
+    case 'MONITORING_CUSTOMER_CONFIRMATION':
+      return 'Masa Konfirmasi Pelanggan';
     case 'FOLLOW_UP_REQUIRED':
       return 'Perlu Tindak Lanjut';
     case 'COMPLETED':
@@ -35,6 +39,10 @@ export function getComplaintStatusBadgeClass(status: ComplaintStatus) {
       return 'bg-green-100 text-green-800 border-green-300';
     case 'WAITING_USER_CONFIRMATION':
       return 'bg-cyan-100 text-cyan-800 border-cyan-300';
+    case 'WAITING_USER_DELIVERY_CONFIRMATION':
+      return 'bg-sky-100 text-sky-800 border-sky-300';
+    case 'MONITORING_CUSTOMER_CONFIRMATION':
+      return 'bg-purple-100 text-purple-800 border-purple-300';
     case 'FOLLOW_UP_REQUIRED':
       return 'bg-orange-100 text-orange-800 border-orange-300';
     case 'COMPLETED':

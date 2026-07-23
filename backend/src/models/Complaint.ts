@@ -7,9 +7,16 @@ export enum ComplaintStatus {
   ACCEPTED_BY_TCP = 'ACCEPTED_BY_TCP',
   REPLACEMENT_SHIPPED = 'REPLACEMENT_SHIPPED',
   WAITING_USER_CONFIRMATION = 'WAITING_USER_CONFIRMATION',
+  WAITING_USER_DELIVERY_CONFIRMATION = 'WAITING_USER_DELIVERY_CONFIRMATION',
+  MONITORING_CUSTOMER_CONFIRMATION = 'MONITORING_CUSTOMER_CONFIRMATION',
   FOLLOW_UP_REQUIRED = 'FOLLOW_UP_REQUIRED',
   COMPLETED = 'COMPLETED',
   CONVERTED_TO_RETURN = 'CONVERTED_TO_RETURN',
+}
+
+export enum ComplaintType {
+  HARDWARE = 'HARDWARE',
+  ACCESSORY = 'ACCESSORY',
 }
 
 export enum ComplaintResolutionType {
@@ -45,6 +52,12 @@ interface ComplaintAttributes {
   complaintVideo: string | null;
   complaintVideoOriginalSize: number | null;
   complaintVideoCompressedSize: number | null;
+  complaintType: ComplaintType | null;
+  tcpDeadlineAt: Date | null;
+  deliveryConfirmDeadlineAt: Date | null;
+  deliveredConfirmedAt: Date | null;
+  customerCheckDeadlineAt: Date | null;
+  caseClosedByUserAt: Date | null;
   status: ComplaintStatus;
   reviewedBy: string | null;
   reviewedAt: Date | null;
@@ -89,6 +102,12 @@ interface ComplaintCreationAttributes
     | 'complaintVideo'
     | 'complaintVideoOriginalSize'
     | 'complaintVideoCompressedSize'
+    | 'complaintType'
+    | 'tcpDeadlineAt'
+    | 'deliveryConfirmDeadlineAt'
+    | 'deliveredConfirmedAt'
+    | 'customerCheckDeadlineAt'
+    | 'caseClosedByUserAt'
     | 'status'
     | 'reviewedBy'
     | 'reviewedAt'
@@ -139,6 +158,12 @@ class Complaint
   declare complaintVideo: string | null;
   declare complaintVideoOriginalSize: number | null;
   declare complaintVideoCompressedSize: number | null;
+  declare complaintType: ComplaintType | null;
+  declare tcpDeadlineAt: Date | null;
+  declare deliveryConfirmDeadlineAt: Date | null;
+  declare deliveredConfirmedAt: Date | null;
+  declare customerCheckDeadlineAt: Date | null;
+  declare caseClosedByUserAt: Date | null;
   declare status: ComplaintStatus;
   declare reviewedBy: string | null;
   declare reviewedAt: Date | null;
@@ -246,6 +271,30 @@ Complaint.init(
     },
     complaintVideoCompressedSize: {
       type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    complaintType: {
+      type: DataTypes.STRING(30),
+      allowNull: true,
+    },
+    tcpDeadlineAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    deliveryConfirmDeadlineAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    deliveredConfirmedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    customerCheckDeadlineAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    caseClosedByUserAt: {
+      type: DataTypes.DATE,
       allowNull: true,
     },
     status: {

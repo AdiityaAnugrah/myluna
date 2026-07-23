@@ -416,10 +416,13 @@ export type ComplaintStatus =
   | 'ACCEPTED_BY_TCP'
   | 'REPLACEMENT_SHIPPED'
   | 'WAITING_USER_CONFIRMATION'
+  | 'WAITING_USER_DELIVERY_CONFIRMATION'
+  | 'MONITORING_CUSTOMER_CONFIRMATION'
   | 'FOLLOW_UP_REQUIRED'
   | 'COMPLETED'
   | 'CONVERTED_TO_RETURN';
 
+export type ComplaintType = 'HARDWARE' | 'ACCESSORY';
 export type ComplaintResolutionType = 'SETTLEMENT_DEDUCTION' | 'SEND_COMPONENT' | 'CONVERT_TO_RETURN' | 'NO_ACTION';
 export type ComplaintResolutionStatus = 'PENDING_DECISION' | 'IN_PROGRESS' | 'WAITING_USER_CONFIRMATION' | 'COMPLETED';
 
@@ -449,6 +452,12 @@ export interface Complaint {
   complaintPhotos?: string[] | null;
   salesInformation?: string | null;
   complaintReceiptPdf?: string | null;
+  complaintType?: ComplaintType | null;
+  tcpDeadlineAt?: string | null;
+  deliveryConfirmDeadlineAt?: string | null;
+  deliveredConfirmedAt?: string | null;
+  customerCheckDeadlineAt?: string | null;
+  caseClosedByUserAt?: string | null;
   status: ComplaintStatus;
   reviewedBy: string | null;
   reviewedAt: string | null;

@@ -146,6 +146,36 @@ export function useRequestComplaintFollowUp() {
   });
 }
 
+export function useConfirmComplaintDelivered() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => complaintsApi.confirmDelivered(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      toast.success('Barang sampai berhasil dikonfirmasi');
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Gagal mengonfirmasi barang sampai'));
+    },
+  });
+}
+
+export function useCloseComplaintCase() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => complaintsApi.closeCase(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      toast.success('Kasus komplen berhasil ditutup');
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Gagal menutup kasus komplen'));
+    },
+  });
+}
+
 export function useCompleteComplaint() {
   const queryClient = useQueryClient();
 

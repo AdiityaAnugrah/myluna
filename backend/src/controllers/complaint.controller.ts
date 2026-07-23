@@ -10,6 +10,7 @@ import {
   ComplaintResolutionStatus,
   ComplaintResolutionType,
   ComplaintStatus,
+  ComplaintType,
   Expense,
   MovementType,
   Product,
@@ -67,8 +68,31 @@ const complaintActiveStatuses: ComplaintStatus[] = [
   ComplaintStatus.ACCEPTED_BY_TCP,
   ComplaintStatus.REPLACEMENT_SHIPPED,
   ComplaintStatus.WAITING_USER_CONFIRMATION,
+  ComplaintStatus.WAITING_USER_DELIVERY_CONFIRMATION,
+  ComplaintStatus.MONITORING_CUSTOMER_CONFIRMATION,
   ComplaintStatus.FOLLOW_UP_REQUIRED,
 ];
+
+function addCalendarDays(start: Date, days: number) {
+  const result = new Date(start);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function addBusinessDays(start: Date, businessDays: number) {
+  const result = new Date(start);
+  let added = 0;
+  while (added < businessDays) {
+    result.setDate(result.getDate() + 1);
+    const day = result.getDay();
+    if (day !== 0 && day !== 6) added += 1;
+  }
+  return result;
+}
+
+function getComplaintTcpSlaBusinessDays(type: ComplaintType) {
+  return type === ComplaintType.HARDWARE ? 14 : 7;
+}
 
 function generateReturnNumber() {
   const now = new Date();
@@ -130,6 +154,18 @@ export const complaintController = {
           status: ComplaintStatus.WAITING_USER_CONFIRMATION,
         },
       });
+      const waitingDeliveryConfirmationCount = await Complaint.count({
+        where: {
+          ...where,
+          status: ComplaintStatus.WAITING_USER_DELIVERY_CONFIRMATION,
+        },
+      });
+      const monitoringCustomerConfirmationCount = await Complaint.count({
+        where: {
+          ...where,
+          status: ComplaintStatus.MONITORING_CUSTOMER_CONFIRMATION,
+        },
+      });
       const followUpRequiredCount = await Complaint.count({
         where: {
           ...where,
@@ -143,6 +179,8 @@ export const complaintController = {
           activeCount,
           pendingReviewCount,
           waitingUserConfirmationCount,
+          waitingDeliveryConfirmationCount,
+          monitoringCustomerConfirmationCount,
           followUpRequiredCount,
           badgeCount: activeCount,
         },
@@ -222,9 +260,13 @@ export const complaintController = {
       const recipientPhone = String(req.body.recipientPhone || '').trim();
       const recipientAddress = String(req.body.recipientAddress || '').trim();
       const recipientAddressNote = String(req.body.recipientAddressNote || '').trim();
+      const complaintType = String(req.body.complaintType || '').toUpperCase() as ComplaintType;
 
       if (!saleId || !reason || String(reason).trim().length < 5) {
         throw new AppError('Pesanan dan alasan komplen wajib diisi', 400);
+      }
+      if (!Object.values(ComplaintType).includes(complaintType)) {
+        throw new AppError('Jenis komplen wajib dipilih', 400);
       }
       if (recipientName.length < 2) {
         throw new AppError('Nama penerima wajib diisi dengan jelas', 400);
@@ -326,6 +368,8 @@ export const complaintController = {
         complaintVideo: null,
         complaintVideoOriginalSize: null,
         complaintVideoCompressedSize: null,
+        complaintType,
+        tcpDeadlineAt: addBusinessDays(new Date(complaintDate), getComplaintTcpSlaBusinessDays(complaintType)),
         createdBy: req.user.id,
       });
 
@@ -547,7 +591,8 @@ export const complaintController = {
       if (shippingCost > 0) {
         await Expense.create({ category: 'SHIPPING', description: `Ongkir kirim komponen komplen ${complaint.complaintNumber}`, amount: shippingCost.toFixed(2), expenseDate: new Date(), notes: shippingService ? `Jasa kirim: ${shippingService}` : null, receiptDocument: null, createdBy: req.user.id }, { transaction });
       }
-      await complaint.update({ status: ComplaintStatus.WAITING_USER_CONFIRMATION, resolutionType: ComplaintResolutionType.SEND_COMPONENT, resolutionStatus: ComplaintResolutionStatus.WAITING_USER_CONFIRMATION, componentShipmentStatus: 'SHIPPED', componentShippingService: shippingService || null, componentShippingCost: shippingCost.toFixed(2), replacementProofDocument: complaint.complaintReceiptPdf, shippedBy: req.user.id, shippedAt: new Date(), resolutionNotes: String(req.body.notes || '').trim() || complaint.resolutionNotes }, { transaction });
+      const shippedAt = new Date();
+      await complaint.update({ status: ComplaintStatus.WAITING_USER_DELIVERY_CONFIRMATION, resolutionType: ComplaintResolutionType.SEND_COMPONENT, resolutionStatus: ComplaintResolutionStatus.WAITING_USER_CONFIRMATION, componentShipmentStatus: 'SHIPPED', componentShippingService: shippingService || null, componentShippingCost: shippingCost.toFixed(2), replacementProofDocument: complaint.complaintReceiptPdf, shippedBy: req.user.id, shippedAt, deliveryConfirmDeadlineAt: addCalendarDays(shippedAt, 7), resolutionNotes: String(req.body.notes || '').trim() || complaint.resolutionNotes }, { transaction });
       await auditService.log({ userId: req.user.id, action: AuditAction.UPDATE, entity: 'ComplaintComponentShipment', entityId: complaint.id, before, after: complaint.toJSON(), ip: req.ip || req.socket.remoteAddress || '', userAgent: req.headers['user-agent'] || '' }, transaction);
       await transaction.commit();
       socketService.broadcastDataRefresh('complaints');
@@ -671,11 +716,13 @@ export const complaintController = {
 
       const before = complaint.toJSON();
 
+      const shippedAt = new Date();
       await complaint.update({
-        status: ComplaintStatus.WAITING_USER_CONFIRMATION,
+        status: ComplaintStatus.WAITING_USER_DELIVERY_CONFIRMATION,
         replacementProofDocument: complaint.complaintReceiptPdf,
         shippedBy: req.user.id,
-        shippedAt: new Date(),
+        shippedAt,
+        deliveryConfirmDeadlineAt: addCalendarDays(shippedAt, 7),
       });
 
       await auditService.log({
@@ -691,12 +738,12 @@ export const complaintController = {
 
       socketService.emitToUser(complaint.createdBy, 'notification:new', {
         message: 'Pengganti untuk komplen sudah dikirim',
-        description: `Komplen ${complaint.complaintNumber} menunggu konfirmasi selesai dari user`,
+        description: `Komplen ${complaint.complaintNumber} menunggu konfirmasi barang sampai dari user`,
         type: 'INFO',
       });
       socketService.broadcastDataRefresh('complaints');
 
-      return successResponse(res, complaint, 'Komplen berhasil ditandai pengganti sudah dikirim dan menunggu konfirmasi user', 200);
+      return successResponse(res, complaint, 'Komplen berhasil ditandai pengganti sudah dikirim dan menunggu konfirmasi barang sampai', 200);
     } catch (error) {
       return next(error);
     }
@@ -728,7 +775,9 @@ export const complaintController = {
 
       if (
         complaint.status !== ComplaintStatus.WAITING_USER_CONFIRMATION &&
-        complaint.status !== ComplaintStatus.REPLACEMENT_SHIPPED
+        complaint.status !== ComplaintStatus.REPLACEMENT_SHIPPED &&
+        complaint.status !== ComplaintStatus.WAITING_USER_DELIVERY_CONFIRMATION &&
+        complaint.status !== ComplaintStatus.MONITORING_CUSTOMER_CONFIRMATION
       ) {
         throw new AppError('Komplen belum menunggu konfirmasi user', 400);
       }
@@ -759,6 +808,111 @@ export const complaintController = {
       socketService.broadcastDataRefresh('complaints');
 
       return successResponse(res, complaint, 'Komplen berhasil dikembalikan untuk tindak lanjut', 200);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async confirmDelivered(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        throw new AppError('Authentication required', 401);
+      }
+
+      const { id } = req.params;
+      const complaint = await Complaint.findByPk(id);
+      if (!complaint) {
+        throw new AppError('Komplen tidak ditemukan', 404);
+      }
+
+      const isOwner = complaint.createdBy === req.user.id;
+      const isAdmin = req.user.roleName === 'ADMIN' || req.user.roleName === 'SUPER_ADMIN';
+      if (!isOwner && !isAdmin) {
+        throw new AppError('Anda tidak berwenang mengonfirmasi barang sampai untuk komplen ini', 403);
+      }
+
+      if (complaint.status !== ComplaintStatus.WAITING_USER_DELIVERY_CONFIRMATION) {
+        throw new AppError('Komplen belum menunggu konfirmasi barang sampai', 400);
+      }
+
+      const confirmedAt = new Date();
+      const before = complaint.toJSON();
+      await complaint.update({
+        status: ComplaintStatus.MONITORING_CUSTOMER_CONFIRMATION,
+        deliveredConfirmedAt: confirmedAt,
+        customerCheckDeadlineAt: addCalendarDays(confirmedAt, 3),
+      });
+
+      await auditService.log({
+        userId: req.user.id,
+        action: AuditAction.UPDATE,
+        entity: 'ComplaintDeliveryConfirmation',
+        entityId: complaint.id,
+        before,
+        after: complaint.toJSON(),
+        ip: req.ip || req.socket.remoteAddress || '',
+        userAgent: req.headers['user-agent'] || '',
+      });
+
+      socketService.emitToTCP('notification:new', {
+        message: 'Barang pengganti sudah sampai',
+        description: `Komplen ${complaint.complaintNumber} masuk masa konfirmasi pelanggan`,
+        type: 'INFO',
+      });
+      socketService.broadcastDataRefresh('complaints');
+
+      return successResponse(res, complaint, 'Barang sampai berhasil dikonfirmasi', 200);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async closeCase(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        throw new AppError('Authentication required', 401);
+      }
+
+      const { id } = req.params;
+      const complaint = await Complaint.findByPk(id);
+      if (!complaint) {
+        throw new AppError('Komplen tidak ditemukan', 404);
+      }
+
+      const isOwner = complaint.createdBy === req.user.id;
+      const isAdmin = req.user.roleName === 'ADMIN' || req.user.roleName === 'SUPER_ADMIN';
+      if (!isOwner && !isAdmin) {
+        throw new AppError('Anda tidak berwenang menutup kasus komplen ini', 403);
+      }
+
+      if (complaint.status !== ComplaintStatus.MONITORING_CUSTOMER_CONFIRMATION) {
+        throw new AppError('Kasus komplen belum masuk masa konfirmasi pelanggan', 400);
+      }
+
+      const closedAt = new Date();
+      const before = complaint.toJSON();
+      await complaint.update({
+        status: ComplaintStatus.COMPLETED,
+        caseClosedByUserAt: closedAt,
+        completedBy: req.user.id,
+        completedAt: closedAt,
+        resolutionStatus: complaint.resolutionStatus || ComplaintResolutionStatus.COMPLETED,
+      });
+
+      await auditService.log({
+        userId: req.user.id,
+        action: AuditAction.UPDATE,
+        entity: 'ComplaintCaseClose',
+        entityId: complaint.id,
+        before,
+        after: complaint.toJSON(),
+        ip: req.ip || req.socket.remoteAddress || '',
+        userAgent: req.headers['user-agent'] || '',
+      });
+
+      socketService.broadcastDataRefresh('complaints');
+
+      return successResponse(res, complaint, 'Kasus komplen berhasil ditutup', 200);
     } catch (error) {
       return next(error);
     }

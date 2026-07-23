@@ -26,6 +26,7 @@ import Complaint, {
   ComplaintResolutionStatus,
   ComplaintResolutionType,
   ComplaintStatus,
+  ComplaintType,
 } from './Complaint';
 import ComplaintComponentShipment from './ComplaintComponentShipment';
 import Province from './Province';
@@ -299,6 +300,7 @@ export {
   VariantOption,
   Complaint,
   ComplaintStatus,
+  ComplaintType,
   ComplaintResolutionType,
   ComplaintResolutionStatus,
   ComplaintComponentShipment,

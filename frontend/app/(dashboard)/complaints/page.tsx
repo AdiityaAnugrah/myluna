@@ -6,7 +6,9 @@ import { jsPDF } from 'jspdf';
 import { useAuthStore } from '@/lib/stores/auth';
 import {
   useClaimComplaint,
+  useCloseComplaintCase,
   useComplaints,
+  useConfirmComplaintDelivered,
   useCompleteComplaint,
   useCreateComplaint,
   useComplaintDetail,
@@ -48,7 +50,7 @@ import { ComplaintReturnMenu } from '@/components/complaint-return-menu';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import { notify } from '@/lib/notify';
 import { getComplaintStatusBadgeClass, getComplaintStatusLabel } from '@/lib/constants/workflowStatus';
-import { Complaint, ComplaintResolutionType, ComplaintStatus, Sale } from '@/types';
+import { Complaint, ComplaintResolutionType, ComplaintStatus, ComplaintType, Sale } from '@/types';
 import { CheckCircle2, Eye, FileText, Loader2, Printer, RotateCcw, Search, Send } from 'lucide-react';
 
 function statusLabel(status: ComplaintStatus) {
@@ -65,6 +67,26 @@ function sanitizeComplaintSalesInformation(value: string) {
     .filter((line) => !/^\s*by\s*:/i.test(line))
     .join('\n')
     .trim();
+}
+
+function getComplaintTypeLabel(type?: ComplaintType | null) {
+  if (type === 'HARDWARE') return 'Hardware / Barang Besar';
+  if (type === 'ACCESSORY') return 'Aksesoris / Barang Kecil';
+  return '-';
+}
+
+function getDeadlineInfo(deadline?: string | null) {
+  if (!deadline) return null;
+  const target = new Date(deadline).getTime();
+  if (Number.isNaN(target)) return null;
+  const now = Date.now();
+  const diffDays = Math.ceil((target - now) / 86_400_000);
+  return {
+    date: new Date(deadline).toLocaleDateString('id-ID'),
+    diffDays,
+    overdue: diffDays < 0,
+    text: diffDays < 0 ? `Melewati Deadline ${Math.abs(diffDays)} hari` : diffDays === 0 ? 'Jatuh tempo hari ini' : `Sisa ${diffDays} hari`,
+  };
 }
 
 function createSalesInfoPdf(params: {
@@ -153,6 +175,7 @@ export default function ComplaintsPage() {
   const [recipientAddressNote, setRecipientAddressNote] = useState('');
   const [salesInformation, setSalesInformation] = useState('');
   const [complaintDate, setComplaintDate] = useState(today);
+  const [complaintType, setComplaintType] = useState<ComplaintType | ''>('');
   const [complaintPhotos, setComplaintPhotos] = useState<File[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [detailComplaint, setDetailComplaint] = useState<Complaint | null>(null);
@@ -182,6 +205,8 @@ export default function ComplaintsPage() {
 
   const createComplaint = useCreateComplaint();
   const claimComplaint = useClaimComplaint();
+  const confirmDelivered = useConfirmComplaintDelivered();
+  const closeComplaintCase = useCloseComplaintCase();
   const completeComplaint = useCompleteComplaint();
   const markComplaintHandled = useMarkComplaintHandled();
   const requestComplaintFollowUp = useRequestComplaintFollowUp();
@@ -248,6 +273,7 @@ export default function ComplaintsPage() {
 
   const canSubmitComplaint =
     !!selectedSale &&
+    !!complaintType &&
     complaintPhotos.length > 0 &&
     reason.trim().length >= 5 &&
     hasValidRecipientDetails &&
@@ -284,6 +310,7 @@ export default function ComplaintsPage() {
     formData.append('saleId', selectedSale.id);
     formData.append('reason', reason.trim());
     formData.append('complaintDate', effectiveComplaintDate);
+    formData.append('complaintType', complaintType);
     formData.append('receiptSource', 'GENERATED');
     formData.append('complaintReceiptPdf', receiptPdfFile);
     formData.append('salesInformation', cleanSalesInformation);
@@ -305,6 +332,7 @@ export default function ComplaintsPage() {
         setRecipientAddressNote('');
         setSalesInformation('');
         setComplaintDate(today);
+        setComplaintType('');
         setComplaintPhotos([]);
         setSaleQuery('');
         setDebouncedSaleQuery('');
@@ -333,7 +361,7 @@ export default function ComplaintsPage() {
 
   const handlePrintComplaint = (complaint: Complaint) => {
     const canPrint =
-      ['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED', 'WAITING_USER_CONFIRMATION', 'COMPLETED'].includes(complaint.status) ||
+      ['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED', 'WAITING_USER_CONFIRMATION', 'WAITING_USER_DELIVERY_CONFIRMATION', 'MONITORING_CUSTOMER_CONFIRMATION', 'COMPLETED'].includes(complaint.status) ||
       acceptedComplaintIds.has(complaint.id);
 
     if (!canPrint) {
@@ -510,6 +538,22 @@ export default function ComplaintsPage() {
               </div>
             )}
 
+            <div className="space-y-2">
+              <Label>Jenis Komplen *</Label>
+              <Select value={complaintType} onValueChange={(value) => setComplaintType(value as ComplaintType)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih jenis barang yang dikomplen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="HARDWARE">Hardware / Barang Besar - SLA TCP 14 hari kerja</SelectItem>
+                  <SelectItem value="ACCESSORY">Aksesoris / Barang Kecil - SLA TCP 7 hari kerja</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Pilihan ini menentukan Batas Waktu TCP untuk menangani Komplen.
+              </p>
+            </div>
+
             <div className="rounded-lg border p-4 space-y-4">
               <div>
                 <p className="text-sm font-semibold">Detail Penerima & Alamat Pengganti *</p>
@@ -685,6 +729,8 @@ export default function ComplaintsPage() {
                 <SelectItem value="ACCEPTED_BY_TCP">Sedang Ditangani TCP</SelectItem>
                 <SelectItem value="REPLACEMENT_SHIPPED">Pengganti Sudah Dikirim</SelectItem>
                 <SelectItem value="WAITING_USER_CONFIRMATION">Menunggu Konfirmasi User</SelectItem>
+                <SelectItem value="WAITING_USER_DELIVERY_CONFIRMATION">Menunggu Konfirmasi Barang Sampai</SelectItem>
+                <SelectItem value="MONITORING_CUSTOMER_CONFIRMATION">Masa Konfirmasi Pelanggan</SelectItem>
                 <SelectItem value="FOLLOW_UP_REQUIRED">Perlu Tindak Lanjut</SelectItem>
                 <SelectItem value="COMPLETED">Selesai</SelectItem>
                 <SelectItem value="CONVERTED_TO_RETURN">Dialihkan ke Retur</SelectItem>
@@ -719,14 +765,23 @@ export default function ComplaintsPage() {
               {complaints.map((complaint) => {
                 const receiptPdfPath = complaint.complaintReceiptPdf || complaint.replacementProofDocument;
                 const isAcceptedForPrint =
-                  ['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED', 'WAITING_USER_CONFIRMATION', 'COMPLETED'].includes(complaint.status) ||
+                  ['ACCEPTED_BY_TCP', 'REPLACEMENT_SHIPPED', 'WAITING_USER_CONFIRMATION', 'WAITING_USER_DELIVERY_CONFIRMATION', 'MONITORING_CUSTOMER_CONFIRMATION', 'COMPLETED'].includes(complaint.status) ||
                   acceptedComplaintIds.has(complaint.id);
                 const isPendingReview = complaint.status === 'PENDING_TCP_REVIEW' && !acceptedComplaintIds.has(complaint.id);
                 const isFollowUpRequired = complaint.status === 'FOLLOW_UP_REQUIRED';
                 const canMarkHandled = complaint.status === 'ACCEPTED_BY_TCP';
+                const tcpDeadline = getDeadlineInfo(complaint.tcpDeadlineAt);
+                const deliveryDeadline = getDeadlineInfo(complaint.deliveryConfirmDeadlineAt);
+                const customerCheckDeadline = getDeadlineInfo(complaint.customerCheckDeadlineAt);
                 const canUserConfirm =
                   (isUser || isAdmin || isSuperAdmin || isDev) &&
                   ['WAITING_USER_CONFIRMATION', 'REPLACEMENT_SHIPPED'].includes(complaint.status);
+                const canConfirmDelivered =
+                  (isUser || isAdmin || isSuperAdmin || isDev) &&
+                  complaint.status === 'WAITING_USER_DELIVERY_CONFIRMATION';
+                const canCloseCase =
+                  (isUser || isAdmin || isSuperAdmin || isDev) &&
+                  complaint.status === 'MONITORING_CUSTOMER_CONFIRMATION';
                 return (
                   <div key={complaint.id} className="rounded-lg border p-3">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -750,6 +805,32 @@ export default function ComplaintsPage() {
                             </span>
                           </p>
                         )}
+                        <div className="grid gap-2 text-xs md:grid-cols-3">
+                          <div className="rounded-md border bg-muted/20 p-2">
+                            <div className="font-semibold">Jenis Komplen</div>
+                            <div className="text-muted-foreground">{getComplaintTypeLabel(complaint.complaintType)}</div>
+                          </div>
+                          {tcpDeadline && (
+                            <div className={`rounded-md border p-2 ${tcpDeadline.overdue ? 'bg-red-50 text-red-700 border-red-200' : 'bg-muted/20'}`}>
+                              <div className="font-semibold">Batas Waktu TCP</div>
+                              <div>{tcpDeadline.date} • {tcpDeadline.text}</div>
+                            </div>
+                          )}
+                          {(deliveryDeadline || customerCheckDeadline) && (
+                            <div className={`rounded-md border p-2 ${(deliveryDeadline?.overdue || customerCheckDeadline?.overdue) ? 'bg-red-50 text-red-700 border-red-200' : 'bg-muted/20'}`}>
+                              <div className="font-semibold">
+                                {customerCheckDeadline ? 'Batas Konfirmasi Pelanggan' : 'Batas Konfirmasi Barang Sampai'}
+                              </div>
+                              <div>
+                                {customerCheckDeadline
+                                  ? `${customerCheckDeadline.date} • ${customerCheckDeadline.text}`
+                                  : deliveryDeadline
+                                    ? `${deliveryDeadline.date} • ${deliveryDeadline.text}`
+                                    : '-'}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         <div className="text-sm rounded-md bg-muted/30 border p-2 space-y-1">
                           <p>
                             Penerima: <strong>{complaint.recipientName || '-'}</strong>
@@ -876,6 +957,37 @@ export default function ComplaintsPage() {
                               disabled={requestComplaintFollowUp.isPending}
                             >
                               Belum Selesai
+                            </Button>
+                          </>
+                        )}
+                        {canConfirmDelivered && (
+                          <Button
+                            size="sm"
+                            onClick={() => confirmDelivered.mutate({ id: complaint.id })}
+                            disabled={confirmDelivered.isPending}
+                          >
+                            Konfirmasi Barang Sampai
+                          </Button>
+                        )}
+                        {canCloseCase && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => closeComplaintCase.mutate({ id: complaint.id })}
+                              disabled={closeComplaintCase.isPending}
+                            >
+                              Tutup Kasus
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setFollowUpComplaint(complaint);
+                                setFollowUpReason('');
+                              }}
+                              disabled={requestComplaintFollowUp.isPending}
+                            >
+                              Ada Komplen Lagi
                             </Button>
                           </>
                         )}
@@ -1184,6 +1296,7 @@ export default function ComplaintsPage() {
             <p>No Pesanan: <strong>{selectedSale?.saleNumber}</strong></p>
             <p>Nama: <strong>{selectedSale?.customerName || '-'}</strong></p>
             <p>Tanggal Komplen: <strong>{new Date(effectiveComplaintDate).toLocaleDateString('id-ID')}</strong></p>
+            <p>Jenis Komplen: <strong>{getComplaintTypeLabel(complaintType || null)}</strong></p>
             <div className="rounded-md border p-3 space-y-1">
               <p className="font-semibold">Detail Penerima Pengganti</p>
               <p>Nama Penerima: <strong>{recipientName || '-'}</strong></p>
