@@ -122,7 +122,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
       setNotes(sale.notes || '');
       setItems(
         sale.items?.map((item) => ({
-          productId: item.productId,
+          productId: item.productId || '',
           variantName: item.variantName || null,
           quantity: item.quantity,
           price: typeof item.price === 'string' ? parseFloat(item.price) : Number(item.price),
@@ -282,7 +282,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
           saleDate: isUser ? getTodayDateInputValue() : saleDate,
           notes,
           items: items.map((item) => ({
-            productId: item.productId,
+            productId: item.productId || '',
             variantName: item.variantName || null,
             quantity: item.quantity,
             price: item.price.toString(),
