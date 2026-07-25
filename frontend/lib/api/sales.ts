@@ -29,6 +29,11 @@ export const salesApi = {
     return response.data;
   },
 
+  getNextComponentInvoice: async (saleDate?: string) => {
+    const response = await apiClient.get<ApiResponse<{ saleNumber: string }>>('/sales/component/next-invoice', { params: { saleDate } });
+    return response.data;
+  },
+
   create: async (data: any) => {
     const response = await apiClient.post<ApiResponse<Sale>>('/sales', data);
     return response.data;

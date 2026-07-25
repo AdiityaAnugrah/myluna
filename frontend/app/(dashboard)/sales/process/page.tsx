@@ -30,6 +30,10 @@ import { toast } from 'sonner';
 import { Sale, SaleStatus } from '@/types';
 import { formatCurrency, getPdfUrl, getDaysSinceSale, isUrgentSale, getVariants, isToday } from '@/lib/utils/sales';
 
+function saleItemName(item: any) {
+    return item?.itemType === 'COMPONENT' ? item.componentName || 'Komponen' : item?.product?.name || '-';
+}
+
 
 
 interface SalesTableProps {
@@ -76,7 +80,7 @@ const MobileSalesCard = ({ sale, userRole, onPrint, getStatusBadge }: any) => {
                             {sale.items.map((item: any, i: number) => (
                                 <div key={i} className="flex items-center gap-1 text-[11px]">
                                     <span className="text-muted-foreground font-mono">{item.quantity}×</span>
-                                    <span className="font-medium truncate max-w-[150px]">{item.product?.name || '-'}</span>
+                                    <span className="font-medium truncate max-w-[150px]">{saleItemName(item)}</span>
                                     {item.variantName && (
                                         <span className="text-[9px] bg-muted px-1 rounded text-muted-foreground shrink-0">{item.variantName}</span>
                                     )}
@@ -286,7 +290,7 @@ const SalesTable = ({
                           <div key={i} className="flex items-start gap-1.5">
                             <span className="text-[10px] text-muted-foreground font-mono mt-0.5 shrink-0">{item.quantity}×</span>
                             <div className="flex flex-col min-w-0">
-                              <span className="text-xs font-medium leading-tight truncate">{item.product?.name || '-'}</span>
+                              <span className="text-xs font-medium leading-tight truncate">{saleItemName(item)}</span>
                               {item.variantName && (
                                 <span className="text-[10px] text-muted-foreground bg-muted px-1 rounded w-fit mt-0.5 leading-tight">{item.variantName}</span>
                               )}
@@ -868,7 +872,7 @@ export default function SalesProcessPage() {
                                                 <div style={{ width: '18px', height: '18px', border: '2px solid #000', margin: '0 auto', borderRadius: '3px' }}></div>
                                             </td>
                                             <td style={{ padding: '10px', borderRight: '1.5px solid #000' }}>
-                                                <div style={{ fontWeight: '900', fontSize: '13px', textTransform: 'uppercase' }}>{item.product?.name}</div>
+                                                <div style={{ fontWeight: '900', fontSize: '13px', textTransform: 'uppercase' }}>{saleItemName(item)}</div>
                                                 {item.variantName && (
                                                     <div style={{ fontSize: '11px', fontWeight: '700', color: '#000', padding: '2px 0', textTransform: 'uppercase' }}>
                                                         ➤ VARIAN: {item.variantName}

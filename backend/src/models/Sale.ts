@@ -27,6 +27,11 @@ export enum SalePlatform {
   OTHER = 'OTHER',
 }
 
+export enum SaleType {
+  PRODUCT = 'PRODUCT',
+  COMPONENT = 'COMPONENT',
+}
+
 // Enum ShippingService removed in favor of dynamic table
 
 
@@ -39,6 +44,7 @@ interface SaleAttributes {
   totalAmount: number;
   paymentMethod: PaymentMethod;
   platform: SalePlatform;
+  saleType: SaleType;
   status: SaleStatus;
   notes: string | null;
   shippingService: string | null;
@@ -57,7 +63,7 @@ interface SaleAttributes {
   updatedAt: Date;
 }
 
-interface SaleCreationAttributes extends Optional<SaleAttributes, 'id' | 'customerName' | 'customerPhone' | 'notes' | 'shippingService' | 'shippingAddress' | 'shippingAddressDetail' | 'shippingProvinceId' | 'shippingRegencyId' | 'shippingDistrictId' | 'shippingVillageId' | 'shippingPostalCode' | 'shippingDocument' | 'processedAt' | 'isInitialBalance' | 'createdAt' | 'updatedAt'> {}
+interface SaleCreationAttributes extends Optional<SaleAttributes, 'id' | 'customerName' | 'customerPhone' | 'notes' | 'shippingService' | 'shippingAddress' | 'shippingAddressDetail' | 'shippingProvinceId' | 'shippingRegencyId' | 'shippingDistrictId' | 'shippingVillageId' | 'shippingPostalCode' | 'shippingDocument' | 'processedAt' | 'isInitialBalance' | 'saleType' | 'createdAt' | 'updatedAt'> {}
 
 class Sale extends Model<SaleAttributes, SaleCreationAttributes> implements SaleAttributes {
   declare id: string;
@@ -68,6 +74,7 @@ class Sale extends Model<SaleAttributes, SaleCreationAttributes> implements Sale
   declare totalAmount: number;
   declare paymentMethod: PaymentMethod;
   declare platform: SalePlatform;
+  declare saleType: SaleType;
   declare status: SaleStatus;
   declare notes: string | null;
   declare shippingService: string | null;
@@ -128,6 +135,12 @@ Sale.init(
       type: DataTypes.STRING,
       allowNull: false,
       defaultValue: 'OFFLINE_STORE',
+    },
+    saleType: {
+      type: DataTypes.STRING(30),
+      allowNull: false,
+      defaultValue: SaleType.PRODUCT,
+      field: 'sale_type',
     },
     status: {
       type: DataTypes.ENUM(...Object.values(SaleStatus)),

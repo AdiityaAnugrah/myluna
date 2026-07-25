@@ -20,7 +20,7 @@ export const displayApi = {
   createSupplier: async (data: Partial<DisplaySupplier>) => (await apiClient.post<ApiResponse<DisplaySupplier>>('/display/suppliers', data)).data,
   updateSupplier: async (id: string, data: Partial<DisplaySupplier>) => (await apiClient.put<ApiResponse<DisplaySupplier>>(`/display/suppliers/${id}`, data)).data,
 
-  getProducts: async (params?: { page?: number; limit?: number; search?: string; categoryId?: string; status?: string }) =>
+  getProducts: async (params?: { page?: number; limit?: number; search?: string; categoryId?: string; status?: string; scope?: 'all' | 'ready-to-sell' | 'has-display' }) =>
     (await apiClient.get<ApiResponse<{ products: DisplayProduct[]; pagination: { total: number; page: number; limit: number; totalPages: number } }>>('/display/products', { params })).data,
   getReturnableProducts: async () =>
     (await apiClient.get<ApiResponse<DisplayProduct[]>>('/display/products/returnable')).data,

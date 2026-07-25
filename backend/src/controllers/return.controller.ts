@@ -390,6 +390,7 @@ export const returnController = {
 
       for (const item of items) {
         const saleItem = saleItemsById.get(String(item.saleItemId))!;
+        if (!saleItem.productId) throw new AppError('Item komponen tidak bisa dijadikan retur stok', 400);
         await SaleReturnItem.create(
           {
             returnId: createdReturn.id,

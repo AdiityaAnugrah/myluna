@@ -19,7 +19,7 @@ export function useDisplaySuppliers() {
   return useQuery({ queryKey: ['display', 'suppliers'], queryFn: displayApi.getSuppliers });
 }
 
-export function useDisplayProducts(params?: { page?: number; limit?: number; search?: string; categoryId?: string; status?: string }) {
+export function useDisplayProducts(params?: { page?: number; limit?: number; search?: string; categoryId?: string; status?: string; scope?: 'all' | 'ready-to-sell' | 'has-display' }) {
   return useQuery({ queryKey: ['display', 'products', params], queryFn: () => displayApi.getProducts(params) });
 }
 

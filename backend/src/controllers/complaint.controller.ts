@@ -619,6 +619,7 @@ export const complaintController = {
         const saleItem = saleItemsById.get(String(item.saleItemId || ''));
         const qtyRequested = Number(item.qtyRequested || 0);
         if (!saleItem) throw new AppError('Item penjualan tidak valid', 400);
+        if (!saleItem.productId) throw new AppError('Item komponen tidak bisa dijadikan retur stok', 400);
         if (!Number.isInteger(qtyRequested) || qtyRequested <= 0 || qtyRequested > saleItem.quantity) throw new AppError('Qty retur tidak valid', 400);
         await SaleReturnItem.create({ returnId: returnRecord.id, saleItemId: saleItem.id, productId: saleItem.productId, variantName: saleItem.variantName || null, qtySold: saleItem.quantity, qtyRequested }, { transaction });
       }

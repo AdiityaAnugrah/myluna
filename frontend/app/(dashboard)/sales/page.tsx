@@ -370,7 +370,13 @@ export default function SalesPage() {
           <Link href="/sales/new">
             <Button className="tour-sales-add">
               <Plus className="mr-2 h-4 w-4" />
-              Penjualan Baru
+              Penjualan Produk
+            </Button>
+          </Link>
+          <Link href="/sales/components/new">
+            <Button variant="secondary">
+              <Plus className="mr-2 h-4 w-4" />
+              Penjualan Komponen
             </Button>
           </Link>
         </div>

@@ -110,6 +110,7 @@ export interface Sale {
   customerPhone: string | null;
   paymentMethod: 'CASH' | 'TRANSFER' | 'CREDIT';
   platform: SalePlatform;
+  saleType?: 'PRODUCT' | 'COMPONENT';
   totalAmount: string;
   status: SaleStatus;
   notes: string | null;
@@ -135,7 +136,10 @@ export interface Sale {
 export interface SaleItem {
   id: string;
   saleId: string;
-  productId: string;
+  itemType?: 'PRODUCT' | 'COMPONENT';
+  productId: string | null;
+  componentName?: string | null;
+  componentNotes?: string | null;
   quantity: number;
   price: string;
   discount: string;

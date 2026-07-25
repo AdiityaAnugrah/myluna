@@ -25,6 +25,11 @@ import { use } from 'react';
 import { formatStatus } from '@/lib/utils/format';
 import { PreviewableImage } from '@/components/ui/previewable-image';
 
+
+function saleItemName(item: any) {
+  return item?.itemType === 'COMPONENT' ? item.componentName || 'Komponen' : item?.product?.name || '-';
+}
+
 export default function SettlementDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data, isLoading } = useSettlement(id);
@@ -291,7 +296,7 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
                     <TableCell className="pl-6 text-xs text-muted-foreground">{index + 1}</TableCell>
                     <TableCell>
                       <div>
-                        <p className="font-medium text-sm">{item.product?.name || '-'}</p>
+                        <p className="font-medium text-sm">{saleItemName(item)}</p>
                         {item.variantName && (
                           <p className="text-xs text-muted-foreground mt-0.5">Varian: {item.variantName}</p>
                         )}

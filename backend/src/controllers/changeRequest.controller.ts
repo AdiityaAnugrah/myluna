@@ -421,6 +421,7 @@ async function handleSaleCancellation(id: string | null, payload: any, transacti
   // 1. Restore stock & record movements
   if (sale.items) {
     for (const item of sale.items) {
+      if ((item as any).itemType === 'COMPONENT' || !item.productId) continue;
       const product = await Product.findByPk(item.productId, { transaction });
       if (product) {
         const stockBeforeSaleCancel = product.stock;

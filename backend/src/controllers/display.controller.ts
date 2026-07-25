@@ -167,14 +167,15 @@ export const displayController = {
       if (isTcpRole(req.user?.roleName)) returnWhere.status = { [Op.in]: [DisplayReturnStatus.READY_TO_SEND, DisplayReturnStatus.SENT] };
       if (!isAdminRole(req.user?.roleName) && !isTcpRole(req.user?.roleName)) returnWhere.createdBy = req.user!.id;
 
-      const [totalProducts, activeSlots, pendingRequests, activeReturns] = await Promise.all([
-        Product.count({ where: { isActive: true } }),
+      const [totalProducts, readyToSellProducts, activeSlots, pendingRequests, activeReturns] = await Promise.all([
+        Product.count(),
+        Product.count({ where: { isActive: true, stock: { [Op.gt]: 0 } } }),
         DisplayProduct.count({ where: { isActive: true, stock: { [Op.gt]: 0 } } }),
         DisplayStockRequest.count({ where: requestWhere }),
         DisplayReturn.count({ where: returnWhere }),
       ]);
 
-      return successResponse(res, { totalProducts, activeSlots, pendingRequests, activeReturns, badgeCount: pendingRequests + activeReturns }, 'Ringkasan sistem display berhasil diambil', 200);
+      return successResponse(res, { totalProducts, readyToSellProducts, activeSlots, pendingRequests, activeReturns, badgeCount: pendingRequests + activeReturns }, 'Ringkasan sistem display berhasil diambil', 200);
     } catch (error) { return next(error); }
   },
 
@@ -194,20 +195,29 @@ export const displayController = {
 
   async getProducts(req: Request, res: Response, next: NextFunction) {
     try {
-      const { page = 1, limit = 20, search = '', categoryId = '', status = '' } = req.query;
-      const offset = (Number(page) - 1) * Number(limit);
+      const { page = 1, limit = 20, search = '', categoryId = '', status = '', scope = 'all' } = req.query;
+      const pageNumber = Math.max(Number(page) || 1, 1);
+      const limitNumber = Math.max(Number(limit) || 20, 1);
+      const offset = (pageNumber - 1) * limitNumber;
       const where: any = {};
       if (categoryId) where.categoryId = categoryId;
       if (search) where[Op.or] = [{ sku: { [Op.like]: `%${search}%` } }, { name: { [Op.like]: `%${search}%` } }];
+      if (scope === 'ready-to-sell') {
+        where.isActive = true;
+        where.stock = { [Op.gt]: 0 };
+      }
       const include: any[] = [
         { model: Category, as: 'category' },
         { model: ProductVariant, as: 'variantItems' },
         { model: DisplayProduct, as: 'displaySlot', required: false },
       ];
-      const result = await Product.findAndCountAll({ where, include, order: [['updatedAt', 'DESC']], limit: Number(limit), offset, distinct: true });
-      let rows = result.rows.map((row: any) => slotView(row)).filter((row) => row.isActive || row.displayUsed > 0);
+      const allProducts = await Product.findAll({ where, include, order: [['updatedAt', 'DESC']] });
+      let rows = allProducts.map((row: any) => slotView(row));
+      if (scope === 'has-display') rows = rows.filter((row) => row.displayUsed > 0);
       if (status) rows = rows.filter((row) => row.status === status);
-      return successResponse(res, { products: rows, pagination: { total: rows.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(rows.length / Number(limit)) } }, 'Produk display berhasil diambil dari data produk asli', 200);
+      const total = rows.length;
+      const pagedRows = rows.slice(offset, offset + limitNumber);
+      return successResponse(res, { products: pagedRows, pagination: { total, page: pageNumber, limit: limitNumber, totalPages: Math.ceil(total / limitNumber) } }, 'Produk display berhasil diambil dari data produk asli', 200);
     } catch (error) { return next(error); }
   },
 

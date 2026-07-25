@@ -4,7 +4,10 @@ import { sequelize } from '../config/database';
 interface SaleItemAttributes {
   id: string;
   saleId: string;
-  productId: string;
+  itemType: 'PRODUCT' | 'COMPONENT';
+  productId: string | null;
+  componentName: string | null;
+  componentNotes: string | null;
   variantName?: string | null;
   quantity: number;
   price: number;
@@ -14,12 +17,15 @@ interface SaleItemAttributes {
   updatedAt: Date;
 }
 
-interface SaleItemCreationAttributes extends Optional<SaleItemAttributes, 'id' | 'createdAt' | 'updatedAt'> {}
+interface SaleItemCreationAttributes extends Optional<SaleItemAttributes, 'id' | 'itemType' | 'productId' | 'componentName' | 'componentNotes' | 'createdAt' | 'updatedAt'> {}
 
 class SaleItem extends Model<SaleItemAttributes, SaleItemCreationAttributes> implements SaleItemAttributes {
   declare id: string;
   declare saleId: string;
-  declare productId: string;
+  declare itemType: 'PRODUCT' | 'COMPONENT';
+  declare productId: string | null;
+  declare componentName: string | null;
+  declare componentNotes: string | null;
   declare variantName: string | null;
   declare quantity: number;
   declare price: number;
@@ -44,13 +50,29 @@ SaleItem.init(
         key: 'id',
       },
     },
+    itemType: {
+      type: DataTypes.STRING(30),
+      allowNull: false,
+      defaultValue: 'PRODUCT',
+      field: 'item_type',
+    },
     productId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: 'products',
         key: 'id',
       },
+    },
+    componentName: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      field: 'component_name',
+    },
+    componentNotes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 'component_notes',
     },
     variantName: {
       type: DataTypes.STRING(255),

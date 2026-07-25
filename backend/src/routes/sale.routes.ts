@@ -64,6 +64,8 @@ router.get('/', auth, saleController.getAll);
  */
 router.get('/stats', auth, saleController.getStats);
 
+router.get('/component/next-invoice', auth, saleController.getNextComponentInvoice);
+
 /**
  * @swagger
  * /sales/{id}:

@@ -9,8 +9,27 @@ import { Op } from 'sequelize';
 import { assertUserDateIsToday } from '../utils/dateGuard';
 import { formatRegionLabel } from '../utils/regionLabel';
 
+const COMPONENT_SALE_TYPE = 'COMPONENT';
+const PRODUCT_SALE_TYPE = 'PRODUCT';
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function generateComponentSaleNumber(saleDate: unknown, transaction?: any) {
+  const date = saleDate ? new Date(String(saleDate)) : new Date();
+  if (Number.isNaN(date.getTime())) throw new AppError('Tanggal penjualan tidak valid', 400);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const prefix = `KOMP-${y}${m}${d}`;
+  const latest = await Sale.findOne({
+    where: { saleNumber: { [Op.like]: `${prefix}-%` } },
+    order: [['saleNumber', 'DESC']],
+    transaction,
+  });
+  const lastSequence = Number(String(latest?.saleNumber || '').split('-').pop() || 0);
+  return `${prefix}-${String(lastSequence + 1).padStart(3, '0')}`;
 }
 
 function cleanAddressSeparators(value: string) {
@@ -106,6 +125,16 @@ async function resolveShippingRegion(input: {
 }
 
 export const saleController = {
+  async getNextComponentInvoice(req: Request, res: Response, next: NextFunction) {
+    try {
+      const saleDate = req.query.saleDate || new Date();
+      const saleNumber = await generateComponentSaleNumber(saleDate);
+      return successResponse(res, { saleNumber }, 'Nomor invoice komponen berhasil dibuat', 200);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
       const {
@@ -489,10 +518,15 @@ export const saleController = {
         shippingProvinceId,
         shippingRegencyId,
         shippingDistrictId,
-        shippingVillageId
+        shippingVillageId,
+        saleType = PRODUCT_SALE_TYPE,
       } = req.body;
 
       assertUserDateIsToday(req.user.roleName, saleDate, 'Tanggal penjualan');
+
+      const normalizedSaleType = String(saleType || PRODUCT_SALE_TYPE).toUpperCase() === COMPONENT_SALE_TYPE
+        ? COMPONENT_SALE_TYPE
+        : PRODUCT_SALE_TYPE;
 
       if (!Array.isArray(items) || items.length === 0) {
         throw new AppError('Items must be a non-empty array', 400);
@@ -525,11 +559,13 @@ export const saleController = {
         addressDetail: shippingAddressDetail,
       });
 
-      // Validate invoice number
-      if (!invoiceNumber || invoiceNumber.trim() === '') {
+      // Validate/generate invoice number
+      if (normalizedSaleType !== COMPONENT_SALE_TYPE && (!invoiceNumber || invoiceNumber.trim() === '')) {
         throw new AppError('Nomor Invoice wajib diisi', 400);
       }
-      const saleNumber = invoiceNumber.trim();
+      const saleNumber = normalizedSaleType === COMPONENT_SALE_TYPE && (!invoiceNumber || !invoiceNumber.trim())
+        ? await generateComponentSaleNumber(saleDate, transaction)
+        : invoiceNumber.trim();
 
       // Check if sale number already exists
       const existingSale = await Sale.findOne({ where: { saleNumber }, transaction });
@@ -546,9 +582,12 @@ export const saleController = {
         }
       }
 
-      // Aggregate required stock per (productId, variantName) to handle duplicates correctly
+      // Aggregate required stock per (productId, variantName) to handle duplicates correctly.
+      // Component sales are manual/non-stock transactions, so they skip product stock checks.
       const stockRequired = new Map<string, number>();
       for (const item of items) {
+        const itemType = String(item.itemType || normalizedSaleType || PRODUCT_SALE_TYPE).toUpperCase();
+        if (itemType === COMPONENT_SALE_TYPE) continue;
         const key = `${item.productId}|${item.variantName || ''}`;
         stockRequired.set(key, (stockRequired.get(key) || 0) + Number(item.quantity));
       }
@@ -558,6 +597,16 @@ export const saleController = {
       const productCache = new Map<string, any>();
 
       for (const item of items) {
+        const itemType = String(item.itemType || normalizedSaleType || PRODUCT_SALE_TYPE).toUpperCase();
+        if (itemType === COMPONENT_SALE_TYPE) {
+          const componentName = String(item.componentName || item.name || '').trim();
+          if (!componentName) throw new AppError('Nama komponen wajib diisi', 400);
+          if (Number(item.quantity) <= 0) throw new AppError(`Jumlah komponen ${componentName} harus lebih dari 0`, 400);
+          if (Number(item.price) < 0) throw new AppError(`Harga komponen ${componentName} tidak valid`, 400);
+          const discount = Number(item.discount) || 0;
+          totalAmount += (Number(item.quantity) * Number(item.price)) - discount;
+          continue;
+        }
         let product = productCache.get(item.productId);
         if (!product) {
           product = await Product.findByPk(item.productId, { transaction });
@@ -603,6 +652,7 @@ export const saleController = {
           totalAmount,
           paymentMethod,
           platform: platform || 'OFFLINE_STORE',
+          saleType: normalizedSaleType as any,
           status: 'WAITING_APPROVAL' as any, // Default status
           notes: isDocumentRequired ? null : notes,
           shippingService,
@@ -623,12 +673,16 @@ export const saleController = {
       for (const item of items) {
         const discount = item.discount || 0;
         const subtotal = (item.quantity * item.price) - discount;
+        const itemType = String(item.itemType || normalizedSaleType || PRODUCT_SALE_TYPE).toUpperCase();
 
         await SaleItem.create(
           {
             saleId: sale.id,
-            productId: item.productId,
-            variantName: item.variantName,
+            itemType: itemType === COMPONENT_SALE_TYPE ? COMPONENT_SALE_TYPE : PRODUCT_SALE_TYPE,
+            productId: itemType === COMPONENT_SALE_TYPE ? null : item.productId,
+            componentName: itemType === COMPONENT_SALE_TYPE ? String(item.componentName || item.name || '').trim() : null,
+            componentNotes: itemType === COMPONENT_SALE_TYPE ? (item.componentNotes || item.notes || null) : null,
+            variantName: itemType === COMPONENT_SALE_TYPE ? null : item.variantName,
             quantity: item.quantity,
             price: item.price,
             discount,
@@ -636,6 +690,8 @@ export const saleController = {
           },
           { transaction }
         );
+
+        if (itemType === COMPONENT_SALE_TYPE) continue;
 
         // Update stock: main product stock - quantity
         const product = await Product.findByPk(item.productId, { transaction });
@@ -682,7 +738,7 @@ export const saleController = {
           ip: req.ip || '',
           userAgent: req.get('User-Agent') || '',
           duration: formDuration,
-          metadata: { itemCount: items.length, totalAmount, platform: platform || 'OFFLINE_STORE' },
+          metadata: { itemCount: items.length, totalAmount, platform: platform || 'OFFLINE_STORE', saleType: normalizedSaleType },
         },
         transaction
       );
@@ -764,6 +820,7 @@ export const saleController = {
       // Restore stock
       if (sale.items) {
           for (const item of sale.items) {
+              if ((item as any).itemType === COMPONENT_SALE_TYPE || !item.productId) continue;
               const product = await Product.findByPk(item.productId, { transaction });
               if (product) {
                   const stockBeforeReject = product.stock;
@@ -945,6 +1002,7 @@ export const saleController = {
 
       if (stockWasDeducted) {
         for (const item of sale.items!) {
+          if ((item as any).itemType === COMPONENT_SALE_TYPE || !item.productId) continue;
           const product = await Product.findByPk(item.productId, { transaction });
           const stockBeforeDelete = product!.stock;
           await product!.update(

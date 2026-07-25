@@ -23,6 +23,10 @@ import { use } from 'react';
 import { formatStatus } from '@/lib/utils/format';
 import { getPdfUrl } from '@/lib/utils/sales';
 
+function saleItemName(item: any) {
+  return item?.itemType === 'COMPONENT' ? item.componentName || 'Komponen' : item?.product?.name || '-';
+}
+
 export default function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data, isLoading } = useSale(id);
@@ -249,10 +253,18 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
               {sale.items?.map((item: any) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">
-                    {item.product?.name || '-'}
+                    {saleItemName(item)}
+                    {item.itemType === 'COMPONENT' && (
+                        <Badge variant="secondary" className="ml-2">Komponen</Badge>
+                    )}
                     {item.variantName && (
                         <div className="text-sm text-gray-400 font-normal mt-0.5">
                             Varian: {item.variantName}
+                        </div>
+                    )}
+                    {item.componentNotes && (
+                        <div className="text-sm text-gray-400 font-normal mt-0.5">
+                            {item.componentNotes}
                         </div>
                     )}
                   </TableCell>

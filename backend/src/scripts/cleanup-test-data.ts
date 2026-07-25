@@ -29,6 +29,7 @@ async function cleanupTestData() {
     for (const sale of salesToDelete) {
       if (sale.items) {
         for (const item of sale.items) {
+          if (!item.productId) continue;
           const product = await Product.findByPk(item.productId, { transaction });
           if (product) {
             await product.update(

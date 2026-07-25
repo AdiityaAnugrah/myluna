@@ -38,6 +38,13 @@ export function useSalesStats() {
   });
 }
 
+export function useNextComponentInvoice(saleDate?: string) {
+  return useQuery({
+    queryKey: ['sales', 'component', 'next-invoice', saleDate],
+    queryFn: () => salesApi.getNextComponentInvoice(saleDate),
+  });
+}
+
 export function useCreateSale() {
   const queryClient = useQueryClient();
 

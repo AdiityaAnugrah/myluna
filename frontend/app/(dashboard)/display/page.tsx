@@ -18,7 +18,7 @@ import { useCreateDisplayRequest, useCreateDisplayReturn, useDisplayMovements, u
 import type { DisplayProduct, DisplayRequestStatus, DisplayReturn, DisplayReturnStatus } from '@/types';
 
 type DisplayTab = 'products' | 'requests' | 'returns' | 'letter' | 'history';
-type DisplayFilter = 'need-offname' | 'all';
+type DisplayFilter = 'all' | 'ready-to-sell' | 'has-display';
 
 const requestStatusOptions: Array<{ value: 'all' | DisplayRequestStatus; label: string }> = [
   { value: 'all', label: 'Semua Pengajuan' },
@@ -69,10 +69,10 @@ export default function DisplaySystemPage() {
   const [selectedReturnId, setSelectedReturnId] = useState('');
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [showReturnForm, setShowReturnForm] = useState(false);
-  const [displayFilter, setDisplayFilter] = useState<DisplayFilter>('need-offname');
+  const [displayFilter, setDisplayFilter] = useState<DisplayFilter>('all');
 
   const summary = useDisplaySummary();
-  const products = useDisplayProducts({ page: 1, limit: 100, search: search || undefined });
+  const products = useDisplayProducts({ page: 1, limit: 1000, search: search || undefined, scope: displayFilter });
   const returnableProducts = useDisplayReturnableProducts();
   const requests = useDisplayRequests({ status: requestStatusFilter || undefined });
   const returns = useDisplayReturns();
@@ -93,8 +93,9 @@ export default function DisplaySystemPage() {
 
   const pendingRequestCount = requestRows.filter((request) => request.status === 'PENDING').length;
   const activeReturnCount = returnRows.filter((item) => !['COMPLETED', 'CANCELLED'].includes(item.status)).length;
-  const activeDisplayCount = productRows.filter((product) => (product.displayUsed ?? product.stock) > 0).length;
-  const emptyDisplayCount = productRows.filter((product) => (product.displayUsed ?? product.stock) <= 0 || product.isDiscontinued).length;
+  const totalProductCount = products.data?.data?.pagination?.total ?? productRows.length;
+  const readyToSellCount = summary.data?.data?.readyToSellProducts ?? productRows.filter((product) => product.isActive && Number(product.salesStock ?? 0) > 0).length;
+  const activeDisplayCount = summary.data?.data?.activeSlots ?? productRows.filter((product) => (product.displayUsed ?? product.stock) > 0).length;
   const tabs: Array<{ key: DisplayTab; label: string; icon: typeof PackageOpen; count?: number; visible?: boolean }> = [
     { key: 'products', label: 'Produk Display', icon: PackageOpen, count: productRows.length, visible: !isTcp },
     { key: 'requests', label: isAdmin ? 'Review Pengajuan' : 'Pengajuan Saya', icon: ClipboardList, count: pendingRequestCount, visible: !isTcp },
@@ -145,8 +146,8 @@ export default function DisplaySystemPage() {
   return <div className="space-y-6">
     <style jsx global>{`@media print { body * { visibility: hidden; } #display-letter, #display-letter * { visibility: visible; } #display-letter { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; border: none !important; } .no-print { display: none !important; } }`}</style>
     <Breadcrumbs items={[{ label: 'Sistem Display' }]} />
-    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">Cek produk display, lalu ajukan produk yang perlu dipasang display. Jika produk sudah tidak dijual, lakukan Retur Display.</p></div><div className="flex flex-col gap-2 sm:flex-row no-print">{!isTcp && <Button onClick={() => { setDisplayFilter('need-offname'); setActiveTab('products'); }}><ClipboardList className="mr-2 h-4 w-4" /> Cek Display</Button>}<Button variant={isTcp ? 'default' : 'outline'} onClick={() => { setShowReturnForm(true); setActiveTab('returns'); }}><Truck className="mr-2 h-4 w-4" /> Retur Display</Button></div></div>
-    <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Produk Asli" value={summary.data?.data?.totalProducts ?? productRows.length} note="Sumber data master produk" /><Summary title="Perlu Dicek" value={emptyDisplayCount} note="Display masih 0/1" /><Summary title="Menunggu Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note="Pengajuan dari user" /><Summary title="Retur Aktif" value={summary.data?.data?.activeReturns ?? activeReturnCount} note="Perlu dikirim/diterima" /></div>
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">Cek produk display, lalu ajukan produk yang perlu dipasang display. Jika produk sudah tidak dijual, lakukan Retur Display.</p></div><div className="flex flex-col gap-2 sm:flex-row no-print">{!isTcp && <Button onClick={() => { setDisplayFilter('all'); setActiveTab('products'); }}><ClipboardList className="mr-2 h-4 w-4" /> Cek Produk Display</Button>}<Button variant={isTcp ? 'default' : 'outline'} onClick={() => { setShowReturnForm(true); setActiveTab('returns'); }}><Truck className="mr-2 h-4 w-4" /> Retur Display</Button></div></div>
+    <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Semua Produk" value={summary.data?.data?.totalProducts ?? totalProductCount} note="Isi semua produk master" /><Summary title="Produk Siap Jual" value={readyToSellCount} note="Tersedia dan siap jual" /><Summary title="Ada Display" value={activeDisplayCount} note="Produk yang ada displaynya" /><Summary title="Menunggu Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note="Pengajuan dari user" /></div>
     <RoleGuide role={role} isAdmin={isAdmin} isTcp={isTcp} />
     <Card className="no-print"><CardContent className="pt-4"><div className="flex flex-wrap gap-2">{tabs.filter((tab) => tab.visible !== false).map((tab) => { const Icon = tab.icon; return <Button key={tab.key} type="button" variant={activeTab === tab.key ? 'default' : 'outline'} onClick={() => setActiveTab(tab.key)} className="gap-2"><Icon className="h-4 w-4" />{tab.label}{tab.count !== undefined && <Badge variant="secondary" className="ml-1">{tab.count}</Badge>}</Button>; })}</div></CardContent></Card>
     {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); }} ensureSlotThenRequest={ensureSlotThenRequest} startReturn={startReturn} displayFilter={displayFilter} setDisplayFilter={setDisplayFilter} />}
@@ -227,11 +228,7 @@ function variantSummary(product: DisplayProduct | any, emptyText = 'Varian: -') 
 
 
 function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, applySearch, reset, ensureSlotThenRequest, startReturn, displayFilter, setDisplayFilter }: any) {
-  const filteredRows = productRows.filter((product: DisplayProduct) => {
-    const used = product.displayUsed ?? product.stock;
-    if (displayFilter === 'need-offname') return used <= 0 || product.isDiscontinued;
-    return true;
-  });
+  const filteredRows = productRows;
 
   return (
     <div className="space-y-4 no-print">
@@ -240,7 +237,7 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
           <div className="flex flex-col gap-4">
             <div>
               <h2 className="text-lg font-semibold">Cek Display</h2>
-              <p className="text-sm text-muted-foreground">Pilih produk yang perlu display, lalu klik Ajukan Display.</p>
+              <p className="text-sm text-muted-foreground">Lihat semua produk, produk siap jual, atau produk yang sudah ada displaynya.</p>
             </div>
             <div className="rounded-lg border bg-muted/30 p-3 text-sm">
               <span className="font-medium">Alur:</span> User cek produk → Ajukan Display → Admin setujui.
@@ -248,9 +245,10 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap gap-2">
                 {[
-                  { key: 'need-offname', label: 'Perlu Dicek' },
                   { key: 'all', label: 'Semua Produk' },
-                ].map((item) => <Button key={item.key} type="button" size="sm" variant={displayFilter === item.key ? 'default' : 'outline'} onClick={() => setDisplayFilter(item.key)}>{item.label}</Button>)}
+                  { key: 'ready-to-sell', label: 'Produk Siap Jual' },
+                  { key: 'has-display', label: 'Produk Ada Display' },
+                ].map((item) => <Button key={item.key} type="button" size="sm" variant={displayFilter === item.key ? 'default' : 'outline'} onClick={() => setDisplayFilter(item.key as DisplayFilter)}>{item.label}</Button>)}
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') applySearch(); }} placeholder="Cari nama/SKU produk..." className="sm:w-64" />
@@ -279,6 +277,7 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
                   const used = product.displayUsed ?? product.stock;
                   const hasDisplayStock = used > 0;
                   const isDiscontinued = !!product.isDiscontinued;
+                  const isReadyToSell = product.isActive && Number(product.salesStock ?? 0) > 0;
                   return (
                     <TableRow key={product.productId || product.id || product.sku}>
                       <TableCell>
@@ -294,6 +293,7 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {isDiscontinued && <Badge variant="outline" className="border-red-200 bg-red-100 text-red-800">Tidak Dijual Lagi</Badge>}
+                          {isReadyToSell ? <Badge variant="outline" className="border-blue-200 bg-blue-100 text-blue-800">Siap Jual</Badge> : !isDiscontinued && <Badge variant="outline" className="border-slate-200 bg-slate-100 text-slate-700">Stok Jual Kosong</Badge>}
                           {hasDisplayStock ? <Badge variant="outline" className="border-green-200 bg-green-100 text-green-800">Sudah Ada Display</Badge> : <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-200">Display Kosong</Badge>}
                         </div>
                       </TableCell>
@@ -313,7 +313,7 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
               </TableBody>
             </Table>
           )}
-          {!isLoading && filteredRows.length === 0 && <div className="py-10 text-center text-muted-foreground">Tidak ada produk pada filter ini.</div>}
+          {!isLoading && filteredRows.length === 0 && <div className="py-10 text-center text-muted-foreground">Tidak ada produk pada kategori ini.</div>}
         </CardContent>
       </Card>
     </div>

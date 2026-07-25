@@ -8,6 +8,12 @@ import { Op } from 'sequelize';
 import { sequelize } from '../config/database';
 import bcrypt from 'bcrypt';
 
+function saleItemName(item: any) {
+  return item?.itemType === 'COMPONENT'
+    ? item.componentName || 'Komponen'
+    : item?.product?.name || 'Unknown';
+}
+
 export const financialController = {
   async getSummary(req: Request, res: Response, next: NextFunction) {
     try {
@@ -201,7 +207,7 @@ export const financialController = {
 
       // All sales in period → DEBIT rows (gross = new receivable created)
       salesInPeriod.forEach((sale: any) => {
-        const itemNames = (sale.items || []).map((i: any) => i.product?.name || 'Unknown').join(', ');
+        const itemNames = (sale.items || []).map(saleItemName).join(', ');
         allTransactions.push({
           date: new Date(sale.saleDate),
           group: 2,
@@ -224,7 +230,7 @@ export const financialController = {
       settlements.forEach((settlement: any) => {
         const sale = settlement.sale;
         const items = sale?.items || [];
-        const itemNames = items.map((i: any) => i.product?.name || 'Unknown').join(', ');
+        const itemNames = items.map(saleItemName).join(', ');
         const grossAmount = sale ? parseFloat(sale.totalAmount) : parseFloat(settlement.netAmount);
         const netAmount = parseFloat(settlement.netAmount);
         const fee = grossAmount - netAmount;
@@ -260,7 +266,7 @@ export const financialController = {
 
       // Cancelled sales — display only, no balance effect
       cancelledSales.forEach((sale: any) => {
-        const itemNames = (sale.items || []).map((i: any) => i.product?.name || 'Unknown').join(', ');
+        const itemNames = (sale.items || []).map(saleItemName).join(', ');
         allTransactions.push({
           date: new Date(sale.saleDate),
           group: 2,
