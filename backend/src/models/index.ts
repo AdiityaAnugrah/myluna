@@ -17,6 +17,7 @@ import { Platform } from './Platform';
 import ProductVariant from './ProductVariant';
 import { ChangeRequest, EntityType, RequestType, RequestStatus } from './ChangeRequest';
 import Settlement from './Settlement';
+import SettlementRequest, { SettlementRequestStatus } from './SettlementRequest';
 import Expense from './Expense';
 import ShippingService from './ShippingService';
 import OtherIncome from './OtherIncome';
@@ -128,6 +129,16 @@ Sale.hasOne(Settlement, { foreignKey: 'saleId', as: 'settlement' });
 
 Settlement.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 User.hasMany(Settlement, { foreignKey: 'createdBy', as: 'settlements'});
+
+SettlementRequest.belongsTo(Sale, { foreignKey: 'saleId', as: 'sale' });
+Sale.hasMany(SettlementRequest, { foreignKey: 'saleId', as: 'settlementRequests' });
+Sale.hasOne(SettlementRequest, { foreignKey: 'saleId', as: 'pendingSettlementRequest' });
+SettlementRequest.belongsTo(User, { foreignKey: 'requestedBy', as: 'requester' });
+User.hasMany(SettlementRequest, { foreignKey: 'requestedBy', as: 'settlementRequests' });
+SettlementRequest.belongsTo(User, { foreignKey: 'reviewedBy', as: 'reviewer' });
+User.hasMany(SettlementRequest, { foreignKey: 'reviewedBy', as: 'reviewedSettlementRequests' });
+SettlementRequest.belongsTo(Settlement, { foreignKey: 'settlementId', as: 'settlement' });
+Settlement.hasOne(SettlementRequest, { foreignKey: 'settlementId', as: 'sourceRequest' });
 
 Settlement.belongsTo(Complaint, { foreignKey: 'complaintId', as: 'complaint' });
 Complaint.hasOne(Settlement, { foreignKey: 'complaintId', as: 'complaintSettlement' });
@@ -293,6 +304,8 @@ export {
   RequestType,
   RequestStatus,
   Settlement,
+  SettlementRequest,
+  SettlementRequestStatus,
   Expense,
   ShippingService,
   OtherIncome,

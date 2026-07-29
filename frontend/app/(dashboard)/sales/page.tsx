@@ -255,6 +255,7 @@ export default function SalesPage() {
 
   const sales = data?.data?.sales || [];
   const pagination = data?.data?.pagination;
+  const salesSummary = (data as any)?.data?.summary || {};
 
   const defaultStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
   const defaultEnd   = new Date().toISOString().split('T')[0];
@@ -384,12 +385,21 @@ export default function SalesPage() {
 
       {/* Stats strip */}
       {pagination && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 animate-in [animation-delay:50ms]">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 animate-in [animation-delay:50ms]">
           <div className="bg-card border rounded-xl p-4 flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg"><ShoppingCart className="h-4 w-4 text-blue-600" /></div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Data</p>
-              <p className="text-xl font-black text-blue-600">{pagination.total}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Masuk Omset</p>
+              <p className="text-xl font-black text-blue-600">{salesSummary.financeCount ?? 0}</p>
+              <p className="text-[9px] text-muted-foreground">sesuai ringkasan</p>
+            </div>
+          </div>
+          <div className="bg-card border rounded-xl p-4 flex items-center gap-3">
+            <div className="p-2 bg-red-100 rounded-lg"><AlertTriangle className="h-4 w-4 text-red-600" /></div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Batal/Ditolak</p>
+              <p className="text-xl font-black text-red-600">{salesSummary.cancelledOrRejectedCount ?? 0}</p>
+              <p className="text-[9px] text-muted-foreground">tidak masuk omset</p>
             </div>
           </div>
           <div className="bg-card border rounded-xl p-4 flex items-center gap-3">

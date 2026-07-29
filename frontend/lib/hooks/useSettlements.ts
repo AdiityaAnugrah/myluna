@@ -36,9 +36,10 @@ export const useCreateSettlement = () => {
     mutationFn: (data: FormData) => settlementApi.create(data),
     onSuccess: (response: any) => {
       queryClient.invalidateQueries({ queryKey: ['settlements'] });
+      queryClient.invalidateQueries({ queryKey: ['settlement-confirmation-requests'] });
       queryClient.invalidateQueries({ queryKey: ['settlement-stats'] });
       queryClient.invalidateQueries({ queryKey: ['sales'] });
-      toast.success('Pelunasan berhasil dibuat');
+      toast.success(response?.message || 'Pelunasan berhasil dibuat');
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Gagal membuat pelunasan');
@@ -86,5 +87,54 @@ export const useSettlementStats = (params?: { startDate?: string; endDate?: stri
     queryKey: ['settlement-stats', params],
     queryFn: () => settlementApi.getStats(params),
     ...options,
+  });
+};
+
+export const useSettlementConfirmationRequests = (params?: {
+  page?: number;
+  limit?: number;
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL';
+  search?: string;
+}, options?: any) => {
+  return useQuery({
+    queryKey: ['settlement-confirmation-requests', params],
+    queryFn: () => settlementApi.getConfirmationRequests(params),
+    ...options,
+  });
+};
+
+export const useApproveSettlementConfirmation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, reviewNotes }: { id: string; reviewNotes?: string }) =>
+      settlementApi.approveConfirmationRequest(id, reviewNotes),
+    onSuccess: (response: any) => {
+      queryClient.invalidateQueries({ queryKey: ['settlement-confirmation-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['settlements'] });
+      queryClient.invalidateQueries({ queryKey: ['settlement-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      toast.success(response?.message || 'Pelunasan berhasil dikonfirmasi');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Gagal mengonfirmasi pelunasan');
+    },
+  });
+};
+
+export const useRejectSettlementConfirmation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, reviewNotes }: { id: string; reviewNotes: string }) =>
+      settlementApi.rejectConfirmationRequest(id, reviewNotes),
+    onSuccess: (response: any) => {
+      queryClient.invalidateQueries({ queryKey: ['settlement-confirmation-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['settlements'] });
+      toast.success(response?.message || 'Pengajuan pelunasan berhasil ditolak');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Gagal menolak pengajuan pelunasan');
+    },
   });
 };

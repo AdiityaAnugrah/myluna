@@ -207,6 +207,14 @@ export const saleController = {
         ];
       }
 
+      // Summary cards on the Sales page should explain why "Total Data" can differ
+      // from Ringkasan Keuangan. Use the same base filters (date, platform, payment,
+      // responsible user, amount, search, and USER data isolation), but split records
+      // into sales that count toward finance omset vs cancelled/rejected records.
+      const summaryBaseWhere: any = { ...where };
+      if (where.saleDate) summaryBaseWhere.saleDate = { ...where.saleDate };
+      if (where.totalAmount) summaryBaseWhere.totalAmount = { ...where.totalAmount };
+
       if (cancelStatus === 'PENDING_CANCEL') {
         andConditions.push(
           sequelize.literal(`EXISTS (
@@ -293,10 +301,33 @@ export const saleController = {
             attributes: ['id', 'netAmount', 'settlementDate'],
           },
         ],
+        distinct: true,
+        col: 'id',
         limit: Number(limit),
         offset,
         order: [['saleDate', 'DESC']],
       });
+
+      const [financeCount, cancelledCount, rejectedCount] = await Promise.all([
+        Sale.count({
+          where: {
+            ...summaryBaseWhere,
+            status: { [Op.notIn]: ['CANCELLED', 'REJECTED'] },
+          },
+        }),
+        Sale.count({
+          where: {
+            ...summaryBaseWhere,
+            status: 'CANCELLED',
+          },
+        }),
+        Sale.count({
+          where: {
+            ...summaryBaseWhere,
+            status: 'REJECTED',
+          },
+        }),
+      ]);
 
       // Fetch pending cancellation requests for these sales
       const saleIds = rows.map(r => r.id);
@@ -326,6 +357,12 @@ export const saleController = {
             page: Number(page),
             limit: Number(limit),
             totalPages: Math.ceil(count / Number(limit)),
+          },
+          summary: {
+            financeCount,
+            cancelledCount,
+            rejectedCount,
+            cancelledOrRejectedCount: cancelledCount + rejectedCount,
           },
         },
         'Sales retrieved successfully',

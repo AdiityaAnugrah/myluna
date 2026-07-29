@@ -2,7 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSettlements, useRequestCancelSettlement } from '@/lib/hooks/useSettlements';
+import {
+  useSettlements,
+  useRequestCancelSettlement,
+  useSettlementConfirmationRequests,
+  useApproveSettlementConfirmation,
+  useRejectSettlementConfirmation,
+} from '@/lib/hooks/useSettlements';
 import { useRequestCancelSale } from '@/lib/hooks/useSales';
 import { useUsers } from '@/lib/hooks/useUsers';
 import { useAuthStore } from '@/lib/stores/auth';
@@ -26,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, Search, AlertCircle, CheckCircle2, Clock, Trash2 } from 'lucide-react';
+import { Loader2, Search, AlertCircle, CheckCircle2, Clock, Trash2, Copy, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Pagination } from '@/components/ui/pagination';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -45,6 +51,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from 'sonner';
 
 export default function SettlementsPage() {
   const router = useRouter();
@@ -77,10 +84,22 @@ export default function SettlementsPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [otherIncomeOpen, setOtherIncomeOpen] = useState(false);
   const [otherIncomeListOpen, setOtherIncomeListOpen] = useState(false);
+  const [copiedInvoice, setCopiedInvoice] = useState<string | null>(null);
+  const [rejectRequestId, setRejectRequestId] = useState<string | null>(null);
+  const [rejectNotes, setRejectNotes] = useState('');
   const requestCancelMutation = useRequestCancelSettlement();
   const requestCancelSaleMutation = useRequestCancelSale();
+  const approveConfirmationMutation = useApproveSettlementConfirmation();
+  const rejectConfirmationMutation = useRejectSettlementConfirmation();
   const { data: usersData } = useUsers({ page: 1, limit: 200 });
   const responsibleUserOptions = usersData?.data?.users || [];
+  const canConfirmSettlements = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
+  const { data: confirmationData, isLoading: confirmationLoading } = useSettlementConfirmationRequests(
+    { page: 1, limit: 10, status: 'PENDING', search: debouncedSearch || undefined },
+    { enabled: canConfirmSettlements }
+  );
+  const confirmationRequests = (confirmationData as any)?.data?.requests || [];
+  const confirmationPagination = (confirmationData as any)?.data?.pagination;
 
   const { data, isLoading } = useSettlements(
     {
@@ -153,11 +172,36 @@ export default function SettlementsPage() {
     setFormOpen(true);
   };
 
+  const handleCopyInvoice = async (invoiceNumber: string) => {
+    if (!invoiceNumber) return;
+    await navigator.clipboard.writeText(invoiceNumber);
+    setCopiedInvoice(invoiceNumber);
+    toast.success('No invoice berhasil disalin');
+    window.setTimeout(() => setCopiedInvoice(null), 1500);
+  };
+
   const handleCancelClick = (id: string, type: 'SALE' | 'SETTLEMENT') => {
       setCancelId(id);
       setCancelType(type);
       setCancelReason("");
       setCancelOpen(true);
+  };
+
+  const handleApproveConfirmation = (id: string) => {
+    approveConfirmationMutation.mutate({ id });
+  };
+
+  const handleRejectConfirmation = () => {
+    if (!rejectRequestId || !rejectNotes.trim()) return;
+    rejectConfirmationMutation.mutate(
+      { id: rejectRequestId, reviewNotes: rejectNotes },
+      {
+        onSuccess: () => {
+          setRejectRequestId(null);
+          setRejectNotes('');
+        },
+      }
+    );
   };
 
   const submitCancellation = () => {
@@ -321,6 +365,118 @@ export default function SettlementsPage() {
         </CardContent>
       </Card>
 
+      {canConfirmSettlements && (
+        <Card className="border-orange-300/70 bg-orange-50/50 dark:bg-orange-950/20 dark:border-orange-900/70">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-300" />
+                Konfirmasi Pelunasan
+              </CardTitle>
+              {confirmationPagination && (
+                <Badge variant="outline" className="border-orange-500 text-orange-700 dark:text-orange-300">
+                  {confirmationPagination.total} menunggu
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {confirmationLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : confirmationRequests.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-4">
+                Tidak ada pengajuan pelunasan yang menunggu konfirmasi.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>No Invoice</TableHead>
+                      <TableHead>Pelanggan</TableHead>
+                      <TableHead className="text-right">Total (Kotor)</TableHead>
+                      <TableHead className="text-right">Dana Bersih Diajukan</TableHead>
+                      <TableHead className="text-right">Selisih</TableHead>
+                      <TableHead>Tgl Pelunasan</TableHead>
+                      <TableHead>Diajukan Oleh</TableHead>
+                      <TableHead className="text-right">Aksi</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {confirmationRequests.map((request: any) => {
+                      const sale = request.sale;
+                      const gross = parseFloat(sale?.totalAmount || '0');
+                      const net = parseFloat(request.netAmount || '0');
+                      return (
+                        <TableRow key={request.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-medium">{sale?.saleNumber || request.invoiceNumber || '-'}</span>
+                              {(sale?.saleNumber || request.invoiceNumber) && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0"
+                                  onClick={() => handleCopyInvoice(sale?.saleNumber || request.invoiceNumber)}
+                                  title="Copy No Invoice"
+                                >
+                                  {copiedInvoice === (sale?.saleNumber || request.invoiceNumber) ? (
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                                  ) : (
+                                    <Copy className="h-3.5 w-3.5" />
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium">{sale?.customerName || '-'}</div>
+                            <div className="text-xs text-muted-foreground">{sale?.customerPhone || '-'}</div>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">{formatCurrency(gross)}</TableCell>
+                          <TableCell className="text-right font-semibold text-green-600 dark:text-green-400">{formatCurrency(net)}</TableCell>
+                          <TableCell className="text-right text-orange-600 dark:text-orange-300">{formatCurrency(Math.max(gross - net, 0))}</TableCell>
+                          <TableCell>{new Date(request.settlementDate).toLocaleDateString('id-ID')}</TableCell>
+                          <TableCell>{request.requester?.fullName || '-'}</TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleApproveConfirmation(request.id)}
+                                disabled={approveConfirmationMutation.isPending || rejectConfirmationMutation.isPending}
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                <CheckCircle2 className="mr-1 h-4 w-4" />
+                                Konfirmasi
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => {
+                                  setRejectRequestId(request.id);
+                                  setRejectNotes('');
+                                }}
+                                disabled={approveConfirmationMutation.isPending || rejectConfirmationMutation.isPending}
+                              >
+                                <XCircle className="mr-1 h-4 w-4" />
+                                Tolak
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Table */}
       <Card className="tour-settlements-list">
         <CardHeader>
@@ -344,6 +500,7 @@ export default function SettlementsPage() {
                             const sale = item.sale || item;
                             const settlement = item.settlement || (item.netAmount ? item : null);
                             const isSettled = !!settlement;
+                            const pendingSettlementRequest = sale.pendingSettlementRequest;
                             const daysSince = sale.processedAt ? getDaysSinceProcessed(sale.processedAt) : 0;
                             const warning = needsWarning(sale);
                             const overdue = isOverdue(sale);
@@ -360,6 +517,8 @@ export default function SettlementsPage() {
                                         <div className="scale-75 origin-top-right">
                                             {isSettled ? (
                                                 <Badge variant="default" className="bg-green-600 h-5 px-1.5 text-[10px]">Lunas</Badge>
+                                            ) : pendingSettlementRequest ? (
+                                                <Badge variant="outline" className="border-blue-500 text-blue-600 dark:text-blue-300 h-5 px-1.5 text-[10px]">Menunggu Konfirmasi</Badge>
                                             ) : overdue ? (
                                                 <Badge variant="destructive" className="animate-pulse h-5 px-1.5 text-[10px]">URGENT</Badge>
                                             ) : warning ? (
@@ -371,6 +530,23 @@ export default function SettlementsPage() {
                                     </div>
 
                                     <div className="mb-2">
+                                        <div className="mb-1 flex items-center gap-1.5">
+                                            <span className="font-mono text-[10px] font-semibold">{sale.saleNumber || '-'}</span>
+                                            {sale.saleNumber && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCopyInvoice(sale.saleNumber)}
+                                                    className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                    title="Copy No Invoice"
+                                                >
+                                                    {copiedInvoice === sale.saleNumber ? (
+                                                        <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />
+                                                    ) : (
+                                                        <Copy className="h-3 w-3" />
+                                                    )}
+                                                </button>
+                                            )}
+                                        </div>
                                         <div className="font-bold text-[12px] truncate">{sale.customerName || '-'}</div>
                                         <div className="text-[10px] text-muted-foreground">{sale.customerPhone || '-'}</div>
                                         {sale?.creator?.fullName && (
@@ -401,7 +577,17 @@ export default function SettlementsPage() {
                                     )}
 
                                     <div className="flex justify-end gap-2 mt-2">
-                                        {!isSettled && (
+                                        {!isSettled && pendingSettlementRequest && (
+                                            <Button
+                                                size="sm"
+                                                disabled
+                                                variant="outline"
+                                                className="w-full h-8 text-[11px]"
+                                            >
+                                                Menunggu Konfirmasi
+                                            </Button>
+                                        )}
+                                        {!isSettled && !pendingSettlementRequest && (
                                             <Button
                                                 size="sm"
                                                 onClick={() => handleCreateSettlement(sale)}
@@ -444,6 +630,7 @@ export default function SettlementsPage() {
                     <TableHeader>
                     <TableRow>
                         <TableHead>Status</TableHead>
+                        <TableHead>No Invoice</TableHead>
                         <TableHead>Tanggal</TableHead>
                         <TableHead>Pelanggan</TableHead>
                         <TableHead className="text-right">Total (Kotor)</TableHead>
@@ -456,7 +643,7 @@ export default function SettlementsPage() {
                     <TableBody>
                     {filteredSettlements.length === 0 ? (
                         <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                             Tidak ada data
                         </TableCell>
                         </TableRow>
@@ -471,6 +658,7 @@ export default function SettlementsPage() {
                         // Either has settlement relation OR has netAmount directly (is Settlement object)
                         const settlement = item.settlement || (item.netAmount ? item : null);
                         const isSettled = !!settlement;
+                        const pendingSettlementRequest = sale.pendingSettlementRequest;
                         
                         const daysSince = sale.processedAt ? getDaysSinceProcessed(sale.processedAt) : 0;
                         const warning = needsWarning(sale);
@@ -483,6 +671,11 @@ export default function SettlementsPage() {
                                 <Badge variant="default" className="bg-green-600">
                                     <CheckCircle2 className="mr-1 h-3 w-3" />
                                     Lunas
+                                </Badge>
+                                ) : pendingSettlementRequest ? (
+                                <Badge variant="outline" className="border-blue-500 text-blue-600 dark:text-blue-300">
+                                    <Clock className="mr-1 h-3 w-3" />
+                                    Menunggu Konfirmasi
                                 </Badge>
                                 ) : overdue ? (
                                 <Badge variant="destructive" className="animate-pulse">
@@ -500,6 +693,27 @@ export default function SettlementsPage() {
                                     Pending ({daysSince} hari)
                                 </Badge>
                                 )}
+                            </TableCell>
+                            <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-sm font-medium">{sale.saleNumber || '-'}</span>
+                                  {sale.saleNumber && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 w-7 p-0"
+                                      onClick={() => handleCopyInvoice(sale.saleNumber)}
+                                      title="Copy No Invoice"
+                                    >
+                                      {copiedInvoice === sale.saleNumber ? (
+                                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                                      ) : (
+                                        <Copy className="h-3.5 w-3.5" />
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
                             </TableCell>
                             <TableCell>
                                 {new Date(sale.saleDate).toLocaleDateString('id-ID')}
@@ -535,7 +749,16 @@ export default function SettlementsPage() {
                                 {sale?.creator?.fullName || '-'}
                             </TableCell>
                             <TableCell>
-                                {!isSettled && (
+                                {!isSettled && pendingSettlementRequest && (
+                                <Button
+                                    size="sm"
+                                    disabled
+                                    variant="outline"
+                                >
+                                    Menunggu Konfirmasi
+                                </Button>
+                                )}
+                                {!isSettled && !pendingSettlementRequest && (
                                 <div className="flex items-center gap-2">
                                 <Button
                                     size="sm"
@@ -670,6 +893,58 @@ export default function SettlementsPage() {
                 </>
               ) : (
                 'Kirim Pengajuan'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!rejectRequestId} onOpenChange={(open) => {
+        if (!open) {
+          setRejectRequestId(null);
+          setRejectNotes('');
+        }
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Tolak Pengajuan Pelunasan</DialogTitle>
+            <DialogDescription>
+              Isi alasan agar user tahu apa yang perlu diperbaiki sebelum mengajukan ulang.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-4">
+            <Label htmlFor="rejectNotes">Alasan Penolakan</Label>
+            <Textarea
+              id="rejectNotes"
+              placeholder="Contoh: Nominal dana bersih belum sesuai mutasi rekening."
+              value={rejectNotes}
+              onChange={(e) => setRejectNotes(e.target.value)}
+              className="min-h-[100px]"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRejectRequestId(null);
+                setRejectNotes('');
+              }}
+              disabled={rejectConfirmationMutation.isPending}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRejectConfirmation}
+              disabled={!rejectNotes.trim() || rejectConfirmationMutation.isPending}
+            >
+              {rejectConfirmationMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Menolak...
+                </>
+              ) : (
+                'Tolak Pengajuan'
               )}
             </Button>
           </DialogFooter>

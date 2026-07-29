@@ -48,4 +48,24 @@ export const settlementApi = {
     const response = await apiClient.get('/settlements/stats', { params });
     return response.data;
   },
+
+  getConfirmationRequests: async (params?: {
+    page?: number;
+    limit?: number;
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL';
+    search?: string;
+  }) => {
+    const response = await apiClient.get('/settlements/confirmation-requests', { params });
+    return response.data;
+  },
+
+  approveConfirmationRequest: async (id: string, reviewNotes?: string) => {
+    const response = await apiClient.post(`/settlements/confirmation-requests/${id}/approve`, { reviewNotes });
+    return response.data;
+  },
+
+  rejectConfirmationRequest: async (id: string, reviewNotes: string) => {
+    const response = await apiClient.post(`/settlements/confirmation-requests/${id}/reject`, { reviewNotes });
+    return response.data;
+  },
 };

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { Settlement, Sale, SaleItem, Product, User, ChangeRequest } from '../models';
+import { Settlement, SettlementRequest, SettlementRequestStatus, Sale, SaleItem, Product, User, ChangeRequest } from '../models';
 import { successResponse } from '../utils/response';
 import { AppError } from '../utils/errors';
 import { sequelize } from '../config/database';
@@ -76,6 +76,19 @@ export const settlementController = {
               model: Settlement,
               as: 'settlement',
               required: false,
+            },
+            {
+              model: SettlementRequest,
+              as: 'pendingSettlementRequest',
+              required: false,
+              where: { status: SettlementRequestStatus.PENDING },
+              include: [
+                {
+                  model: User,
+                  as: 'requester',
+                  attributes: ['id', 'fullName', 'email'],
+                },
+              ],
             },
             {
               model: User,
@@ -236,6 +249,15 @@ export const settlementController = {
         throw new AppError('Settlement already exists for this sale', 400);
       }
 
+      const existingPendingRequest = await SettlementRequest.findOne({
+        where: { saleId, status: SettlementRequestStatus.PENDING },
+        transaction,
+      });
+
+      if (existingPendingRequest) {
+        throw new AppError('Pengajuan pelunasan untuk penjualan ini sedang menunggu konfirmasi admin', 400);
+      }
+
       // Validate net amount
       const netAmountNum = parseFloat(netAmount);
       const totalAmountNum = parseFloat(sale.totalAmount as any);
@@ -250,6 +272,66 @@ export const settlementController = {
       let proofDocument = null;
       if (req.file) {
         proofDocument = req.file.filename;
+      }
+
+      if (req.user?.roleName === 'USER') {
+        const settlementRequest = await SettlementRequest.create(
+          {
+            saleId,
+            invoiceNumber: sale.saleNumber,
+            netAmount: parseFloat(netAmount).toFixed(2),
+            settlementDate: new Date(settlementDate),
+            proofDocument,
+            notes: notes || null,
+            status: SettlementRequestStatus.PENDING,
+            requestedBy: req.user!.id,
+          },
+          { transaction }
+        );
+
+        await transaction.commit();
+
+        const completeRequest = await SettlementRequest.findByPk(settlementRequest.id, {
+          include: [
+            {
+              model: Sale,
+              as: 'sale',
+              include: [
+                {
+                  model: User,
+                  as: 'creator',
+                  attributes: ['id', 'fullName', 'email'],
+                },
+              ],
+            },
+            {
+              model: User,
+              as: 'requester',
+              attributes: ['id', 'fullName', 'email'],
+            },
+          ],
+        });
+
+        await auditService.log({
+          userId: req.user!.id,
+          action: 'CREATE' as any,
+          entity: 'SettlementRequest',
+          entityId: settlementRequest.id,
+          before: null,
+          after: completeRequest ? completeRequest.toJSON() : settlementRequest.toJSON(),
+          ip: req.ip || '',
+          userAgent: req.get('User-Agent') || '',
+        });
+
+        const { socketService } = require('../services/socket.service');
+        socketService.emitToAdmins('notification:new', {
+          message: 'Konfirmasi Pelunasan',
+          description: `${(req.user as any)?.fullName || 'User'} mengajukan pelunasan untuk ${sale.saleNumber}.`,
+          type: 'INFO',
+        });
+        socketService.broadcastDataRefresh('settlements');
+
+        return successResponse(res, completeRequest, 'Pengajuan pelunasan berhasil dikirim dan menunggu konfirmasi admin', 201);
       }
 
       // Create settlement using sale.saleNumber as the invoice number
@@ -305,6 +387,219 @@ export const settlementController = {
       return successResponse(res, completeSettlement, 'Settlement created successfully', 201);
     } catch (error) {
       await transaction.rollback();
+      return next(error);
+    }
+  },
+
+  async getConfirmationRequests(req: Request, res: Response, next: NextFunction) {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        status = 'PENDING',
+        search = '',
+      } = req.query;
+      const offset = (Number(page) - 1) * Number(limit);
+
+      const saleWhere: any = {};
+      if (search) {
+        const searchStr = `%${(search as string).toLowerCase()}%`;
+        saleWhere[Op.or] = [
+          { saleNumber: { [Op.like]: searchStr } },
+          { customerName: { [Op.like]: searchStr } },
+          { customerPhone: { [Op.like]: searchStr } },
+        ];
+      }
+
+      const where: any = {};
+      if (status && status !== 'ALL') where.status = status;
+
+      const { count, rows } = await SettlementRequest.findAndCountAll({
+        where,
+        include: [
+          {
+            model: Sale,
+            as: 'sale',
+            required: true,
+            where: Object.keys(saleWhere).length ? saleWhere : undefined,
+            include: [
+              {
+                model: User,
+                as: 'creator',
+                attributes: ['id', 'fullName', 'email'],
+              },
+            ],
+          },
+          {
+            model: User,
+            as: 'requester',
+            attributes: ['id', 'fullName', 'email'],
+          },
+          {
+            model: User,
+            as: 'reviewer',
+            attributes: ['id', 'fullName', 'email'],
+          },
+        ],
+        distinct: true,
+        limit: Number(limit),
+        offset,
+        order: [['createdAt', 'ASC']],
+      });
+
+      return successResponse(
+        res,
+        {
+          requests: rows,
+          pagination: {
+            total: count,
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: Math.ceil(count / Number(limit)),
+          },
+        },
+        'Settlement confirmation requests retrieved successfully',
+        200
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  async approveRequest(req: Request, res: Response, next: NextFunction) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const { id } = req.params;
+      const { reviewNotes } = req.body;
+
+      const settlementRequest = await SettlementRequest.findByPk(id, { transaction });
+      if (!settlementRequest) throw new AppError('Pengajuan pelunasan tidak ditemukan', 404);
+      if (settlementRequest.status !== SettlementRequestStatus.PENDING) {
+        throw new AppError('Pengajuan pelunasan ini sudah direview', 400);
+      }
+
+      const sale = await Sale.findByPk(settlementRequest.saleId, { transaction });
+      if (!sale) throw new AppError('Sale not found', 404);
+      if (sale.status !== 'PROCESSED') {
+        throw new AppError('Only processed sales can be settled', 400);
+      }
+
+      const existingSettlement = await Settlement.findOne({
+        where: { saleId: settlementRequest.saleId },
+        transaction,
+      });
+      if (existingSettlement) {
+        throw new AppError('Settlement already exists for this sale', 400);
+      }
+
+      const settlement = await Settlement.create(
+        {
+          saleId: settlementRequest.saleId,
+          invoiceNumber: sale.saleNumber,
+          netAmount: settlementRequest.netAmount,
+          settlementDate: settlementRequest.settlementDate,
+          proofDocument: settlementRequest.proofDocument,
+          notes: settlementRequest.notes,
+          createdBy: req.user!.id,
+        },
+        { transaction }
+      );
+
+      await (sale as any).update({ status: 'SETTLED' }, { transaction });
+      await settlementRequest.update(
+        {
+          status: SettlementRequestStatus.APPROVED,
+          reviewedBy: req.user!.id,
+          reviewedAt: new Date(),
+          reviewNotes: reviewNotes || null,
+          settlementId: settlement.id,
+        },
+        { transaction }
+      );
+
+      await transaction.commit();
+
+      const completeSettlement = await Settlement.findByPk(settlement.id, {
+        include: [
+          { model: Sale, as: 'sale' },
+          { model: User, as: 'creator', attributes: ['id', 'fullName', 'email'] },
+        ],
+      });
+
+      await auditService.log({
+        userId: req.user!.id,
+        action: 'UPDATE' as any,
+        entity: 'SettlementRequest',
+        entityId: settlementRequest.id,
+        before: { status: SettlementRequestStatus.PENDING },
+        after: { status: SettlementRequestStatus.APPROVED, settlementId: settlement.id },
+        ip: req.ip || '',
+        userAgent: req.get('User-Agent') || '',
+      });
+
+      const { socketService } = require('../services/socket.service');
+      socketService.broadcastDataRefresh('settlements');
+      socketService.broadcastDataRefresh('sales');
+      socketService.emitToUser(settlementRequest.requestedBy, 'notification:new', {
+        message: 'Pelunasan Dikonfirmasi',
+        description: `Pelunasan untuk ${sale.saleNumber} sudah dikonfirmasi admin.`,
+        type: 'SUCCESS',
+      });
+
+      return successResponse(res, completeSettlement, 'Pelunasan berhasil dikonfirmasi', 200);
+    } catch (error) {
+      await transaction.rollback();
+      return next(error);
+    }
+  },
+
+  async rejectRequest(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { reviewNotes } = req.body;
+
+      if (!reviewNotes || !String(reviewNotes).trim()) {
+        throw new AppError('Catatan penolakan wajib diisi', 400);
+      }
+
+      const settlementRequest = await SettlementRequest.findByPk(id, {
+        include: [{ model: Sale, as: 'sale' }],
+      });
+      if (!settlementRequest) throw new AppError('Pengajuan pelunasan tidak ditemukan', 404);
+      if (settlementRequest.status !== SettlementRequestStatus.PENDING) {
+        throw new AppError('Pengajuan pelunasan ini sudah direview', 400);
+      }
+
+      await settlementRequest.update({
+        status: SettlementRequestStatus.REJECTED,
+        reviewedBy: req.user!.id,
+        reviewedAt: new Date(),
+        reviewNotes: String(reviewNotes).trim(),
+      });
+
+      await auditService.log({
+        userId: req.user!.id,
+        action: 'UPDATE' as any,
+        entity: 'SettlementRequest',
+        entityId: settlementRequest.id,
+        before: { status: SettlementRequestStatus.PENDING },
+        after: settlementRequest.toJSON(),
+        ip: req.ip || '',
+        userAgent: req.get('User-Agent') || '',
+      });
+
+      const sale = (settlementRequest as any).sale;
+      const { socketService } = require('../services/socket.service');
+      socketService.broadcastDataRefresh('settlements');
+      socketService.emitToUser(settlementRequest.requestedBy, 'notification:new', {
+        message: 'Pelunasan Ditolak',
+        description: `Pengajuan pelunasan untuk ${sale?.saleNumber || 'penjualan'} ditolak. ${reviewNotes}`,
+        type: 'WARNING',
+      });
+
+      return successResponse(res, settlementRequest, 'Pengajuan pelunasan berhasil ditolak', 200);
+    } catch (error) {
       return next(error);
     }
   },
