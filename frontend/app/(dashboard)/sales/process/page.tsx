@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Check, FileText, Loader2, RefreshCw, Printer, AlertCircle, Filter, XCircle, Search } from 'lucide-react';
+import { Check, CheckCircle2, Copy, FileText, Loader2, RefreshCw, Printer, AlertCircle, Filter, XCircle, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -47,7 +47,7 @@ interface SalesTableProps {
     itemsPerPage: number;
 }
 
-const MobileSalesCard = ({ sale, userRole, onPrint, getStatusBadge }: any) => {
+const MobileSalesCard = ({ sale, userRole, onPrint, getStatusBadge, copiedInvoice, onCopyInvoice }: any) => {
     const isUrgent = isUrgentSale(sale);
     const daysSince = getDaysSinceSale(sale.saleDate);
     const canPrintWaitingApproval = ['TCP', 'ADMIN', 'SUPER_ADMIN', 'DEV'].includes(userRole || '');
@@ -59,7 +59,24 @@ const MobileSalesCard = ({ sale, userRole, onPrint, getStatusBadge }: any) => {
         )}>
             <div className="flex justify-between items-start">
                 <div>
-                    <div className="font-mono font-bold text-[12px] tracking-tight">{sale.saleNumber}</div>
+                    <div className="flex items-center gap-1">
+                        <div className="font-mono font-bold text-[12px] tracking-tight">{sale.saleNumber}</div>
+                        {sale.saleNumber && (
+                            <button
+                                type="button"
+                                onClick={() => onCopyInvoice(sale.saleNumber)}
+                                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                title="Copy No Invoice"
+                                aria-label={`Copy no invoice ${sale.saleNumber}`}
+                            >
+                                {copiedInvoice === sale.saleNumber ? (
+                                    <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                ) : (
+                                    <Copy className="h-3 w-3" />
+                                )}
+                            </button>
+                        )}
+                    </div>
                     <div className="text-[10px] text-muted-foreground">{format(new Date(sale.saleDate), 'dd MMM yyyy')}</div>
                     <div className="text-[10px] text-muted-foreground font-mono">Dikirim: {format(new Date(sale.createdAt), 'HH:mm')} WIB</div>
                 </div>
@@ -181,6 +198,16 @@ const SalesTable = ({
     currentPage = 1,
     itemsPerPage = 10
 }: SalesTableProps) => {
+    const [copiedInvoice, setCopiedInvoice] = useState<string | null>(null);
+
+    const handleCopyInvoice = async (invoiceNumber: string) => {
+        if (!invoiceNumber) return;
+        await navigator.clipboard.writeText(invoiceNumber);
+        setCopiedInvoice(invoiceNumber);
+        toast.success('No invoice berhasil disalin');
+        window.setTimeout(() => setCopiedInvoice(null), 1500);
+    };
+
     return (
         <>
         {/* Mobile View */}
@@ -202,6 +229,8 @@ const SalesTable = ({
                         userRole={userRole}
                         onPrint={onPrint}
                         getStatusBadge={getStatusBadge}
+                        copiedInvoice={copiedInvoice}
+                        onCopyInvoice={handleCopyInvoice}
                     />
                 ))
             )}
@@ -269,7 +298,24 @@ const SalesTable = ({
                     <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-2">
                            <span className="font-medium">{sale.customerName || 'Umum'}</span>
-                           <span className="text-[10px] font-mono bg-muted/60 border px-1.5 py-0.5 rounded text-muted-foreground whitespace-nowrap">{sale.saleNumber}</span>
+                           <span className="inline-flex items-center gap-1 text-[10px] font-mono bg-muted/60 border px-1.5 py-0.5 rounded text-muted-foreground whitespace-nowrap">
+                              {sale.saleNumber}
+                              {sale.saleNumber && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyInvoice(sale.saleNumber)}
+                                  className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                  title="Copy No Invoice"
+                                  aria-label={`Copy no invoice ${sale.saleNumber}`}
+                                >
+                                  {copiedInvoice === sale.saleNumber ? (
+                                    <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                  ) : (
+                                    <Copy className="h-3 w-3" />
+                                  )}
+                                </button>
+                              )}
+                           </span>
                         </div>
                         <span className="text-xs text-muted-foreground">{sale.customerPhone}</span>
                         {processedToday && (
