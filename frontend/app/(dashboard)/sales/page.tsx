@@ -389,17 +389,17 @@ export default function SalesPage() {
           <div className="bg-card border rounded-xl p-4 flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg"><ShoppingCart className="h-4 w-4 text-blue-600" /></div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Masuk Omset</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Semua Data Berhasil</p>
               <p className="text-xl font-black text-blue-600">{salesSummary.financeCount ?? 0}</p>
-              <p className="text-[9px] text-muted-foreground">sesuai ringkasan</p>
+              <p className="text-[9px] text-muted-foreground">masuk ringkasan</p>
             </div>
           </div>
           <div className="bg-card border rounded-xl p-4 flex items-center gap-3">
             <div className="p-2 bg-red-100 rounded-lg"><AlertTriangle className="h-4 w-4 text-red-600" /></div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Batal/Ditolak</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Semua Data Gagal</p>
               <p className="text-xl font-black text-red-600">{salesSummary.cancelledOrRejectedCount ?? 0}</p>
-              <p className="text-[9px] text-muted-foreground">tidak masuk omset</p>
+              <p className="text-[9px] text-muted-foreground">pengembalian, dll</p>
             </div>
           </div>
           <div className="bg-card border rounded-xl p-4 flex items-center gap-3">

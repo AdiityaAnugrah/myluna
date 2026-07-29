@@ -207,14 +207,6 @@ export const saleController = {
         ];
       }
 
-      // Summary cards on the Sales page should explain why "Total Data" can differ
-      // from Ringkasan Keuangan. Use the same base filters (date, platform, payment,
-      // responsible user, amount, search, and USER data isolation), but split records
-      // into sales that count toward finance omset vs cancelled/rejected records.
-      const summaryBaseWhere: any = { ...where };
-      if (where.saleDate) summaryBaseWhere.saleDate = { ...where.saleDate };
-      if (where.totalAmount) summaryBaseWhere.totalAmount = { ...where.totalAmount };
-
       if (cancelStatus === 'PENDING_CANCEL') {
         andConditions.push(
           sequelize.literal(`EXISTS (
@@ -308,25 +300,102 @@ export const saleController = {
         order: [['saleDate', 'DESC']],
       });
 
+      // Summary cards use the same user/date/platform/payment/search/amount filters,
+      // then split the result into successful data vs failed data. This avoids the
+      // old ambiguous "Total Data" number and stays aligned with Ringkasan Keuangan
+      // where CANCELLED/REJECTED are excluded from omset.
+      const summaryBaseWhere: any = { isInitialBalance: false };
+      if ((req as any).user?.roleName === 'USER') {
+        summaryBaseWhere.createdBy = (req as any).user.id;
+      }
+      if (paymentMethod) summaryBaseWhere.paymentMethod = paymentMethod;
+      if (platform) summaryBaseWhere.platform = platform;
+      if (responsibleUserId) summaryBaseWhere.createdBy = responsibleUserId;
+      if (where.saleDate) summaryBaseWhere.saleDate = { ...where.saleDate };
+      if (where.totalAmount) summaryBaseWhere.totalAmount = { ...where.totalAmount };
+      if (where[Op.or]) summaryBaseWhere[Op.or] = where[Op.or];
+
+      const summaryAndConditions: any[] = [];
+      if (cancelStatus === 'PENDING_CANCEL') {
+        summaryAndConditions.push(
+          sequelize.literal(`EXISTS (
+            SELECT 1
+            FROM change_requests cr
+            WHERE cr.entityType = 'SALE'
+              AND cr.entityId = Sale.id
+              AND cr.status = 'PENDING'
+              AND cr.requestType = 'DELETE'
+          )`)
+        );
+      } else if (cancelStatus === 'NORMAL') {
+        summaryAndConditions.push(
+          sequelize.literal(`NOT EXISTS (
+            SELECT 1
+            FROM change_requests cr
+            WHERE cr.entityType = 'SALE'
+              AND cr.entityId = Sale.id
+              AND cr.status = 'PENDING'
+              AND cr.requestType = 'DELETE'
+          )`)
+        );
+      }
+
+      if (settlementStatus === 'SETTLED') {
+        summaryAndConditions.push(
+          sequelize.literal(`(
+            Sale.status = 'SETTLED'
+            OR EXISTS (
+              SELECT 1
+              FROM settlements st
+              WHERE st.saleId = Sale.id
+            )
+          )`)
+        );
+      } else if (settlementStatus === 'UNSETTLED') {
+        summaryAndConditions.push(
+          sequelize.literal(`(
+            Sale.status <> 'SETTLED'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM settlements st
+              WHERE st.saleId = Sale.id
+            )
+          )`)
+        );
+      }
+
+      const failedStatuses = ['CANCELLED', 'REJECTED'];
+      const selectedStatus = status ? String(status) : '';
+      const forcedStatus = cancelStatus === 'CANCELLED'
+        ? 'CANCELLED'
+        : cancelStatus === 'REJECTED'
+          ? 'REJECTED'
+          : selectedStatus;
+
+      const successfulStatusWhere = forcedStatus
+        ? (failedStatuses.includes(forcedStatus) ? { [Op.in]: [] } : forcedStatus)
+        : { [Op.notIn]: failedStatuses };
+      const cancelledStatusWhere = cancelStatus === 'NORMAL'
+        ? { [Op.in]: [] }
+        : forcedStatus
+          ? (forcedStatus === 'CANCELLED' ? 'CANCELLED' : { [Op.in]: [] })
+          : 'CANCELLED';
+      const rejectedStatusWhere = cancelStatus === 'NORMAL'
+        ? { [Op.in]: [] }
+        : forcedStatus
+          ? (forcedStatus === 'REJECTED' ? 'REJECTED' : { [Op.in]: [] })
+          : 'REJECTED';
+
+      const buildSummaryWhere = (statusWhere: any) => ({
+        ...summaryBaseWhere,
+        status: statusWhere,
+        ...(summaryAndConditions.length ? { [Op.and]: summaryAndConditions } : {}),
+      });
+
       const [financeCount, cancelledCount, rejectedCount] = await Promise.all([
-        Sale.count({
-          where: {
-            ...summaryBaseWhere,
-            status: { [Op.notIn]: ['CANCELLED', 'REJECTED'] },
-          },
-        }),
-        Sale.count({
-          where: {
-            ...summaryBaseWhere,
-            status: 'CANCELLED',
-          },
-        }),
-        Sale.count({
-          where: {
-            ...summaryBaseWhere,
-            status: 'REJECTED',
-          },
-        }),
+        Sale.count({ where: buildSummaryWhere(successfulStatusWhere) }),
+        Sale.count({ where: buildSummaryWhere(cancelledStatusWhere) }),
+        Sale.count({ where: buildSummaryWhere(rejectedStatusWhere) }),
       ]);
 
       // Fetch pending cancellation requests for these sales
