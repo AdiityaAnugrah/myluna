@@ -5,9 +5,6 @@ import { useRouter } from 'next/navigation';
 import {
   useSettlements,
   useRequestCancelSettlement,
-  useSettlementConfirmationRequests,
-  useApproveSettlementConfirmation,
-  useRejectSettlementConfirmation,
 } from '@/lib/hooks/useSettlements';
 import { useRequestCancelSale } from '@/lib/hooks/useSales';
 import { useUsers } from '@/lib/hooks/useUsers';
@@ -32,14 +29,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, Search, AlertCircle, CheckCircle2, Clock, Trash2, Copy, XCircle } from 'lucide-react';
+import { Loader2, Search, AlertCircle, CheckCircle2, Clock, Trash2, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Pagination } from '@/components/ui/pagination';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { SettlementFormDialog } from '@/components/settlements/SettlementFormDialog';
 import { OtherIncomeDialog } from '@/components/settlements/OtherIncomeDialog';
 import { OtherIncomeListDialog } from '@/components/settlements/OtherIncomeListDialog';
-import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { differenceInDays, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
@@ -85,21 +80,10 @@ export default function SettlementsPage() {
   const [otherIncomeOpen, setOtherIncomeOpen] = useState(false);
   const [otherIncomeListOpen, setOtherIncomeListOpen] = useState(false);
   const [copiedInvoice, setCopiedInvoice] = useState<string | null>(null);
-  const [rejectRequestId, setRejectRequestId] = useState<string | null>(null);
-  const [rejectNotes, setRejectNotes] = useState('');
   const requestCancelMutation = useRequestCancelSettlement();
   const requestCancelSaleMutation = useRequestCancelSale();
-  const approveConfirmationMutation = useApproveSettlementConfirmation();
-  const rejectConfirmationMutation = useRejectSettlementConfirmation();
   const { data: usersData } = useUsers({ page: 1, limit: 200 });
   const responsibleUserOptions = usersData?.data?.users || [];
-  const canConfirmSettlements = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
-  const { data: confirmationData, isLoading: confirmationLoading } = useSettlementConfirmationRequests(
-    { page: 1, limit: 10, status: 'PENDING', search: debouncedSearch || undefined },
-    { enabled: canConfirmSettlements }
-  );
-  const confirmationRequests = (confirmationData as any)?.data?.requests || [];
-  const confirmationPagination = (confirmationData as any)?.data?.pagination;
 
   const { data, isLoading } = useSettlements(
     {
@@ -185,23 +169,6 @@ export default function SettlementsPage() {
       setCancelType(type);
       setCancelReason("");
       setCancelOpen(true);
-  };
-
-  const handleApproveConfirmation = (id: string) => {
-    approveConfirmationMutation.mutate({ id });
-  };
-
-  const handleRejectConfirmation = () => {
-    if (!rejectRequestId || !rejectNotes.trim()) return;
-    rejectConfirmationMutation.mutate(
-      { id: rejectRequestId, reviewNotes: rejectNotes },
-      {
-        onSuccess: () => {
-          setRejectRequestId(null);
-          setRejectNotes('');
-        },
-      }
-    );
   };
 
   const submitCancellation = () => {
@@ -364,118 +331,6 @@ export default function SettlementsPage() {
           </div>
         </CardContent>
       </Card>
-
-      {canConfirmSettlements && (
-        <Card className="border-orange-300/70 bg-orange-50/50 dark:bg-orange-950/20 dark:border-orange-900/70">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-300" />
-                Konfirmasi Pelunasan
-              </CardTitle>
-              {confirmationPagination && (
-                <Badge variant="outline" className="border-orange-500 text-orange-700 dark:text-orange-300">
-                  {confirmationPagination.total} menunggu
-                </Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {confirmationLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : confirmationRequests.length === 0 ? (
-              <div className="text-sm text-muted-foreground py-4">
-                Tidak ada pengajuan pelunasan yang menunggu konfirmasi.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>No Invoice</TableHead>
-                      <TableHead>Pelanggan</TableHead>
-                      <TableHead className="text-right">Total (Kotor)</TableHead>
-                      <TableHead className="text-right">Dana Bersih Diajukan</TableHead>
-                      <TableHead className="text-right">Selisih</TableHead>
-                      <TableHead>Tgl Pelunasan</TableHead>
-                      <TableHead>Diajukan Oleh</TableHead>
-                      <TableHead className="text-right">Aksi</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {confirmationRequests.map((request: any) => {
-                      const sale = request.sale;
-                      const gross = parseFloat(sale?.totalAmount || '0');
-                      const net = parseFloat(request.netAmount || '0');
-                      return (
-                        <TableRow key={request.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-sm font-medium">{sale?.saleNumber || request.invoiceNumber || '-'}</span>
-                              {(sale?.saleNumber || request.invoiceNumber) && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0"
-                                  onClick={() => handleCopyInvoice(sale?.saleNumber || request.invoiceNumber)}
-                                  title="Copy No Invoice"
-                                >
-                                  {copiedInvoice === (sale?.saleNumber || request.invoiceNumber) ? (
-                                    <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
-                                  ) : (
-                                    <Copy className="h-3.5 w-3.5" />
-                                  )}
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium">{sale?.customerName || '-'}</div>
-                            <div className="text-xs text-muted-foreground">{sale?.customerPhone || '-'}</div>
-                          </TableCell>
-                          <TableCell className="text-right font-semibold">{formatCurrency(gross)}</TableCell>
-                          <TableCell className="text-right font-semibold text-green-600 dark:text-green-400">{formatCurrency(net)}</TableCell>
-                          <TableCell className="text-right text-orange-600 dark:text-orange-300">{formatCurrency(Math.max(gross - net, 0))}</TableCell>
-                          <TableCell>{new Date(request.settlementDate).toLocaleDateString('id-ID')}</TableCell>
-                          <TableCell>{request.requester?.fullName || '-'}</TableCell>
-                          <TableCell>
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                size="sm"
-                                onClick={() => handleApproveConfirmation(request.id)}
-                                disabled={approveConfirmationMutation.isPending || rejectConfirmationMutation.isPending}
-                                className="bg-green-600 hover:bg-green-700"
-                              >
-                                <CheckCircle2 className="mr-1 h-4 w-4" />
-                                Konfirmasi
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => {
-                                  setRejectRequestId(request.id);
-                                  setRejectNotes('');
-                                }}
-                                disabled={approveConfirmationMutation.isPending || rejectConfirmationMutation.isPending}
-                              >
-                                <XCircle className="mr-1 h-4 w-4" />
-                                Tolak
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Table */}
       <Card className="tour-settlements-list">
@@ -899,57 +754,6 @@ export default function SettlementsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!rejectRequestId} onOpenChange={(open) => {
-        if (!open) {
-          setRejectRequestId(null);
-          setRejectNotes('');
-        }
-      }}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Tolak Pengajuan Pelunasan</DialogTitle>
-            <DialogDescription>
-              Isi alasan agar user tahu apa yang perlu diperbaiki sebelum mengajukan ulang.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-2 py-4">
-            <Label htmlFor="rejectNotes">Alasan Penolakan</Label>
-            <Textarea
-              id="rejectNotes"
-              placeholder="Contoh: Nominal dana bersih belum sesuai mutasi rekening."
-              value={rejectNotes}
-              onChange={(e) => setRejectNotes(e.target.value)}
-              className="min-h-[100px]"
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setRejectRequestId(null);
-                setRejectNotes('');
-              }}
-              disabled={rejectConfirmationMutation.isPending}
-            >
-              Batal
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleRejectConfirmation}
-              disabled={!rejectNotes.trim() || rejectConfirmationMutation.isPending}
-            >
-              {rejectConfirmationMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Menolak...
-                </>
-              ) : (
-                'Tolak Pengajuan'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

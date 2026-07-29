@@ -1,6 +1,11 @@
 'use client';
 
 import { useProductRequests, useChangeRequests } from '@/lib/hooks/useRequests';
+import {
+  useSettlementConfirmationRequests,
+  useApproveSettlementConfirmation,
+  useRejectSettlementConfirmation,
+} from '@/lib/hooks/useSettlements';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -15,7 +20,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, CheckCircle, XCircle, Eye, Package, Tag, Users, ShoppingBag, FileX, ToggleLeft, ClipboardList, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle, Eye, Package, Tag, Users, ShoppingBag, FileX, ToggleLeft, ClipboardList, AlertCircle, Wallet, Copy } from 'lucide-react';
 import { useState } from 'react';
 import {
   Dialog,
@@ -194,9 +199,14 @@ export default function ApprovalsPage() {
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
   const { pendingRequests: masterRequests } = useChangeRequests({ enabled: isAdmin });
   const { pendingRequests: statusRequests } = useProductRequests({ enabled: isAdmin });
+  const { data: settlementConfirmationData } = useSettlementConfirmationRequests(
+    { page: 1, limit: 1, status: 'PENDING' },
+    { enabled: isAdmin }
+  );
 
   const masterCount = masterRequests.data?.data?.length || 0;
   const statusCount = statusRequests.data?.data?.length || 0;
+  const settlementConfirmationCount = (settlementConfirmationData as any)?.data?.pagination?.total || 0;
 
   if (user && user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN' && user.role !== 'DEV') {
     return (
@@ -220,7 +230,7 @@ export default function ApprovalsPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="border-l-4 border-l-orange-400">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -249,6 +259,20 @@ export default function ApprovalsPage() {
             </p>
           </CardContent>
         </Card>
+        <Card className="border-l-4 border-l-green-400">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Wallet className="h-4 w-4" />
+              Konfirmasi Pelunasan
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-green-500">{settlementConfirmationCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              pengajuan pelunasan user yang menunggu konfirmasi
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tabs */}
@@ -270,6 +294,14 @@ export default function ApprovalsPage() {
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="settlements" className="relative">
+            Konfirmasi Pelunasan
+            {settlementConfirmationCount > 0 && (
+              <span className="ml-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-500 px-1.5 text-[11px] font-bold text-white">
+                {settlementConfirmationCount}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="master">
@@ -278,6 +310,10 @@ export default function ApprovalsPage() {
 
         <TabsContent value="status">
           <StatusApprovals />
+        </TabsContent>
+
+        <TabsContent value="settlements">
+          <SettlementConfirmationApprovals />
         </TabsContent>
       </Tabs>
     </div>
@@ -589,6 +625,237 @@ function MasterApprovals() {
               disabled={rejectRequest.isPending || !rejectReason.trim()}
             >
               {rejectRequest.isPending ? 'Menolak...' : 'Tolak Permintaan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ─── Settlement Confirmation Approvals ─────────────────────────────────────────
+
+function SettlementConfirmationApprovals() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
+  const { data, isLoading } = useSettlementConfirmationRequests(
+    { page: 1, limit: 50, status: 'PENDING' },
+    { enabled: isAdmin }
+  );
+  const approveMutation = useApproveSettlementConfirmation();
+  const rejectMutation = useRejectSettlementConfirmation();
+  const [rejectRequestId, setRejectRequestId] = useState<string | null>(null);
+  const [rejectNotes, setRejectNotes] = useState('');
+  const [copiedInvoice, setCopiedInvoice] = useState<string | null>(null);
+
+  const requests = (data as any)?.data?.requests || [];
+
+  const formatCurrency = (value: string | number) => {
+    const numeric = typeof value === 'string' ? parseFloat(value) : value;
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+    }).format(Number.isNaN(numeric) ? 0 : numeric);
+  };
+
+  const handleCopyInvoice = async (invoiceNumber: string) => {
+    if (!invoiceNumber) return;
+    await navigator.clipboard.writeText(invoiceNumber);
+    setCopiedInvoice(invoiceNumber);
+    toast.success('No invoice berhasil disalin');
+    window.setTimeout(() => setCopiedInvoice(null), 1500);
+  };
+
+  const handleReject = () => {
+    if (!rejectRequestId || !rejectNotes.trim()) return;
+    rejectMutation.mutate(
+      { id: rejectRequestId, reviewNotes: rejectNotes },
+      {
+        onSuccess: () => {
+          setRejectRequestId(null);
+          setRejectNotes('');
+        },
+      }
+    );
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-green-500" />
+            Konfirmasi Pelunasan
+            <Badge variant="outline" className="ml-auto text-green-600 border-green-300 bg-green-50">
+              {requests.length} Pending
+            </Badge>
+          </CardTitle>
+          <CardDescription className="mt-1 space-y-1">
+            <span className="block text-sm">
+              Daftar pengajuan pelunasan dari USER. Pelunasan baru tercatat resmi setelah Admin/Super Admin menekan <strong>Konfirmasi</strong>.
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Saat dikonfirmasi, sistem membuat data pelunasan dan mengubah penjualan menjadi Sudah Dilunasi.
+            </span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40">
+                <TableHead>No Invoice</TableHead>
+                <TableHead>Pelanggan</TableHead>
+                <TableHead className="text-right">Total Kotor</TableHead>
+                <TableHead className="text-right">Dana Bersih</TableHead>
+                <TableHead className="text-right">Selisih</TableHead>
+                <TableHead>Tgl Pelunasan</TableHead>
+                <TableHead>Diajukan Oleh</TableHead>
+                <TableHead className="text-right">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Memuat pengajuan pelunasan...</p>
+                  </TableCell>
+                </TableRow>
+              ) : requests.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
+                    <CheckCircle className="h-10 w-10 mx-auto mb-3 text-green-400 opacity-60" />
+                    <p className="font-medium">Semua pelunasan sudah dikonfirmasi</p>
+                    <p className="text-xs mt-1 opacity-60">Tidak ada pengajuan pelunasan yang menunggu persetujuan</p>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                requests.map((request: any) => {
+                  const sale = request.sale;
+                  const invoiceNumber = sale?.saleNumber || request.invoiceNumber || '-';
+                  const gross = parseFloat(sale?.totalAmount || '0');
+                  const net = parseFloat(request.netAmount || '0');
+                  const difference = Math.max(gross - net, 0);
+
+                  return (
+                    <TableRow key={request.id} className="hover:bg-muted/30">
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-medium">{invoiceNumber}</span>
+                          {invoiceNumber !== '-' && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => handleCopyInvoice(invoiceNumber)}
+                              title="Copy No Invoice"
+                            >
+                              {copiedInvoice === invoiceNumber ? (
+                                <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium text-sm">{sale?.customerName || '-'}</div>
+                        <div className="text-xs text-muted-foreground">{sale?.customerPhone || '-'}</div>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">{formatCurrency(gross)}</TableCell>
+                      <TableCell className="text-right font-semibold text-green-600">{formatCurrency(net)}</TableCell>
+                      <TableCell className="text-right text-orange-600">{formatCurrency(difference)}</TableCell>
+                      <TableCell>
+                        <div className="text-sm">{new Date(request.settlementDate).toLocaleDateString('id-ID')}</div>
+                        <div className="text-xs text-muted-foreground">
+                          diajukan {format(new Date(request.createdAt), 'dd MMM HH:mm', { locale: idLocale })}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm font-medium">{request.requester?.fullName || '-'}</div>
+                        <div className="text-xs text-muted-foreground">{request.requester?.email || ''}</div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            className="h-8 px-2 text-xs bg-green-600 hover:bg-green-700"
+                            onClick={() => approveMutation.mutate({ id: request.id })}
+                            disabled={approveMutation.isPending || rejectMutation.isPending}
+                          >
+                            <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                            Konfirmasi
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                            onClick={() => {
+                              setRejectRequestId(request.id);
+                              setRejectNotes('');
+                            }}
+                            disabled={approveMutation.isPending || rejectMutation.isPending}
+                          >
+                            <XCircle className="h-3.5 w-3.5 mr-1" />
+                            Tolak
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!rejectRequestId} onOpenChange={(open) => {
+        if (!open) {
+          setRejectRequestId(null);
+          setRejectNotes('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <XCircle className="h-5 w-5" />
+              Tolak Pengajuan Pelunasan
+            </DialogTitle>
+            <DialogDescription>
+              Isi alasan agar user tahu apa yang perlu diperbaiki sebelum mengajukan ulang.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label>Alasan Penolakan <span className="text-red-500">*</span></Label>
+            <Textarea
+              value={rejectNotes}
+              onChange={(e) => setRejectNotes(e.target.value)}
+              placeholder="Contoh: Nominal dana bersih belum sesuai mutasi rekening."
+              className="mt-2"
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRejectRequestId(null);
+                setRejectNotes('');
+              }}
+              disabled={rejectMutation.isPending}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleReject}
+              disabled={!rejectNotes.trim() || rejectMutation.isPending}
+            >
+              {rejectMutation.isPending ? 'Menolak...' : 'Tolak Pengajuan'}
             </Button>
           </DialogFooter>
         </DialogContent>
