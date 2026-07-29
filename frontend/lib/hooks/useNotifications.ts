@@ -13,7 +13,8 @@ import { displayApi } from '@/lib/api/display';
  */
 export function useNotifications() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
+  const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
   const hasUser = !!user;
   const canAccessDisplay = hasUser && user?.role !== 'TCP';
 
@@ -85,7 +86,10 @@ export function useNotifications() {
   // Only compute for admin roles to avoid unnecessary API calls influencing count
   const pendingChangeCount = isAdmin ? (changeRequests.data?.data?.length || 0) : 0;
   const pendingProductCount = isAdmin ? (productRequests.data?.data?.length || 0) : 0;
-  const pendingSettlementConfirmationCount = isAdmin ? (((settlementConfirmationData as any)?.data?.pagination?.total) || 0) : 0;
+  const settlementConfirmationPayload = (settlementConfirmationData as any)?.data || settlementConfirmationData;
+  const pendingSettlementConfirmationCount = isAdmin
+    ? (settlementConfirmationPayload?.pagination?.total || settlementConfirmationPayload?.requests?.length || 0)
+    : 0;
   const pendingApprovalsCount = pendingChangeCount + pendingProductCount + pendingSettlementConfirmationCount;
 
   const overdueSettlementsCount = (overdueData as number) || 0;

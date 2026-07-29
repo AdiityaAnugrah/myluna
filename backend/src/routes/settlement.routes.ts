@@ -14,9 +14,9 @@ router.use(auth);
 router.get('/stats', rbac(['SUPER_ADMIN', 'ADMIN', 'USER', 'TCP']), settlementController.getStats);
 
 // Confirmation queue for USER-submitted settlements
-router.get('/confirmation-requests', rbac(['SUPER_ADMIN', 'ADMIN']), settlementController.getConfirmationRequests);
-router.post('/confirmation-requests/:id/approve', rbac(['SUPER_ADMIN', 'ADMIN']), settlementController.approveRequest);
-router.post('/confirmation-requests/:id/reject', rbac(['SUPER_ADMIN', 'ADMIN']), settlementController.rejectRequest);
+router.get('/confirmation-requests', rbac(['SUPER_ADMIN', 'ADMIN', 'DEV']), settlementController.getConfirmationRequests);
+router.post('/confirmation-requests/:id/approve', rbac(['SUPER_ADMIN', 'ADMIN', 'DEV']), settlementController.approveRequest);
+router.post('/confirmation-requests/:id/reject', rbac(['SUPER_ADMIN', 'ADMIN', 'DEV']), settlementController.rejectRequest);
 
 // Get all settlements with filters
 router.get('/', rbac(['SUPER_ADMIN', 'ADMIN', 'USER', 'TCP']), settlementController.getAll);
