@@ -300,70 +300,9 @@ export const saleController = {
         order: [['saleDate', 'DESC']],
       });
 
-      // Summary cards use the same user/date/platform/payment/search/amount filters,
-      // then split the result into successful data vs failed data. This avoids the
-      // old ambiguous "Total Data" number and stays aligned with Ringkasan Keuangan
-      // where CANCELLED/REJECTED are excluded from omset.
-      const summaryBaseWhere: any = { isInitialBalance: false };
-      if ((req as any).user?.roleName === 'USER') {
-        summaryBaseWhere.createdBy = (req as any).user.id;
-      }
-      if (paymentMethod) summaryBaseWhere.paymentMethod = paymentMethod;
-      if (platform) summaryBaseWhere.platform = platform;
-      if (responsibleUserId) summaryBaseWhere.createdBy = responsibleUserId;
-      if (where.saleDate) summaryBaseWhere.saleDate = { ...where.saleDate };
-      if (where.totalAmount) summaryBaseWhere.totalAmount = { ...where.totalAmount };
-      if (where[Op.or]) summaryBaseWhere[Op.or] = where[Op.or];
-
-      const summaryAndConditions: any[] = [];
-      if (cancelStatus === 'PENDING_CANCEL') {
-        summaryAndConditions.push(
-          sequelize.literal(`EXISTS (
-            SELECT 1
-            FROM change_requests cr
-            WHERE cr.entityType = 'SALE'
-              AND cr.entityId = Sale.id
-              AND cr.status = 'PENDING'
-              AND cr.requestType = 'DELETE'
-          )`)
-        );
-      } else if (cancelStatus === 'NORMAL') {
-        summaryAndConditions.push(
-          sequelize.literal(`NOT EXISTS (
-            SELECT 1
-            FROM change_requests cr
-            WHERE cr.entityType = 'SALE'
-              AND cr.entityId = Sale.id
-              AND cr.status = 'PENDING'
-              AND cr.requestType = 'DELETE'
-          )`)
-        );
-      }
-
-      if (settlementStatus === 'SETTLED') {
-        summaryAndConditions.push(
-          sequelize.literal(`(
-            Sale.status = 'SETTLED'
-            OR EXISTS (
-              SELECT 1
-              FROM settlements st
-              WHERE st.saleId = Sale.id
-            )
-          )`)
-        );
-      } else if (settlementStatus === 'UNSETTLED') {
-        summaryAndConditions.push(
-          sequelize.literal(`(
-            Sale.status <> 'SETTLED'
-            AND NOT EXISTS (
-              SELECT 1
-              FROM settlements st
-              WHERE st.saleId = Sale.id
-            )
-          )`)
-        );
-      }
-
+      // Summary cards follow the exact same filtered dataset as the table.
+      // Total filtered data comes from findAndCountAll(), then failed data is counted
+      // within that same filter. Successful data = total filtered - failed data.
       const failedStatuses = ['CANCELLED', 'REJECTED'];
       const selectedStatus = status ? String(status) : '';
       const forcedStatus = cancelStatus === 'CANCELLED'
@@ -372,33 +311,29 @@ export const saleController = {
           ? 'REJECTED'
           : selectedStatus;
 
-      const successfulStatusWhere = forcedStatus
-        ? (failedStatuses.includes(forcedStatus) ? { [Op.in]: [] } : forcedStatus)
-        : { [Op.notIn]: failedStatuses };
-      const cancelledStatusWhere = cancelStatus === 'NORMAL'
-        ? { [Op.in]: [] }
-        : forcedStatus
-          ? (forcedStatus === 'CANCELLED' ? 'CANCELLED' : { [Op.in]: [] })
-          : 'CANCELLED';
-      const rejectedStatusWhere = cancelStatus === 'NORMAL'
-        ? { [Op.in]: [] }
-        : forcedStatus
-          ? (forcedStatus === 'REJECTED' ? 'REJECTED' : { [Op.in]: [] })
-          : 'REJECTED';
+      let cancelledCount = 0;
+      let rejectedCount = 0;
 
-      const buildSummaryWhere = (statusWhere: any) => ({
-        ...summaryBaseWhere,
-        status: statusWhere,
-        ...(summaryAndConditions.length ? { [Op.and]: summaryAndConditions } : {}),
-      });
+      if (forcedStatus === 'CANCELLED') {
+        cancelledCount = count;
+      } else if (forcedStatus === 'REJECTED') {
+        rejectedCount = count;
+      } else if (!forcedStatus) {
+        const failedWhereBase: any = { ...where };
+        delete failedWhereBase.status;
 
-      const [financeCount, cancelledCount, rejectedCount] = await Promise.all([
-        Sale.count({ where: buildSummaryWhere(successfulStatusWhere) }),
-        Sale.count({ where: buildSummaryWhere(cancelledStatusWhere) }),
-        Sale.count({ where: buildSummaryWhere(rejectedStatusWhere) }),
-      ]);
+        [cancelledCount, rejectedCount] = await Promise.all([
+          Sale.count({ where: { ...failedWhereBase, status: 'CANCELLED' } }),
+          Sale.count({ where: { ...failedWhereBase, status: 'REJECTED' } }),
+        ]);
+      }
 
-      // Fetch pending cancellation requests for these sales
+      const failedCount = cancelledCount + rejectedCount;
+      const financeCount = failedStatuses.includes(forcedStatus)
+        ? 0
+        : Math.max(Number(count) - failedCount, 0);
+
+
       const saleIds = rows.map(r => r.id);
       const pendingCancels = await ChangeRequest.findAll({
         where: {
