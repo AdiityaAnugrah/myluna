@@ -95,6 +95,13 @@ export const useSettlementConfirmationRequests = (params?: {
   limit?: number;
   status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL';
   search?: string;
+  invoiceNumber?: string;
+  customerName?: string;
+  grossAmount?: string;
+  netAmount?: string;
+  difference?: string;
+  settlementDate?: string;
+  requestedBy?: string;
 }, options?: any) => {
   return useQuery({
     queryKey: ['settlement-confirmation-requests', params],

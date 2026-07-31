@@ -22,10 +22,10 @@ export const settlementController = {
       } = req.query;
 
       const offset = (Number(page) - 1) * Number(limit);
-      
+
       // Build where clause for settlements
       const settlementWhere: any = {};
-      
+
       if (startDate && endDate) {
         settlementWhere.settlementDate = {
           [Op.between]: [new Date(startDate as string), new Date(endDate as string)],
@@ -383,7 +383,7 @@ export const settlementController = {
       const { socketService } = require('../services/socket.service');
       socketService.broadcastDataRefresh('settlements');
       socketService.broadcastDataRefresh('sales'); // since sale status changed
-      
+
       return successResponse(res, completeSettlement, 'Settlement created successfully', 201);
     } catch (error) {
       await transaction.rollback();
@@ -395,33 +395,51 @@ export const settlementController = {
     try {
       const {
         page = 1,
-        limit = 10,
+        limit = 50,
         status = 'PENDING',
         search = '',
+        invoiceNumber = '',
+        customerName = '',
+        grossAmount = '',
+        netAmount = '',
+        difference = '',
+        settlementDate = '',
+        requestedBy = '',
       } = req.query;
-      const offset = (Number(page) - 1) * Number(limit);
-
-      const saleWhere: any = {};
-      if (search) {
-        const searchStr = `%${(search as string).toLowerCase()}%`;
-        saleWhere[Op.or] = [
-          { saleNumber: { [Op.like]: searchStr } },
-          { customerName: { [Op.like]: searchStr } },
-          { customerPhone: { [Op.like]: searchStr } },
-        ];
-      }
+      const currentPage = Math.max(Number(page) || 1, 1);
+      const perPage = Math.max(Number(limit) || 50, 50);
+      const offset = (currentPage - 1) * perPage;
 
       const where: any = {};
       if (status && status !== 'ALL') where.status = status;
 
-      const { count, rows } = await SettlementRequest.findAndCountAll({
+      const normalize = (value: any) => String(value ?? '').toLowerCase();
+      const normalizeDate = (value: any) => {
+        if (!value) return '';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return normalize(value);
+        return [
+          date.toISOString().slice(0, 10),
+          date.toLocaleDateString('id-ID'),
+        ].join(' ');
+      };
+      const includes = (value: any, keyword: any) => normalize(value).includes(normalize(keyword));
+      const amountText = (value: any) => {
+        const numeric = Number(value || 0);
+        return [
+          String(value ?? ''),
+          String(numeric),
+          numeric.toLocaleString('id-ID'),
+        ].join(' ').toLowerCase();
+      };
+
+      const allRows = await SettlementRequest.findAll({
         where,
         include: [
           {
             model: Sale,
             as: 'sale',
             required: true,
-            where: Object.keys(saleWhere).length ? saleWhere : undefined,
             include: [
               {
                 model: User,
@@ -441,11 +459,45 @@ export const settlementController = {
             attributes: ['id', 'fullName', 'email'],
           },
         ],
-        distinct: true,
-        limit: Number(limit),
-        offset,
         order: [['createdAt', 'ASC']],
       });
+
+      const filteredRows = allRows.filter((row: any) => {
+        const plain = row.get({ plain: true });
+        const sale = plain.sale || {};
+        const requester = plain.requester || {};
+        const gross = Number(sale.totalAmount || 0);
+        const net = Number(plain.netAmount || 0);
+        const diff = Math.max(gross - net, 0);
+        const invoice = sale.saleNumber || plain.invoiceNumber || '';
+        const searchable = [
+          invoice,
+          sale.customerName,
+          sale.customerPhone,
+          amountText(gross),
+          amountText(net),
+          amountText(diff),
+          normalizeDate(plain.settlementDate),
+          normalizeDate(plain.createdAt),
+          requester.fullName,
+          requester.email,
+          plain.notes,
+        ].join(' ').toLowerCase();
+
+        return (
+          (!search || searchable.includes(normalize(search))) &&
+          (!invoiceNumber || includes(invoice, invoiceNumber)) &&
+          (!customerName || includes(`${sale.customerName || ''} ${sale.customerPhone || ''}`, customerName)) &&
+          (!grossAmount || amountText(gross).includes(normalize(grossAmount))) &&
+          (!netAmount || amountText(net).includes(normalize(netAmount))) &&
+          (!difference || amountText(diff).includes(normalize(difference))) &&
+          (!settlementDate || normalizeDate(plain.settlementDate).includes(normalize(settlementDate))) &&
+          (!requestedBy || includes(`${requester.fullName || ''} ${requester.email || ''}`, requestedBy))
+        );
+      });
+
+      const count = filteredRows.length;
+      const rows = filteredRows.slice(offset, offset + perPage);
 
       return successResponse(
         res,
@@ -453,9 +505,9 @@ export const settlementController = {
           requests: rows,
           pagination: {
             total: count,
-            page: Number(page),
-            limit: Number(limit),
-            totalPages: Math.ceil(count / Number(limit)),
+            page: currentPage,
+            limit: perPage,
+            totalPages: Math.max(Math.ceil(count / perPage), 1),
           },
         },
         'Settlement confirmation requests retrieved successfully',
@@ -673,7 +725,7 @@ export const settlementController = {
 
       const { socketService } = require('../services/socket.service');
       socketService.broadcastDataRefresh('settlements');
-      
+
       return successResponse(res, updatedSettlement, 'Settlement updated successfully', 200);
     } catch (error) {
       return next(error);
@@ -780,7 +832,7 @@ export const settlementController = {
 
       // Single query: aggregate settled stats (sales that HAVE a settlement)
       const [settledResult]: any = await sequelize.query(`
-        SELECT 
+        SELECT
           COALESCE(SUM(s.totalAmount), 0) AS totalGross,
           COALESCE(SUM(st.net_amount), 0) AS totalNet,
           COUNT(*) AS settledCount
@@ -793,7 +845,7 @@ export const settlementController = {
 
       // Single query: aggregate pending stats (sales WITHOUT a settlement)
       const [pendingResult]: any = await sequelize.query(`
-        SELECT 
+        SELECT
           COALESCE(SUM(s.totalAmount), 0) AS totalPendingAmount,
           COUNT(*) AS pendingCount
         FROM Sales s

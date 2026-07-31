@@ -10,6 +10,8 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
 import {
   Table,
   TableBody,
@@ -20,7 +22,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, CheckCircle, XCircle, Eye, Package, Tag, Users, ShoppingBag, FileX, ToggleLeft, ClipboardList, AlertCircle, Wallet, Copy } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle, Eye, Package, Tag, Users, ShoppingBag, FileX, ToggleLeft, ClipboardList, AlertCircle, Wallet, Copy, Search, Filter } from 'lucide-react';
 import { useState } from 'react';
 import {
   Dialog,
@@ -638,8 +640,33 @@ function MasterApprovals() {
 function SettlementConfirmationApprovals() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
+  const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [filters, setFilters] = useState({
+    invoiceNumber: '',
+    customerName: '',
+    grossAmount: '',
+    netAmount: '',
+    difference: '',
+    settlementDate: '',
+    requestedBy: '',
+  });
   const { data, isLoading } = useSettlementConfirmationRequests(
-    { page: 1, limit: 50, status: 'PENDING' },
+    {
+      page,
+      limit,
+      status: 'PENDING',
+      search: search.trim() || undefined,
+      invoiceNumber: filters.invoiceNumber.trim() || undefined,
+      customerName: filters.customerName.trim() || undefined,
+      grossAmount: filters.grossAmount.trim() || undefined,
+      netAmount: filters.netAmount.trim() || undefined,
+      difference: filters.difference.trim() || undefined,
+      settlementDate: filters.settlementDate.trim() || undefined,
+      requestedBy: filters.requestedBy.trim() || undefined,
+    },
     { enabled: isAdmin }
   );
   const approveMutation = useApproveSettlementConfirmation();
@@ -649,6 +676,33 @@ function SettlementConfirmationApprovals() {
   const [copiedInvoice, setCopiedInvoice] = useState<string | null>(null);
 
   const requests = (data as any)?.data?.requests || [];
+  const pagination = (data as any)?.data?.pagination || { total: 0, page, limit, totalPages: 1 };
+  const hasFilters = search.trim() || Object.values(filters).some((value) => value.trim());
+
+  const updateFilter = (key: keyof typeof filters, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+    setPage(1);
+  };
+
+  const resetFilters = () => {
+    setSearch('');
+    setFilters({
+      invoiceNumber: '',
+      customerName: '',
+      grossAmount: '',
+      netAmount: '',
+      difference: '',
+      settlementDate: '',
+      requestedBy: '',
+    });
+    setActiveFilter(null);
+    setPage(1);
+  };
+
+  const handleLimitChange = (nextLimit: number) => {
+    setLimit(Math.max(nextLimit, 50));
+    setPage(1);
+  };
 
   const formatCurrency = (value: string | number) => {
     const numeric = typeof value === 'string' ? parseFloat(value) : value;
@@ -657,6 +711,35 @@ function SettlementConfirmationApprovals() {
       currency: 'IDR',
       minimumFractionDigits: 0,
     }).format(Number.isNaN(numeric) ? 0 : numeric);
+  };
+
+  const filterFields = [
+    { key: 'invoiceNumber', label: 'No Invoice', placeholder: 'Cari invoice...' },
+    { key: 'customerName', label: 'Pelanggan', placeholder: 'Cari nama / HP...' },
+    { key: 'grossAmount', label: 'Total Kotor', placeholder: 'Contoh: 150000' },
+    { key: 'netAmount', label: 'Dana Bersih', placeholder: 'Contoh: 145000' },
+    { key: 'difference', label: 'Selisih', placeholder: 'Contoh: 5000' },
+    { key: 'settlementDate', label: 'Tgl Pelunasan', placeholder: 'YYYY-MM-DD / dd/mm' },
+    { key: 'requestedBy', label: 'Diajukan Oleh', placeholder: 'Cari nama / email...' },
+  ] as const;
+
+  const renderFilterHead = (field: (typeof filterFields)[number], className = '') => {
+    const isActive = activeFilter === field.key;
+    const value = filters[field.key];
+    return (
+      <TableHead className={className}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={`h-8 px-2 -ml-2 text-xs font-semibold ${className.includes('text-right') ? 'ml-auto -mr-2' : ''}`}
+          onClick={() => setActiveFilter(isActive ? null : field.key)}
+        >
+          <span>{field.label}</span>
+          <Filter className={`ml-1 h-3.5 w-3.5 ${value ? 'text-green-600' : 'text-muted-foreground'}`} />
+        </Button>
+      </TableHead>
+    );
   };
 
   const handleCopyInvoice = async (invoiceNumber: string) => {
@@ -688,7 +771,7 @@ function SettlementConfirmationApprovals() {
             <Wallet className="h-5 w-5 text-green-500" />
             Konfirmasi Pelunasan
             <Badge variant="outline" className="ml-auto text-green-600 border-green-300 bg-green-50">
-              {requests.length} Pending
+              {pagination.total} Pending
             </Badge>
           </CardTitle>
           <CardDescription className="mt-1 space-y-1">
@@ -701,16 +784,56 @@ function SettlementConfirmationApprovals() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
+          <div className="border-t border-b bg-muted/10 p-4 space-y-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative w-full lg:max-w-md">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Cari semua: invoice, pelanggan, nominal, tanggal, pengaju..."
+                  className="pl-9"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span>Minimal 50 data per halaman</span>
+                {hasFilters && (
+                  <Button type="button" variant="outline" size="sm" className="h-8" onClick={resetFilters}>
+                    Reset filter
+                  </Button>
+                )}
+              </div>
+            </div>
+            {activeFilter && (() => {
+              const field = filterFields.find((item) => item.key === activeFilter);
+              if (!field) return null;
+              return (
+                <div className="rounded-lg border bg-background p-3 shadow-sm">
+                  <Label className="text-xs font-semibold">Filter {field.label}</Label>
+                  <Input
+                    value={filters[field.key]}
+                    onChange={(event) => updateFilter(field.key, event.target.value)}
+                    placeholder={field.placeholder}
+                    className="mt-2"
+                  />
+                </div>
+              );
+            })()}
+          </div>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40">
-                <TableHead>No Invoice</TableHead>
-                <TableHead>Pelanggan</TableHead>
-                <TableHead className="text-right">Total Kotor</TableHead>
-                <TableHead className="text-right">Dana Bersih</TableHead>
-                <TableHead className="text-right">Selisih</TableHead>
-                <TableHead>Tgl Pelunasan</TableHead>
-                <TableHead>Diajukan Oleh</TableHead>
+                {renderFilterHead(filterFields[0])}
+                {renderFilterHead(filterFields[1])}
+                {renderFilterHead(filterFields[2], 'text-right')}
+                {renderFilterHead(filterFields[3], 'text-right')}
+                {renderFilterHead(filterFields[4], 'text-right')}
+                {renderFilterHead(filterFields[5])}
+                {renderFilterHead(filterFields[6])}
                 <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
@@ -810,6 +933,16 @@ function SettlementConfirmationApprovals() {
               )}
             </TableBody>
           </Table>
+          </div>
+          <Pagination
+            currentPage={pagination.page || page}
+            totalPages={pagination.totalPages || 1}
+            totalItems={pagination.total || 0}
+            itemsPerPage={pagination.limit || limit}
+            onPageChange={setPage}
+            onItemsPerPageChange={handleLimitChange}
+            pageSizeOptions={[50, 100, 200]}
+          />
         </CardContent>
       </Card>
 

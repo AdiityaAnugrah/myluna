@@ -54,6 +54,13 @@ export const settlementApi = {
     limit?: number;
     status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL';
     search?: string;
+    invoiceNumber?: string;
+    customerName?: string;
+    grossAmount?: string;
+    netAmount?: string;
+    difference?: string;
+    settlementDate?: string;
+    requestedBy?: string;
   }) => {
     const response = await apiClient.get('/settlements/confirmation-requests', { params });
     return response.data;
