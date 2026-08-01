@@ -707,6 +707,7 @@ function SettlementConfirmationApprovals() {
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
+  const [requestStatus, setRequestStatus] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL'>('PENDING');
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [filters, setFilters] = useState({
@@ -722,7 +723,7 @@ function SettlementConfirmationApprovals() {
     {
       page,
       limit,
-      status: 'PENDING',
+      status: requestStatus,
       search: search.trim() || undefined,
       invoiceNumber: filters.invoiceNumber.trim() || undefined,
       customerName: filters.customerName.trim() || undefined,
@@ -745,6 +746,7 @@ function SettlementConfirmationApprovals() {
   const hasFilters = search.trim() || Object.values(filters).some((value) => value.trim());
   const monthEndWarning = getMonthEndWarningInfo();
   const showMonthEndWarning = monthEndWarning.isActive && pagination.total > 0;
+  const isPendingView = requestStatus === 'PENDING';
 
   const updateFilter = (key: keyof typeof filters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -838,7 +840,7 @@ function SettlementConfirmationApprovals() {
             <Wallet className="h-5 w-5 text-green-500" />
             Konfirmasi Pelunasan
             <Badge variant="outline" className="ml-auto text-green-600 border-green-300 bg-green-50">
-              {pagination.total} Pending
+              {pagination.total} {requestStatus === 'ALL' ? 'Data' : requestStatus === 'PENDING' ? 'Pending' : requestStatus === 'APPROVED' ? 'Disetujui' : 'Ditolak'}
             </Badge>
           </CardTitle>
           <CardDescription className="mt-1 space-y-1">
@@ -851,7 +853,7 @@ function SettlementConfirmationApprovals() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          {showMonthEndWarning && (
+          {showMonthEndWarning && isPendingView && (
             <div
               className={`mx-4 mb-4 rounded-xl border-2 p-4 ${
                 monthEndWarning.isCritical
@@ -893,6 +895,28 @@ function SettlementConfirmationApprovals() {
                 />
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <div className="flex flex-wrap gap-1 rounded-lg border bg-background p-1">
+                  {[
+                    { value: 'PENDING', label: 'Pending' },
+                    { value: 'APPROVED', label: 'Disetujui' },
+                    { value: 'REJECTED', label: 'Ditolak' },
+                    { value: 'ALL', label: 'Semua' },
+                  ].map((item) => (
+                    <Button
+                      key={item.value}
+                      type="button"
+                      size="sm"
+                      variant={requestStatus === item.value ? 'default' : 'ghost'}
+                      className="h-7 px-2 text-xs"
+                      onClick={() => {
+                        setRequestStatus(item.value as typeof requestStatus);
+                        setPage(1);
+                      }}
+                    >
+                      {item.label}
+                    </Button>
+                  ))}
+                </div>
                 <span>Minimal 50 data per halaman</span>
                 {hasFilters && (
                   <Button type="button" variant="outline" size="sm" className="h-8" onClick={resetFilters}>
@@ -928,23 +952,28 @@ function SettlementConfirmationApprovals() {
                 {renderFilterHead(filterFields[4], 'text-right')}
                 {renderFilterHead(filterFields[5])}
                 {renderFilterHead(filterFields[6])}
+                <TableHead>Status / Review</TableHead>
                 <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12">
+                  <TableCell colSpan={9} className="text-center py-12">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">Memuat pengajuan pelunasan...</p>
                   </TableCell>
                 </TableRow>
               ) : requests.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
                     <CheckCircle className="h-10 w-10 mx-auto mb-3 text-green-400 opacity-60" />
-                    <p className="font-medium">Semua pelunasan sudah dikonfirmasi</p>
-                    <p className="text-xs mt-1 opacity-60">Tidak ada pengajuan pelunasan yang menunggu persetujuan</p>
+                    <p className="font-medium">
+                      {isPendingView ? 'Semua pelunasan sudah dikonfirmasi' : 'Tidak ada riwayat pada status ini'}
+                    </p>
+                    <p className="text-xs mt-1 opacity-60">
+                      {isPendingView ? 'Tidak ada pengajuan pelunasan yang menunggu persetujuan' : 'Coba pilih status lain atau reset filter'}
+                    </p>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -995,30 +1024,68 @@ function SettlementConfirmationApprovals() {
                         <div className="text-sm font-medium">{request.requester?.fullName || '-'}</div>
                         <div className="text-xs text-muted-foreground">{request.requester?.email || ''}</div>
                       </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          {request.status === 'APPROVED' ? (
+                            <Badge className="bg-green-600">Disetujui</Badge>
+                          ) : request.status === 'REJECTED' ? (
+                            <Badge variant="destructive">Ditolak</Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-blue-500 text-blue-600">Pending</Badge>
+                          )}
+                          {request.reviewedAt && (
+                            <div className="text-xs text-muted-foreground">
+                              {format(new Date(request.reviewedAt), 'dd MMM yyyy HH:mm', { locale: idLocale })}
+                            </div>
+                          )}
+                          {(request.reviewer?.fullName || request.reviewNotes) && (
+                            <div className="text-xs">
+                              {request.reviewer?.fullName && <div>Oleh: <span className="font-medium">{request.reviewer.fullName}</span></div>}
+                              {request.reviewNotes && <div className="text-muted-foreground line-clamp-2">{request.reviewNotes}</div>}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            size="sm"
-                            className="h-8 px-2 text-xs bg-green-600 hover:bg-green-700"
-                            onClick={() => approveMutation.mutate({ id: request.id })}
-                            disabled={approveMutation.isPending || rejectMutation.isPending}
-                          >
-                            <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                            Konfirmasi
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                            onClick={() => {
-                              setRejectRequestId(request.id);
-                              setRejectNotes('');
-                            }}
-                            disabled={approveMutation.isPending || rejectMutation.isPending}
-                          >
-                            <XCircle className="h-3.5 w-3.5 mr-1" />
-                            Tolak
-                          </Button>
+                          {request.status === 'PENDING' ? (
+                            <>
+                              <Button
+                                size="sm"
+                                className="h-8 px-2 text-xs bg-green-600 hover:bg-green-700"
+                                onClick={() => approveMutation.mutate({ id: request.id })}
+                                disabled={approveMutation.isPending || rejectMutation.isPending}
+                              >
+                                <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                Konfirmasi
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                                onClick={() => {
+                                  setRejectRequestId(request.id);
+                                  setRejectNotes('');
+                                }}
+                                disabled={approveMutation.isPending || rejectMutation.isPending}
+                              >
+                                <XCircle className="h-3.5 w-3.5 mr-1" />
+                                Tolak
+                              </Button>
+                            </>
+                          ) : request.settlementId ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2 text-xs"
+                              onClick={() => window.location.href = `/settlements/${request.settlementId}`}
+                            >
+                              <Eye className="h-3.5 w-3.5 mr-1" />
+                              Detail
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Selesai</span>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
