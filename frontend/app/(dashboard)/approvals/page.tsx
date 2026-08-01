@@ -52,6 +52,25 @@ const parsePayload = (payload: any): any => {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
+function getMonthEndWarningInfo() {
+  const now = new Date();
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const end = new Date(endOfMonth.getFullYear(), endOfMonth.getMonth(), endOfMonth.getDate()).getTime();
+  const daysLeft = Math.max(Math.round((end - today) / (1000 * 60 * 60 * 24)), 0);
+
+  return {
+    isActive: daysLeft <= 3,
+    isCritical: daysLeft <= 1,
+    daysLeft,
+    endDateText: endOfMonth.toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    }),
+  };
+}
+
 type RequestMeta = {
   label: string;           // Judul singkat
   description: string;     // Penjelasan detail
@@ -198,6 +217,7 @@ function getRequestMeta(req: ChangeRequest): RequestMeta {
 
 export default function ApprovalsPage() {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('master');
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
   const { pendingRequests: masterRequests } = useChangeRequests({ enabled: isAdmin });
   const { pendingRequests: statusRequests } = useProductRequests({ enabled: isAdmin });
@@ -209,6 +229,8 @@ export default function ApprovalsPage() {
   const masterCount = masterRequests.data?.data?.length || 0;
   const statusCount = statusRequests.data?.data?.length || 0;
   const settlementConfirmationCount = (settlementConfirmationData as any)?.data?.pagination?.total || 0;
+  const monthEndWarning = getMonthEndWarningInfo();
+  const showSettlementMonthEndWarning = monthEndWarning.isActive && settlementConfirmationCount > 0;
 
   if (user && user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN' && user.role !== 'DEV') {
     return (
@@ -230,6 +252,45 @@ export default function ApprovalsPage() {
           Tinjau dan kelola semua permintaan yang memerlukan persetujuan Admin.
         </p>
       </div>
+
+      {showSettlementMonthEndWarning && (
+        <div
+          className={`rounded-2xl border-2 p-5 shadow-lg ${
+            monthEndWarning.isCritical
+              ? 'border-red-600 bg-red-50 text-red-950 dark:bg-red-950/30 dark:text-red-100'
+              : 'border-orange-500 bg-orange-50 text-orange-950 dark:bg-orange-950/30 dark:text-orange-100'
+          }`}
+        >
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex gap-3">
+              <div className={`mt-0.5 rounded-full p-2 ${monthEndWarning.isCritical ? 'bg-red-600 text-white' : 'bg-orange-500 text-white'}`}>
+                <AlertCircle className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-lg font-black uppercase tracking-wide">
+                  PERINGATAN KERAS AKHIR BULAN: KONFIRMASI PELUNASAN BELUM SELESAI
+                </p>
+                <p className="mt-1 text-sm font-medium">
+                  Ada <span className="font-black">{settlementConfirmationCount}</span> pengajuan pelunasan yang masih menunggu konfirmasi.
+                  Batas akhir bulan: <span className="font-black">{monthEndWarning.endDateText}</span>
+                  {monthEndWarning.daysLeft === 0
+                    ? ' — hari ini hari terakhir.'
+                    : ` — tersisa ${monthEndWarning.daysLeft} hari.`}
+                </p>
+                <p className="mt-1 text-xs">
+                  Segera cocokkan mutasi/bukti bayar lalu tekan Konfirmasi atau Tolak agar laporan bulanan tidak menggantung.
+                </p>
+              </div>
+            </div>
+            <Button
+              className={monthEndWarning.isCritical ? 'bg-red-700 hover:bg-red-800' : 'bg-orange-600 hover:bg-orange-700'}
+              onClick={() => setActiveTab('settlements')}
+            >
+              Buka Konfirmasi Pelunasan
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -261,7 +322,7 @@ export default function ApprovalsPage() {
             </p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-green-400">
+        <Card className={`border-l-4 ${showSettlementMonthEndWarning ? 'border-l-red-600 bg-red-50/40 dark:bg-red-950/10' : 'border-l-green-400'}`}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Wallet className="h-4 w-4" />
@@ -269,7 +330,9 @@ export default function ApprovalsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-green-500">{settlementConfirmationCount}</div>
+            <div className={`text-3xl font-bold ${showSettlementMonthEndWarning ? 'text-red-600' : 'text-green-500'}`}>
+              {settlementConfirmationCount}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
               pengajuan pelunasan user yang menunggu konfirmasi
             </p>
@@ -278,7 +341,7 @@ export default function ApprovalsPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="master" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="master" className="relative">
             Perubahan Data Master
@@ -299,7 +362,9 @@ export default function ApprovalsPage() {
           <TabsTrigger value="settlements" className="relative">
             Konfirmasi Pelunasan
             {settlementConfirmationCount > 0 && (
-              <span className="ml-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-500 px-1.5 text-[11px] font-bold text-white">
+              <span className={`ml-2 flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white ${
+                showSettlementMonthEndWarning ? 'animate-pulse bg-red-600' : 'bg-green-500'
+              }`}>
                 {settlementConfirmationCount}
               </span>
             )}
@@ -678,6 +743,8 @@ function SettlementConfirmationApprovals() {
   const requests = (data as any)?.data?.requests || [];
   const pagination = (data as any)?.data?.pagination || { total: 0, page, limit, totalPages: 1 };
   const hasFilters = search.trim() || Object.values(filters).some((value) => value.trim());
+  const monthEndWarning = getMonthEndWarningInfo();
+  const showMonthEndWarning = monthEndWarning.isActive && pagination.total > 0;
 
   const updateFilter = (key: keyof typeof filters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -784,6 +851,33 @@ function SettlementConfirmationApprovals() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
+          {showMonthEndWarning && (
+            <div
+              className={`mx-4 mb-4 rounded-xl border-2 p-4 ${
+                monthEndWarning.isCritical
+                  ? 'border-red-600 bg-red-50 text-red-950 dark:bg-red-950/30 dark:text-red-100'
+                  : 'border-orange-500 bg-orange-50 text-orange-950 dark:bg-orange-950/30 dark:text-orange-100'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <AlertCircle className={`mt-0.5 h-6 w-6 shrink-0 ${monthEndWarning.isCritical ? 'text-red-700 dark:text-red-200' : 'text-orange-700 dark:text-orange-200'}`} />
+                <div>
+                  <p className="font-black uppercase">
+                    Jangan lewat akhir bulan — {pagination.total} pelunasan masih menunggu konfirmasi
+                  </p>
+                  <p className="mt-1 text-sm font-medium">
+                    Batas akhir bulan {monthEndWarning.endDateText}.
+                    {monthEndWarning.daysLeft === 0
+                      ? ' Hari ini hari terakhir, selesaikan sekarang.'
+                      : ` Sisa ${monthEndWarning.daysLeft} hari, selesaikan sebelum tutup bulan.`}
+                  </p>
+                  <p className="mt-1 text-xs">
+                    Jika dibiarkan, laporan bulan ini bisa terlihat belum lengkap karena pelunasan masih menggantung di antrian.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="border-t border-b bg-muted/10 p-4 space-y-3">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="relative w-full lg:max-w-md">

@@ -151,6 +151,13 @@ export default function SettlementsPage() {
     }).format(typeof value === 'string' ? parseFloat(value) : value);
   };
 
+  const formatDateTime = (value?: string | Date | null) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return format(date, 'dd MMM yyyy HH:mm');
+  };
+
   const handleCreateSettlement = (sale: any) => {
     setSelectedSale(sale);
     setFormOpen(true);
@@ -424,6 +431,18 @@ export default function SettlementsPage() {
                                         )}
                                     </div>
 
+                                    {isSettled && settlement && (
+                                        <div className="mb-2 rounded-md border border-green-200 bg-green-50/60 p-2 text-[10px] dark:border-green-900 dark:bg-green-950/20">
+                                            <div className="text-muted-foreground">Dikonfirmasi oleh</div>
+                                            <div className="font-semibold text-foreground">
+                                                {settlement.creator?.fullName || '-'}
+                                            </div>
+                                            <div className="mt-0.5 text-muted-foreground">
+                                                {formatDateTime(settlement.createdAt)}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {!isSettled && overdue && (
                                         <div className="flex items-center gap-1.5 text-[10px] text-red-700 dark:text-red-300 bg-red-100/60 dark:bg-red-950/40 p-1.5 rounded mb-2">
                                             <AlertCircle className="h-3 w-3" />
@@ -491,6 +510,7 @@ export default function SettlementsPage() {
                         <TableHead className="text-right">Total (Kotor)</TableHead>
                         <TableHead className="text-right">Dana Bersih</TableHead>
                         <TableHead>Tgl Pelunasan</TableHead>
+                        <TableHead>Dikonfirmasi</TableHead>
                         <TableHead>Penanggung Jawab</TableHead>
                         <TableHead>Aksi</TableHead>
                     </TableRow>
@@ -498,7 +518,7 @@ export default function SettlementsPage() {
                     <TableBody>
                     {filteredSettlements.length === 0 ? (
                         <TableRow>
-                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                             Tidak ada data
                         </TableCell>
                         </TableRow>
@@ -599,6 +619,20 @@ export default function SettlementsPage() {
                                 {isSettled && settlement
                                 ? new Date(settlement.settlementDate).toLocaleDateString('id-ID')
                                 : '-'}
+                            </TableCell>
+                            <TableCell>
+                                {isSettled && settlement ? (
+                                  <div className="min-w-[150px]">
+                                    <div className="text-sm font-medium text-foreground">
+                                      {settlement.creator?.fullName || '-'}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {formatDateTime(settlement.createdAt)}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                                 {sale?.creator?.fullName || '-'}

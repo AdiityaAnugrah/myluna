@@ -5,7 +5,8 @@ import { AppError } from '../utils/errors';
 import { sequelize } from '../config/database';
 import { Op } from 'sequelize';
 import { auditService } from '../services/audit.service';
-import { assertUserDateIsToday } from '../utils/dateGuard';
+import { assertUserDateIsToday, getLocalDateString } from '../utils/dateGuard';
+import { getSettlementConfirmationDateBasis } from '../services/systemSetting.service';
 
 export const settlementController = {
   async getAll(req: Request, res: Response, next: NextFunction): Promise<any> {
@@ -207,6 +208,23 @@ export const settlementController = {
             model: User,
             as: 'creator',
             attributes: ['id', 'fullName', 'email'],
+          },
+          {
+            model: SettlementRequest,
+            as: 'sourceRequest',
+            required: false,
+            include: [
+              {
+                model: User,
+                as: 'requester',
+                attributes: ['id', 'fullName', 'email'],
+              },
+              {
+                model: User,
+                as: 'reviewer',
+                attributes: ['id', 'fullName', 'email'],
+              },
+            ],
           },
         ],
       });
@@ -545,12 +563,18 @@ export const settlementController = {
         throw new AppError('Settlement already exists for this sale', 400);
       }
 
+      const dateBasis = await getSettlementConfirmationDateBasis();
+      const officialSettlementDate =
+        dateBasis === 'CONFIRMATION_DATE'
+          ? new Date(`${getLocalDateString(new Date())}T00:00:00`)
+          : settlementRequest.settlementDate;
+
       const settlement = await Settlement.create(
         {
           saleId: settlementRequest.saleId,
           invoiceNumber: sale.saleNumber,
           netAmount: settlementRequest.netAmount,
-          settlementDate: settlementRequest.settlementDate,
+          settlementDate: officialSettlementDate,
           proofDocument: settlementRequest.proofDocument,
           notes: settlementRequest.notes,
           createdBy: req.user!.id,

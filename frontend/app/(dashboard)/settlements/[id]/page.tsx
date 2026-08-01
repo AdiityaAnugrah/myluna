@@ -45,6 +45,13 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
     }).format(typeof value === 'string' ? parseFloat(value) : value);
   };
 
+  const formatDateTime = (value?: string | Date | null) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return format(date, 'dd MMMM yyyy HH:mm:ss');
+  };
+
   const getProofDocumentUrl = (filename: string) => {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '');
     return `${baseUrl}/uploads/proofs/${filename}`;
@@ -73,6 +80,7 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
   }
 
   const sale = settlement.sale;
+  const sourceRequest = settlement.sourceRequest;
   const potongan = sale
     ? parseFloat(String(sale.totalAmount)) - parseFloat(String(settlement.netAmount))
     : 0;
@@ -141,6 +149,80 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
+      {/* Audit Trail */}
+      <Card className="border-green-200 bg-green-50/40 dark:border-green-900 dark:bg-green-950/10">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <UserCheck className="h-4 w-4 text-green-600" />
+            Jejak Konfirmasi Pelunasan
+            <Badge className="ml-auto bg-green-600 text-white">Tercatat</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-lg border bg-background/80 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Dikonfirmasi Oleh</p>
+              <p className="mt-1 font-semibold">{settlement.creator?.fullName || '-'}</p>
+              <p className="text-xs text-muted-foreground">{settlement.creator?.email || ''}</p>
+            </div>
+            <div className="rounded-lg border bg-background/80 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Waktu Konfirmasi</p>
+              <p className="mt-1 font-semibold">{formatDateTime(settlement.createdAt)}</p>
+              <p className="text-xs text-muted-foreground">Tanggal + jam saat admin menekan konfirmasi</p>
+            </div>
+            <div className="rounded-lg border bg-background/80 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Sumber Pelunasan</p>
+              <p className="mt-1 font-semibold">
+                {sourceRequest ? 'Pengajuan USER dikonfirmasi admin' : 'Input langsung admin'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                ID Settlement: <span className="font-mono">{settlement.id}</span>
+              </p>
+            </div>
+          </div>
+
+          {sourceRequest && (
+            <div className="mt-4 rounded-lg border bg-background/80 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm font-semibold">Detail Pengajuan Awal</p>
+                <Badge variant="outline" className="ml-auto">{sourceRequest.status}</Badge>
+              </div>
+              <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Diajukan oleh</p>
+                  <p className="font-medium">{sourceRequest.requester?.fullName || '-'}</p>
+                  <p className="text-xs text-muted-foreground">{sourceRequest.requester?.email || ''}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Waktu pengajuan</p>
+                  <p className="font-medium">{formatDateTime(sourceRequest.createdAt)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Direview oleh</p>
+                  <p className="font-medium">
+                    {sourceRequest.reviewer?.fullName || settlement.creator?.fullName || '-'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {sourceRequest.reviewer?.email || settlement.creator?.email || ''}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Waktu review</p>
+                  <p className="font-medium">{formatDateTime(sourceRequest.reviewedAt)}</p>
+                </div>
+              </div>
+              {sourceRequest.reviewNotes && (
+                <div className="mt-3 rounded-md bg-muted/40 p-3">
+                  <p className="text-xs text-muted-foreground">Catatan review</p>
+                  <p className="text-sm">{sourceRequest.reviewNotes}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Main Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Settlement Info */}
@@ -174,15 +256,21 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
             </div>
             <div className="flex items-start justify-between">
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <User className="h-3.5 w-3.5" /> Disetor oleh
+                <User className="h-3.5 w-3.5" /> Dikonfirmasi oleh
               </p>
               <p className="font-medium text-sm">{settlement.creator?.fullName || '-'}</p>
             </div>
             <div className="flex items-start justify-between">
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5" /> Dibuat pada
+                <Calendar className="h-3.5 w-3.5" /> Waktu konfirmasi
               </p>
-              <p className="text-sm">{format(new Date(settlement.createdAt), 'dd MMM yyyy HH:mm')}</p>
+              <p className="text-sm">{formatDateTime(settlement.createdAt)}</p>
+            </div>
+            <div className="flex items-start justify-between">
+              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" /> Terakhir diperbarui
+              </p>
+              <p className="text-sm">{formatDateTime(settlement.updatedAt)}</p>
             </div>
             {settlement.notes && (
               <div className="pt-2 border-t">

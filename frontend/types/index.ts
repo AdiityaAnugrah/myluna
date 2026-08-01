@@ -237,6 +237,18 @@ export interface FeatureFlag {
   updatedAt: string;
 }
 
+export type SettlementConfirmationDateBasis = 'SETTLEMENT_DATE' | 'CONFIRMATION_DATE';
+
+export interface SystemSetting {
+  id: string;
+  key: string;
+  value: string;
+  label: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Role {
   id: string;
   name: string;

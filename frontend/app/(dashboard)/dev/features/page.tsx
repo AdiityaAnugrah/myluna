@@ -7,10 +7,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useFeatures, useUpdateFeature } from '@/lib/hooks/useFeatures';
+import { useSystemSettings, useUpdateSystemSetting } from '@/lib/hooks/useSystemSettings';
 import type { AppRole, FeatureFlag } from '@/types';
-import { Code2, ShieldCheck, SlidersHorizontal } from 'lucide-react';
+import { CalendarClock, Code2, ShieldCheck, SlidersHorizontal } from 'lucide-react';
 
 const ROLE_OPTIONS: AppRole[] = ['USER', 'TCP', 'ADMIN', 'SUPER_ADMIN', 'DEV'];
 
@@ -109,7 +111,11 @@ export default function DevFeatureControlPage() {
   const { user } = useAuth();
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
   const { data, isLoading, refetch } = useFeatures();
+  const { data: settingsData, isLoading: isSettingsLoading } = useSystemSettings({ enabled: role === 'DEV' });
+  const updateSystemSetting = useUpdateSystemSetting();
   const features = data?.data || [];
+  const settings = settingsData?.data || [];
+  const settlementDateBasis = settings.find((item) => item.key === 'settlementConfirmationDateBasis');
 
   if (role !== 'DEV') {
     return (
@@ -163,6 +169,55 @@ export default function DevFeatureControlPage() {
           <CardContent className="text-2xl font-bold">{features.filter((item) => item.isDevelopment).length}</CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarClock className="h-5 w-5 text-primary" />
+            Pengaturan Tanggal Pelunasan
+          </CardTitle>
+          <CardDescription>
+            Khusus DEV: tentukan tanggal resmi yang dipakai saat Admin/Super Admin mengonfirmasi pengajuan pelunasan USER.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px] md:items-start">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <p className="font-semibold">Catatan produksi</p>
+              <p className="mt-1">
+                Opsi ini berlaku untuk pengajuan pelunasan berikutnya saat dikonfirmasi. Jejak tanggal tetap disimpan:
+                tanggal pelunasan dari USER ada di pengajuan, sedangkan waktu admin konfirmasi ada di audit/detail pelunasan.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Basis tanggal resmi</Label>
+              <Select
+                value={settlementDateBasis?.value || 'SETTLEMENT_DATE'}
+                disabled={isSettingsLoading || updateSystemSetting.isPending || !settlementDateBasis}
+                onValueChange={(value) =>
+                  updateSystemSetting.mutate({ key: 'settlementConfirmationDateBasis', value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih basis tanggal" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SETTLEMENT_DATE">Tanggal pelunasan dari USER</SelectItem>
+                  <SelectItem value="CONFIRMATION_DATE">Tanggal konfirmasi admin</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Aktif sekarang:{' '}
+                <span className="font-semibold">
+                  {(settlementDateBasis?.value || 'SETTLEMENT_DATE') === 'CONFIRMATION_DATE'
+                    ? 'Tanggal konfirmasi admin'
+                    : 'Tanggal pelunasan dari USER'}
+                </span>
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

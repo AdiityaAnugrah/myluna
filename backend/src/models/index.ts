@@ -54,6 +54,7 @@ import DisplayStockRequest, { DisplayRequestStatus, DisplayRequestType } from '.
 import DisplayReturn, { DisplayReturnStatus } from './DisplayReturn';
 import DisplayReturnItem from './DisplayReturnItem';
 import FeatureFlag from './FeatureFlag';
+import SystemSetting from './SystemSetting';
 
 // Define associations
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -350,4 +351,5 @@ export {
   DisplayReturnStatus,
   DisplayReturnItem,
   FeatureFlag,
+  SystemSetting,
 };
