@@ -194,7 +194,7 @@ export default function DevFeatureControlPage() {
               <Label>Basis tanggal resmi</Label>
               <Select
                 value={settlementDateBasisValue}
-                disabled={isSettingsLoading || updateSystemSetting.isPending}
+                disabled={updateSystemSetting.isPending}
                 onValueChange={(value) =>
                   updateSystemSetting.mutate({ key: 'settlementConfirmationDateBasis', value })
                 }
@@ -214,6 +214,7 @@ export default function DevFeatureControlPage() {
                     ? 'Tanggal konfirmasi admin'
                     : 'Tanggal pelunasan dari USER'}
                 </span>
+                {isSettingsLoading ? ' · sedang memuat data setting...' : ''}
               </p>
             </div>
           </div>
