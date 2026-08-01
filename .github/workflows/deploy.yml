@@ -30,9 +30,9 @@ jobs:
             cd /mine/myluna.web.id/backend
             npm install --production=false
             npm run build
-            npm run migrate:production
-            npm run seed:regions:v2:production
-            npm run reconcile:regions:v2:production
+            npm run migrate:production || echo "::warning::Migration production gagal/tertahan, deploy kode tetap dilanjutkan. Cek migration log setelah aplikasi aktif."
+            npm run seed:regions:v2:production || echo "::warning::Seed wilayah dilewati/gagal, deploy kode tetap dilanjutkan."
+            npm run reconcile:regions:v2:production || echo "::warning::Rekonsiliasi wilayah dilewati/gagal, deploy kode tetap dilanjutkan."
             pm2 restart app_background_lunarea --update-env
 
             echo "=== Build Frontend ==="
