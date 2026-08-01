@@ -38,7 +38,7 @@ export function useNotifications() {
     { enabled: isAdmin, refetchInterval: 30_000 }
   );
 
-  // Fetch overdue pending settlements (>= 15 days) - only non-TCP roles
+  // Fetch overdue pending settlements (>= 15 days) - only non-PUSAT roles
   const { data: overdueData } = useQuery({
     queryKey: ['settlements-overdue-count'],
     queryFn: async () => {

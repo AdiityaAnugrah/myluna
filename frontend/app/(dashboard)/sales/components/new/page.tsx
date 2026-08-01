@@ -121,7 +121,7 @@ export default function NewComponentSalePage() {
         <Link href="/sales"><Button variant="ghost" size="sm"><ArrowLeft className="mr-2 h-4 w-4" />Kembali</Button></Link>
         <div>
           <h1 className="text-3xl font-bold">Penjualan Komponen</h1>
-          <p className="text-muted-foreground mt-1">Transaksi manual non-stok yang tetap masuk TCP dan keuangan.</p>
+          <p className="text-muted-foreground mt-1">Transaksi manual non-stok yang tetap masuk PUSAT dan keuangan.</p>
         </div>
       </div>
 
@@ -191,7 +191,7 @@ export default function NewComponentSalePage() {
               <Select value={shippingService} onValueChange={setShippingService}><SelectTrigger><SelectValue placeholder="Pilih jasa pengiriman" /></SelectTrigger><SelectContent>{shippingServices?.data?.filter((s: any) => s.isActive).map((s: any) => <SelectItem key={s.id || s.name} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select>
             </div>
             <RegionAddressFields value={shippingAddress} onChange={setShippingAddress} />
-            <div className="space-y-2"><Label>Catatan Internal</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Catatan tambahan untuk TCP/finance" /></div>
+            <div className="space-y-2"><Label>Catatan Internal</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Catatan tambahan untuk PUSAT/finance" /></div>
           </CardContent>
         </Card>
 

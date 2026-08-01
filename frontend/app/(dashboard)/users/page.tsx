@@ -29,6 +29,7 @@ import { User } from '@/types';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { formatRoleLabel } from '@/lib/utils/roleLabel';
 
 function formatDuration(seconds: number) {
   if (!seconds) return '0j 0m';
@@ -161,7 +162,7 @@ export default function UsersPage() {
                   <TableCell>{user.fullName}</TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{user.role?.name}</Badge>
+                    <Badge variant="outline">{formatRoleLabel(user.role?.name)}</Badge>
                   </TableCell>
                   <TableCell>
                     {(() => {

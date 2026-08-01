@@ -38,6 +38,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { DiffViewer } from '@/components/approvals/DiffViewer';
 import { ChangeRequest } from '@/types';
+import { formatRoleLabel } from '@/lib/utils/roleLabel';
 
 const parsePayload = (payload: any): any => {
   if (typeof payload !== 'string') return payload;
@@ -514,7 +515,7 @@ function MasterApprovals() {
                       </TableCell>
                       <TableCell>
                         <div className="text-sm font-medium">{req.requester?.fullName || req.requester?.username}</div>
-                        <div className="text-xs text-muted-foreground">{String(req.requester?.role || '')}</div>
+                        <div className="text-xs text-muted-foreground">{formatRoleLabel(req.requester?.role)}</div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1.5">
@@ -605,7 +606,7 @@ function MasterApprovals() {
                   <div>
                     <span className="font-semibold text-xs uppercase tracking-wide text-muted-foreground block mb-1">Diajukan Oleh</span>
                     <div className="font-medium">{selectedRequest.requester?.fullName}</div>
-                    <div className="text-xs text-muted-foreground">{String(selectedRequest.requester?.role || '')}</div>
+                    <div className="text-xs text-muted-foreground">{formatRoleLabel(selectedRequest.requester?.role)}</div>
                   </div>
                   <div>
                     <span className="font-semibold text-xs uppercase tracking-wide text-muted-foreground block mb-1">Tanggal</span>
@@ -1267,7 +1268,7 @@ function StatusApprovals() {
                     </TableCell>
                     <TableCell>
                       <div className="text-sm font-medium">{req.requester?.fullName || req.requester?.username}</div>
-                      <div className="text-xs text-muted-foreground">{req.requester?.role}</div>
+                      <div className="text-xs text-muted-foreground">{formatRoleLabel(req.requester?.role)}</div>
                     </TableCell>
                     <TableCell>
                       {req.requestedStatus === 'ACTIVE' ? (

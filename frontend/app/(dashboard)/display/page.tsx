@@ -50,7 +50,7 @@ function shortDate(value?: string | null) {
 }
 
 function roleLabel(role?: string) {
-  if (role === 'TCP') return 'TCP - Eksekusi Pengiriman';
+  if (role === 'TCP') return 'PUSAT - Eksekusi Pengiriman';
   if (role === 'USER') return 'USER - Pengajuan';
   if (role === 'ADMIN') return 'ADMIN - Review';
   if (role === 'DEV') return 'DEV - Kontrol Penuh';
@@ -171,7 +171,7 @@ function Summary({ title, value, note }: { title: string; value: number; note: s
 
 function RoleGuide({ role, isAdmin, isTcp }: { role?: string; isAdmin: boolean; isTcp: boolean }) {
   const guide = isTcp
-    ? { title: 'Untuk TCP', desc: 'Buat Retur Display, cetak Surat Jalan, lalu tandai barang dikirim atau diterima.', tone: 'border-blue-200 bg-blue-50/60 text-blue-900' }
+    ? { title: 'Untuk PUSAT', desc: 'Buat Retur Display, cetak Surat Jalan, lalu tandai barang dikirim atau diterima.', tone: 'border-blue-200 bg-blue-50/60 text-blue-900' }
     : isAdmin
       ? { title: 'Untuk Admin', desc: 'Cukup review pengajuan display dari user, lalu setujui atau tolak.', tone: 'border-primary/20 bg-primary/5 text-primary' }
       : { title: 'Untuk User', desc: 'Cek produk yang perlu display, lalu klik Ajukan Display.', tone: 'border-amber-200 bg-amber-50/70 text-amber-900' };
@@ -375,7 +375,7 @@ function ReturnsTab(props: any) {
       </Dialog>
 
       <Card>
-        <CardHeader><CardTitle>{isTcp ? 'Tugas Retur Display untuk TCP' : 'Daftar Retur Display'}</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{isTcp ? 'Tugas Retur Display untuk PUSAT' : 'Daftar Retur Display'}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {returnRows.map((item: DisplayReturn) => <div key={item.id} className="rounded-lg border p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><div className="font-semibold">{item.letterNumber}</div><div className="text-xs text-muted-foreground">{shortDate(item.letterDate)} • Kepada {item.recipientName}</div><div className="mt-2 text-sm">{item.items?.map((row) => row.productNameSnapshot).join(', ') || '-'}</div></div><div>{statusBadge(item.status)}</div></div><div className="mt-3 flex flex-wrap justify-end gap-2"><Button size="sm" variant="outline" onClick={() => { setSelectedReturnId(item.id); setActiveTab('letter'); }}>Surat Jalan</Button>{(isTcp || isAdmin) && item.status === 'READY_TO_SEND' && <Button size="sm" onClick={() => updateReturnStatus.mutate({ id: item.id, status: 'SENT' })}>Tandai Dikirim</Button>}{(isTcp || isAdmin) && item.status === 'SENT' && <Button size="sm" onClick={() => updateReturnStatus.mutate({ id: item.id, status: 'RECEIVED' })}>Tandai Diterima</Button>}{isAdmin && item.status === 'RECEIVED' && <Button size="sm" onClick={() => updateReturnStatus.mutate({ id: item.id, status: 'COMPLETED' })}>Selesaikan</Button>}</div></div>)}
           {returnRows.length === 0 && <div className="py-8 text-center text-muted-foreground">Belum ada Retur Display.</div>}

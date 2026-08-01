@@ -3,11 +3,11 @@ import { ComplaintStatus, ReturnTicketStatus, SaleReturnStatus } from '@/types';
 export function getComplaintStatusLabel(status: ComplaintStatus) {
   switch (status) {
     case 'PENDING_TCP_REVIEW':
-      return 'Menunggu Review TCP';
+      return 'Menunggu Review PUSAT';
     case 'REJECTED_BY_TCP':
-      return 'Ditolak TCP';
+      return 'Ditolak PUSAT';
     case 'ACCEPTED_BY_TCP':
-      return 'Sedang Ditangani TCP';
+      return 'Sedang Ditangani PUSAT';
     case 'REPLACEMENT_SHIPPED':
       return 'Pengganti Sudah Dikirim';
     case 'WAITING_USER_CONFIRMATION':
@@ -111,9 +111,9 @@ export function getReturnTicketStatusLabel(status: ReturnTicketStatus, options?:
     case 'DECISION_FINALIZED':
       return 'Keputusan Sudah Final';
     case 'WAITING_TCP_EXECUTION':
-      return 'Menunggu Eksekusi TCP';
+      return 'Menunggu Eksekusi PUSAT';
     case 'TCP_EXECUTING':
-      return 'Sedang Dieksekusi TCP';
+      return 'Sedang Dieksekusi PUSAT';
     case 'COMPLETED':
       return 'Selesai';
     case 'REJECTED':

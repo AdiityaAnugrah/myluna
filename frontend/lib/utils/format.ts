@@ -43,7 +43,7 @@ export const formatRole = (role: string) => {
     ADMIN: 'Administrator',
     USER: 'Pengguna',
     CASHIER: 'Kasir',
-    TCP: 'Tim Cek Pesanan',
+    TCP: 'PUSAT',
   };
   return map[role] || role;
 };

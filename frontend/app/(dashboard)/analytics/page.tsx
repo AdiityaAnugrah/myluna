@@ -428,7 +428,7 @@ export default function AnalyticsPage() {
                 {operationsQuery.isLoading ? '...' : (operations?.tickets.active || 0)}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Diskusi: {operations?.tickets.inDiscussion || 0} • Tunggu TCP: {operations?.tickets.waitingTcpExecution || 0} • Dieksekusi: {operations?.tickets.tcpExecuting || 0}
+                Diskusi: {operations?.tickets.inDiscussion || 0} • Tunggu PUSAT: {operations?.tickets.waitingTcpExecution || 0} • Dieksekusi: {operations?.tickets.tcpExecuting || 0}
               </p>
             </div>
             <Ticket className="h-6 w-6 shrink-0 text-primary" />

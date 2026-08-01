@@ -156,7 +156,7 @@ const MobileSalesCard = ({ sale, userRole, onPrint, getStatusBadge, copiedInvoic
 
             {/* Actions */}
             <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-                 {/* TCP/Admin/Super Admin can print WAITING_APPROVAL directly (auto-process after print) */}
+                 {/* PUSAT/Admin/Super Admin can print WAITING_APPROVAL directly (auto-process after print) */}
                  {sale.status === 'WAITING_APPROVAL' && canPrintWaitingApproval && !sale.isCancelPending && (
                      <Button
                          variant="outline"
@@ -389,7 +389,7 @@ const SalesTable = ({
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-2">
-                        {/* TCP/Admin/Super Admin can print WAITING_APPROVAL directly (auto-process after print) */}
+                        {/* PUSAT/Admin/Super Admin can print WAITING_APPROVAL directly (auto-process after print) */}
                         {!isHistory && sale.status === 'WAITING_APPROVAL' && canPrintWaitingApproval && !sale.isCancelPending && (
                             <Button
                                 variant="outline"

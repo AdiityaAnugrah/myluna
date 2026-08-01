@@ -53,6 +53,7 @@ import { format } from 'date-fns';
 import { SkeletonCard, SkeletonChart, SkeletonTable, SkeletonActivity } from '@/components/ui/loading-skeleton';
 import { ErrorState } from '@/components/ui/error-state';
 import { EmptyState } from '@/components/ui/empty-state';
+import { formatRoleLabel } from '@/lib/utils/roleLabel';
 
 const DynamicAreaChart = dynamic(
   () => import('recharts').then((mod) => mod.AreaChart),
@@ -191,7 +192,7 @@ export default function DashboardPage() {
 
   if (!user || !mounted) return null;
 
-  // ─── TCP ROLE: Tampilan Proses Penjualan ────────────────────────────────
+  // ─── PUSAT ROLE: Tampilan Proses Penjualan ────────────────────────────────
   if (user.role === 'TCP') {
     const allSales: any[] = salesData?.data?.sales || [];
     const ops = operationalAnalyticsData?.data;
@@ -242,7 +243,7 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className="font-mono text-xs">Role: TCP</Badge>
+            <Badge variant="outline" className="font-mono text-xs">Role: PUSAT</Badge>
             <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
               <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               {isRefreshing ? 'Memuat...' : 'Refresh'}
@@ -355,7 +356,7 @@ export default function DashboardPage() {
                   <Truck className="h-6 w-6 text-blue-600" />
                 </div>
               </div>
-              <p className="mt-3 text-xs text-muted-foreground">Tiket retur sudah masuk tahap eksekusi TCP</p>
+              <p className="mt-3 text-xs text-muted-foreground">Tiket retur sudah masuk tahap eksekusi PUSAT</p>
             </CardContent>
           </Card>
         </div>
@@ -372,7 +373,7 @@ export default function DashboardPage() {
                   <ClipboardList className="h-6 w-6 text-green-600" />
                 </div>
               </div>
-              <p className="mt-3 text-xs text-muted-foreground">Pantau tiket yang sedang dieksekusi TCP</p>
+              <p className="mt-3 text-xs text-muted-foreground">Pantau tiket yang sedang dieksekusi PUSAT</p>
             </CardContent>
           </Card>
           <Card className="border-none shadow-md bg-card/50 backdrop-blur-sm card-hover">
@@ -432,7 +433,7 @@ export default function DashboardPage() {
       </div>
     );
   }
-  // ─── END TCP ─────────────────────────────────────────────────────────────
+  // ─── END PUSAT ─────────────────────────────────────────────────────────────
 
 
   const totalProducts = productsData?.data?.pagination?.total || 0;
@@ -477,7 +478,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="font-mono text-xs">
-              Role: {user?.role || 'None'}
+              Role: {formatRoleLabel(user?.role) || 'None'}
             </Badge>
             <Button 
               variant="outline" 
@@ -611,7 +612,7 @@ export default function DashboardPage() {
               <p className="text-2xl font-bold">{myComplaintsTotal}</p>
             </div>
             <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Menunggu Review TCP</p>
+              <p className="text-xs text-muted-foreground">Menunggu Review PUSAT</p>
               <p className="text-2xl font-bold text-amber-600">{myComplaintsPending}</p>
             </div>
             <div className="rounded-lg border p-3">

@@ -16,6 +16,7 @@ import { GlobalSearch } from '@/components/ui/global-search';
 import { useUIStore } from '@/lib/stores/ui';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { formatRoleLabel } from '@/lib/utils/roleLabel';
 
 export function Header() {
   const user = useAuthStore((state) => state.user);
@@ -28,7 +29,7 @@ export function Header() {
     .join('')
     .toUpperCase()
     .slice(0, 2) || 'U';
-  const roleLabel = user?.isTestingMode ? (user.originalRole || 'TESTING') : user?.role;
+  const roleLabel = formatRoleLabel(user?.isTestingMode ? (user.originalRole || 'TESTING') : user?.role);
 
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 shadow-sm">

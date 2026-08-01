@@ -19,7 +19,7 @@ const ROLE_OPTIONS: AppRole[] = ['USER', 'TCP', 'ADMIN', 'SUPER_ADMIN', 'DEV'];
 function roleLabel(role: AppRole) {
   const labels: Record<AppRole, string> = {
     USER: 'User',
-    TCP: 'TCP',
+    TCP: 'PUSAT',
     ADMIN: 'Admin',
     SUPER_ADMIN: 'Super Admin',
     DEV: 'Dev',

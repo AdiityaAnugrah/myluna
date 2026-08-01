@@ -545,12 +545,12 @@ export default function ComplaintsPage() {
                   <SelectValue placeholder="Pilih jenis barang yang dikomplen" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="HARDWARE">Hardware / Barang Besar - SLA TCP 14 hari kerja</SelectItem>
-                  <SelectItem value="ACCESSORY">Aksesoris / Barang Kecil - SLA TCP 7 hari kerja</SelectItem>
+                  <SelectItem value="HARDWARE">Hardware / Barang Besar - SLA PUSAT 14 hari kerja</SelectItem>
+                  <SelectItem value="ACCESSORY">Aksesoris / Barang Kecil - SLA PUSAT 7 hari kerja</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Pilihan ini menentukan Batas Waktu TCP untuk menangani Komplen.
+                Pilihan ini menentukan Batas Waktu PUSAT untuk menangani Komplen.
               </p>
             </div>
 
@@ -558,7 +558,7 @@ export default function ComplaintsPage() {
               <div>
                 <p className="text-sm font-semibold">Detail Penerima & Alamat Pengganti *</p>
                 <p className="text-xs text-muted-foreground">
-                  Isi data tujuan dengan jelas agar TCP bisa memproses pengiriman pengganti tanpa menebak dari alasan komplen.
+                  Isi data tujuan dengan jelas agar PUSAT bisa memproses pengiriman pengganti tanpa menebak dari alasan komplen.
                 </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -672,7 +672,7 @@ export default function ComplaintsPage() {
             <div className="space-y-2">
               <Label>Informasi Penjualan untuk PDF Resi *</Label>
               <Textarea
-                placeholder="Isi detail penjualan: alamat, no hp, akun buyer, kronologi, dan informasi lain yang dibutuhkan TCP"
+                placeholder="Isi detail penjualan: alamat, no hp, akun buyer, kronologi, dan informasi lain yang dibutuhkan PUSAT"
                 rows={5}
                 value={salesInformation}
                 onChange={(e) => setSalesInformation(e.target.value)}
@@ -725,8 +725,8 @@ export default function ComplaintsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua Status</SelectItem>
-                <SelectItem value="PENDING_TCP_REVIEW">Menunggu Review TCP</SelectItem>
-                <SelectItem value="ACCEPTED_BY_TCP">Sedang Ditangani TCP</SelectItem>
+                <SelectItem value="PENDING_TCP_REVIEW">Menunggu Review PUSAT</SelectItem>
+                <SelectItem value="ACCEPTED_BY_TCP">Sedang Ditangani PUSAT</SelectItem>
                 <SelectItem value="REPLACEMENT_SHIPPED">Pengganti Sudah Dikirim</SelectItem>
                 <SelectItem value="WAITING_USER_CONFIRMATION">Menunggu Konfirmasi User</SelectItem>
                 <SelectItem value="WAITING_USER_DELIVERY_CONFIRMATION">Menunggu Konfirmasi Barang Sampai</SelectItem>
@@ -734,7 +734,7 @@ export default function ComplaintsPage() {
                 <SelectItem value="FOLLOW_UP_REQUIRED">Perlu Tindak Lanjut</SelectItem>
                 <SelectItem value="COMPLETED">Selesai</SelectItem>
                 <SelectItem value="CONVERTED_TO_RETURN">Dialihkan ke Retur</SelectItem>
-                <SelectItem value="REJECTED_BY_TCP">Ditolak TCP</SelectItem>
+                <SelectItem value="REJECTED_BY_TCP">Ditolak PUSAT</SelectItem>
               </SelectContent>
             </Select>
             <Select value={pageLimit} onValueChange={setPageLimit}>
@@ -812,7 +812,7 @@ export default function ComplaintsPage() {
                           </div>
                           {tcpDeadline && (
                             <div className={`rounded-md border p-2 ${tcpDeadline.overdue ? 'bg-red-50 text-red-700 border-red-200' : 'bg-muted/20'}`}>
-                              <div className="font-semibold">Batas Waktu TCP</div>
+                              <div className="font-semibold">Batas Waktu PUSAT</div>
                               <div>{tcpDeadline.date} • {tcpDeadline.text}</div>
                             </div>
                           )}
@@ -1043,7 +1043,7 @@ export default function ComplaintsPage() {
                 : 'Detail Komplen'}
             </DialogTitle>
             <DialogDescription>
-              Periksa detail pesanan, alasan, foto, alamat penerima, dan catatan tindak lanjut sebelum diproses TCP.
+              Periksa detail pesanan, alasan, foto, alamat penerima, dan catatan tindak lanjut sebelum diproses PUSAT.
             </DialogDescription>
           </DialogHeader>
 
@@ -1241,7 +1241,7 @@ export default function ComplaintsPage() {
           <DialogHeader>
             <DialogTitle>Belum Selesai</DialogTitle>
             <DialogDescription>
-              Jelaskan alasan kenapa pengiriman pengganti belum menyelesaikan kasus ini. Komplen akan masuk kembali ke TCP sebagai Perlu Tindak Lanjut.
+              Jelaskan alasan kenapa pengiriman pengganti belum menyelesaikan kasus ini. Komplen akan masuk kembali ke PUSAT sebagai Perlu Tindak Lanjut.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 text-sm">
