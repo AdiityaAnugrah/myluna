@@ -109,13 +109,14 @@ function FeatureRow({ feature }: { feature: FeatureFlag }) {
 
 export default function DevFeatureControlPage() {
   const { user } = useAuth();
-  const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
+  const role = (user?.isTestingMode ? 'SUPER_ADMIN' : user?.role || '').toUpperCase();
   const { data, isLoading, refetch } = useFeatures();
   const { data: settingsData, isLoading: isSettingsLoading } = useSystemSettings({ enabled: role === 'DEV' });
   const updateSystemSetting = useUpdateSystemSetting();
   const features = data?.data || [];
   const settings = settingsData?.data || [];
   const settlementDateBasis = settings.find((item) => item.key === 'settlementConfirmationDateBasis');
+  const settlementDateBasisValue = settlementDateBasis?.value || 'SETTLEMENT_DATE';
 
   if (role !== 'DEV') {
     return (
@@ -192,8 +193,8 @@ export default function DevFeatureControlPage() {
             <div className="space-y-2">
               <Label>Basis tanggal resmi</Label>
               <Select
-                value={settlementDateBasis?.value || 'SETTLEMENT_DATE'}
-                disabled={isSettingsLoading || updateSystemSetting.isPending || !settlementDateBasis}
+                value={settlementDateBasisValue}
+                disabled={isSettingsLoading || updateSystemSetting.isPending}
                 onValueChange={(value) =>
                   updateSystemSetting.mutate({ key: 'settlementConfirmationDateBasis', value })
                 }
@@ -209,7 +210,7 @@ export default function DevFeatureControlPage() {
               <p className="text-xs text-muted-foreground">
                 Aktif sekarang:{' '}
                 <span className="font-semibold">
-                  {(settlementDateBasis?.value || 'SETTLEMENT_DATE') === 'CONFIRMATION_DATE'
+                  {settlementDateBasisValue === 'CONFIRMATION_DATE'
                     ? 'Tanggal konfirmasi admin'
                     : 'Tanggal pelunasan dari USER'}
                 </span>
