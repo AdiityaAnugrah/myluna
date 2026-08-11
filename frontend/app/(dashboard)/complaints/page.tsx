@@ -45,13 +45,30 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getImageUrl } from '@/lib/utils/url';
+import { cn } from '@/lib/utils';
 import { PreviewableImage } from '@/components/ui/previewable-image';
 import { ComplaintReturnMenu } from '@/components/complaint-return-menu';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import { notify } from '@/lib/notify';
 import { getComplaintStatusBadgeClass, getComplaintStatusLabel } from '@/lib/constants/workflowStatus';
 import { Complaint, ComplaintResolutionType, ComplaintStatus, ComplaintType, Sale } from '@/types';
-import { CheckCircle2, Eye, FileText, Loader2, Printer, RotateCcw, Search, Send } from 'lucide-react';
+import {
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  Eye,
+  FileText,
+  ImageIcon,
+  Loader2,
+  MapPin,
+  PackageCheck,
+  Printer,
+  RotateCcw,
+  Search,
+  Send,
+  UserRound,
+} from 'lucide-react';
 
 function statusLabel(status: ComplaintStatus) {
   return getComplaintStatusLabel(status);
@@ -87,6 +104,12 @@ function getDeadlineInfo(deadline?: string | null) {
     overdue: diffDays < 0,
     text: diffDays < 0 ? `Melewati Deadline ${Math.abs(diffDays)} hari` : diffDays === 0 ? 'Jatuh tempo hari ini' : `Sisa ${diffDays} hari`,
   };
+}
+
+function getOverdueDeadlineWarnings(items: Array<{ label: string; info: ReturnType<typeof getDeadlineInfo> }>) {
+  return items
+    .filter((item): item is { label: string; info: NonNullable<ReturnType<typeof getDeadlineInfo>> } => !!item.info?.overdue)
+    .map((item) => `${item.label} lewat ${Math.abs(item.info.diffDays)} hari`);
 }
 
 function createSalesInfoPdf(params: {
@@ -692,10 +715,20 @@ export default function ComplaintsPage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader className="flex flex-col gap-3">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <CardTitle>{complaintScope === 'active' ? 'Komplen Aktif' : 'Riwayat Komplen'}</CardTitle>
+      <Card className="overflow-hidden">
+        <CardHeader className="flex flex-col gap-4 border-b bg-gradient-to-r from-orange-50 via-background to-background dark:from-orange-950/20">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-2xl">
+                <PackageCheck className="h-6 w-6 text-orange-500" />
+                {complaintScope === 'active' ? 'Komplen Aktif' : 'Riwayat Komplen'}
+              </CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {complaintScope === 'active'
+                  ? 'Pantau komplen yang masih berjalan, deadline, penerima, bukti foto, dan aksi lanjutan.'
+                  : 'Daftar komplen yang sudah selesai, ditolak, atau dialihkan ke retur.'}
+              </p>
+            </div>
             <Tabs
               value={complaintScope}
               onValueChange={(value) => {
@@ -709,18 +742,18 @@ export default function ComplaintsPage() {
               </TabsList>
             </Tabs>
           </div>
-          <div className="flex flex-col md:flex-row gap-2">
+          <div className="grid gap-2 md:grid-cols-[1fr_260px_160px]">
             <div className="relative">
-              <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="pl-8"
-                placeholder="Cari nomor / nama"
+                className="pl-9"
+                placeholder="Cari no komplen, no pesanan, nama customer..."
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[220px]">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -738,7 +771,7 @@ export default function ComplaintsPage() {
               </SelectContent>
             </Select>
             <Select value={pageLimit} onValueChange={setPageLimit}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -750,8 +783,18 @@ export default function ComplaintsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="mb-3 text-xs text-muted-foreground">
-            Total data: {totalComplaints}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-muted/20 px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold">
+                {totalComplaints} data {complaintScope === 'active' ? 'komplen aktif' : 'riwayat komplen'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Gunakan pencarian dan filter status untuk mempercepat pengecekan.
+              </p>
+            </div>
+            <Badge variant="outline" className="bg-background">
+              Halaman {safeCurrentPage} / {totalPages}
+            </Badge>
           </div>
           {complaintsQuery.isLoading ? (
             <div className="py-10 text-center text-muted-foreground flex items-center justify-center gap-2">
@@ -761,7 +804,7 @@ export default function ComplaintsPage() {
           ) : complaints.length === 0 ? (
             <div className="py-10 text-center text-muted-foreground">Belum ada data komplen.</div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {complaints.map((complaint) => {
                 const receiptPdfPath = complaint.complaintReceiptPdf || complaint.replacementProofDocument;
                 const isAcceptedForPrint =
@@ -782,46 +825,145 @@ export default function ComplaintsPage() {
                 const canCloseCase =
                   (isUser || isAdmin || isSuperAdmin || isDev) &&
                   complaint.status === 'MONITORING_CUSTOMER_CONFIRMATION';
+                const complaintPhotos = complaint.complaintPhotos && complaint.complaintPhotos.length > 0
+                  ? complaint.complaintPhotos
+                  : [complaint.complaintPhoto].filter(Boolean);
+                const overdueWarnings = getOverdueDeadlineWarnings([
+                  { label: 'Deadline PUSAT', info: tcpDeadline },
+                  { label: 'Deadline barang sampai', info: deliveryDeadline },
+                  { label: 'Deadline konfirmasi pelanggan', info: customerCheckDeadline },
+                ]);
                 return (
-                  <div key={complaint.id} className="rounded-lg border p-3">
-                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">{complaint.complaintNumber}</span>
-                          <Badge variant="outline" className={statusBadgeClass(complaint.status)}>
-                            {statusLabel(complaint.status)}
+                  <div
+                    key={complaint.id}
+                    className={cn(
+                      'group overflow-hidden rounded-2xl border bg-card shadow-sm transition-all hover:border-primary/30 hover:shadow-md',
+                      overdueWarnings.length > 0 && 'border-red-400 shadow-red-100 dark:shadow-red-950/20'
+                    )}
+                  >
+                    {overdueWarnings.length > 0 && (
+                      <div className="border-b-2 border-red-500 bg-red-600 px-4 py-3 text-white">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                          <div className="flex items-start gap-3">
+                            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 animate-pulse" />
+                            <div>
+                              <p className="font-black uppercase tracking-wide">PERINGATAN KERAS: DEADLINE KOMPLEN TERLEWAT</p>
+                              <p className="mt-0.5 text-sm text-white/90">
+                                {overdueWarnings.join(' • ')}. Segera tindak lanjuti agar komplen tidak menggantung.
+                              </p>
+                            </div>
+                          </div>
+                          <Badge className="bg-white text-red-700 hover:bg-white">
+                            PRIORITAS URGENT
                           </Badge>
                         </div>
-                        <p className="text-sm">
-                          Pesanan: <strong>{complaint.saleNumberSnapshot}</strong> •
-                          Customer: <strong> {complaint.customerNameSnapshot || '-'} </strong>
-                        </p>
-                        <p className="text-sm text-muted-foreground">{complaint.reason}</p>
-                        {complaint.salesInformation && (
-                          <p className="text-sm">
-                            Informasi Penjualan:{' '}
-                            <span className="text-muted-foreground">
-                              {sanitizeComplaintSalesInformation(complaint.salesInformation)}
-                            </span>
-                          </p>
-                        )}
-                        <div className="grid gap-2 text-xs md:grid-cols-3">
-                          <div className="rounded-md border bg-muted/20 p-2">
-                            <div className="font-semibold">Jenis Komplen</div>
-                            <div className="text-muted-foreground">{getComplaintTypeLabel(complaint.complaintType)}</div>
+                      </div>
+                    )}
+                    <div className="border-b bg-muted/20 p-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0 space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-base font-black tracking-tight">{complaint.complaintNumber}</span>
+                            <Badge variant="outline" className={statusBadgeClass(complaint.status)}>
+                              {statusLabel(complaint.status)}
+                            </Badge>
+                            <Badge variant="secondary" className="font-normal">
+                              {getComplaintTypeLabel(complaint.complaintType)}
+                            </Badge>
                           </div>
+                          <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2 xl:grid-cols-3">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <FileText className="h-4 w-4 shrink-0 text-primary" />
+                              <span className="truncate">
+                                Pesanan: <strong className="text-foreground">{complaint.saleNumberSnapshot}</strong>
+                              </span>
+                            </div>
+                            <div className="flex min-w-0 items-center gap-2">
+                              <UserRound className="h-4 w-4 shrink-0 text-primary" />
+                              <span className="truncate">
+                                Customer: <strong className="text-foreground">{complaint.customerNameSnapshot || '-'}</strong>
+                              </span>
+                            </div>
+                            <div className="flex min-w-0 items-center gap-2">
+                              <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
+                              <span>
+                                Tgl komplen: <strong className="text-foreground">{new Date(complaint.complaintDate).toLocaleDateString('id-ID')}</strong>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          {complaintPhotos.length > 0 && (
+                            <Badge variant="outline" className="bg-background">
+                              <ImageIcon className="mr-1 h-3.5 w-3.5" />
+                              {complaintPhotos.length} foto
+                            </Badge>
+                          )}
+                          {receiptPdfPath && (
+                            <a href={getImageUrl(receiptPdfPath)} target="_blank" rel="noreferrer">
+                              <Button size="sm" variant="outline" className="h-8 bg-background">
+                                <FileText className="mr-1 h-4 w-4" />
+                                PDF Resi
+                              </Button>
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 p-4 xl:grid-cols-[1fr_260px]">
+                      <div className="space-y-4">
+                        <div className="rounded-xl border bg-background p-3">
+                          <p className="mb-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">Alasan Komplen</p>
+                          <p className="text-sm leading-6">{complaint.reason}</p>
+                          {complaint.salesInformation && (
+                            <p className="mt-2 border-t pt-2 text-sm text-muted-foreground">
+                              <strong className="text-foreground">Info Penjualan:</strong>{' '}
+                              {sanitizeComplaintSalesInformation(complaint.salesInformation)}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+                            <div className="mb-2 flex items-center gap-2 font-semibold">
+                              <MapPin className="h-4 w-4 text-primary" />
+                              Penerima Pengganti
+                            </div>
+                            <p>
+                              <strong>{complaint.recipientName || '-'}</strong>
+                              {complaint.recipientPhone ? ` · ${complaint.recipientPhone}` : ''}
+                            </p>
+                            <p className="mt-1 line-clamp-2 text-muted-foreground">{complaint.recipientAddress || '-'}</p>
+                          </div>
+
+                          <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+                            <div className="mb-2 flex items-center gap-2 font-semibold">
+                              <Clock3 className="h-4 w-4 text-primary" />
+                              Timeline
+                            </div>
+                            <div className="space-y-1 text-xs text-muted-foreground">
+                              <p>Komplen: {new Date(complaint.complaintDate).toLocaleDateString('id-ID')}</p>
+                              {complaint.shippedAt && <p>Pengganti dikirim: {new Date(complaint.shippedAt).toLocaleDateString('id-ID')}</p>}
+                              {complaint.completedAt && <p>Selesai: {new Date(complaint.completedAt).toLocaleDateString('id-ID')}</p>}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-2 text-xs md:grid-cols-2">
                           {tcpDeadline && (
-                            <div className={`rounded-md border p-2 ${tcpDeadline.overdue ? 'bg-red-50 text-red-700 border-red-200' : 'bg-muted/20'}`}>
-                              <div className="font-semibold">Batas Waktu PUSAT</div>
-                              <div>{tcpDeadline.date} • {tcpDeadline.text}</div>
+                            <div className={`rounded-xl border p-3 ${tcpDeadline.overdue ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:text-red-200' : 'bg-muted/20'}`}>
+                              <div className="font-bold">Batas Waktu PUSAT</div>
+                              <div className="mt-1">{tcpDeadline.date} • {tcpDeadline.text}</div>
                             </div>
                           )}
                           {(deliveryDeadline || customerCheckDeadline) && (
-                            <div className={`rounded-md border p-2 ${(deliveryDeadline?.overdue || customerCheckDeadline?.overdue) ? 'bg-red-50 text-red-700 border-red-200' : 'bg-muted/20'}`}>
-                              <div className="font-semibold">
+                            <div className={`rounded-xl border p-3 ${(deliveryDeadline?.overdue || customerCheckDeadline?.overdue) ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:text-red-200' : 'bg-muted/20'}`}>
+                              <div className="font-bold">
                                 {customerCheckDeadline ? 'Batas Konfirmasi Pelanggan' : 'Batas Konfirmasi Barang Sampai'}
                               </div>
-                              <div>
+                              <div className="mt-1">
                                 {customerCheckDeadline
                                   ? `${customerCheckDeadline.date} • ${customerCheckDeadline.text}`
                                   : deliveryDeadline
@@ -831,50 +973,39 @@ export default function ComplaintsPage() {
                             </div>
                           )}
                         </div>
-                        <div className="text-sm rounded-md bg-muted/30 border p-2 space-y-1">
-                          <p>
-                            Penerima: <strong>{complaint.recipientName || '-'}</strong>
-                            {complaint.recipientPhone ? ` - ${complaint.recipientPhone}` : ''}
-                          </p>
-                          <p className="text-muted-foreground">
-                            Alamat: {complaint.recipientAddress || '-'}
-                          </p>
-                        </div>
+
                         {complaint.rejectionReason && (
-                          <p className="text-sm text-red-600">Alasan ditolak: {complaint.rejectionReason}</p>
+                          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:text-red-200">
+                            <strong>Alasan ditolak:</strong> {complaint.rejectionReason}
+                          </div>
                         )}
                         {complaint.followUpReason && (
-                          <p className="text-sm text-orange-700">Alasan tindak lanjut: {complaint.followUpReason}</p>
+                          <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800 dark:border-orange-900 dark:bg-orange-950/20 dark:text-orange-200">
+                            <strong>Alasan tindak lanjut:</strong> {complaint.followUpReason}
+                          </div>
                         )}
-                        <p className="text-xs text-muted-foreground">
-                          Tanggal komplen: {new Date(complaint.complaintDate).toLocaleDateString('id-ID')}
-                          {complaint.shippedAt && ` • Pengganti dikirim: ${new Date(complaint.shippedAt).toLocaleDateString('id-ID')}`}
-                          {complaint.completedAt && ` • Selesai: ${new Date(complaint.completedAt).toLocaleDateString('id-ID')}`}
-                        </p>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
-                        {(complaint.complaintPhotos && complaint.complaintPhotos.length > 0
-                          ? complaint.complaintPhotos
-                          : [complaint.complaintPhoto]
-                        ).map((photo, index) => (
-                          <PreviewableImage
-                            key={`${complaint.id}-photo-${index}`}
-                            src={photo}
-                            alt={`Foto komplen ${index + 1}`}
-                            className="h-10 w-16"
-                          />
-                        ))}
-
-                        {receiptPdfPath && (
-                          <a href={getImageUrl(receiptPdfPath)} target="_blank" rel="noreferrer">
-                            <Button size="sm" variant="outline">
-                              <FileText className="h-4 w-4 mr-1" />
-                              Lihat PDF Resi
-                            </Button>
-                          </a>
+                      <div className="space-y-3">
+                        {complaintPhotos.length > 0 && (
+                          <div className="rounded-xl border bg-muted/20 p-3">
+                            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Bukti Foto</p>
+                            <div className="grid grid-cols-3 gap-2 xl:grid-cols-2">
+                              {complaintPhotos.map((photo, index) => (
+                                <PreviewableImage
+                                  key={`${complaint.id}-photo-${index}`}
+                                  src={photo}
+                                  alt={`Foto komplen ${index + 1}`}
+                                  className="h-16 w-full"
+                                />
+                              ))}
+                            </div>
+                          </div>
                         )}
 
+                        <div className="rounded-xl border bg-background p-3">
+                          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Aksi</p>
+                          <div className="flex flex-col gap-2">
                         {canTcpProcess && (
                           <>
                             <Button
@@ -882,6 +1013,7 @@ export default function ComplaintsPage() {
                               variant={isPendingReview || isFollowUpRequired ? 'default' : 'outline'}
                               onClick={() => openComplaintDetail(complaint, isPendingReview || isFollowUpRequired ? 'accept' : 'view')}
                               disabled={claimComplaint.isPending && detailComplaint?.id === complaint.id}
+                              className="justify-center"
                             >
                               {isPendingReview ? (
                                 <>
@@ -906,6 +1038,7 @@ export default function ComplaintsPage() {
                               variant="outline"
                               onClick={() => handlePrintComplaint(complaint)}
                               disabled={!isAcceptedForPrint}
+                              className="justify-center"
                               title={
                                 !isAcceptedForPrint
                                   ? 'Terima untuk diproses dulu sebelum print'
@@ -921,6 +1054,7 @@ export default function ComplaintsPage() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => openDecisionDialog(complaint)}
+                                className="justify-center"
                               >
                                 Pilih Keputusan
                               </Button>
@@ -932,6 +1066,7 @@ export default function ComplaintsPage() {
                                 variant="outline"
                                 onClick={() => markComplaintHandled.mutate({ id: complaint.id })}
                                 disabled={markComplaintHandled.isPending}
+                                className="justify-center"
                               >
                                 Tandai Pengganti Dikirim
                               </Button>
@@ -944,6 +1079,7 @@ export default function ComplaintsPage() {
                               size="sm"
                               onClick={() => completeComplaint.mutate({ id: complaint.id })}
                               disabled={completeComplaint.isPending}
+                              className="justify-center"
                             >
                               Konfirmasi Selesai
                             </Button>
@@ -955,6 +1091,7 @@ export default function ComplaintsPage() {
                                 setFollowUpReason('');
                               }}
                               disabled={requestComplaintFollowUp.isPending}
+                              className="justify-center"
                             >
                               Belum Selesai
                             </Button>
@@ -965,6 +1102,7 @@ export default function ComplaintsPage() {
                             size="sm"
                             onClick={() => confirmDelivered.mutate({ id: complaint.id })}
                             disabled={confirmDelivered.isPending}
+                            className="justify-center"
                           >
                             Konfirmasi Barang Sampai
                           </Button>
@@ -975,6 +1113,7 @@ export default function ComplaintsPage() {
                               size="sm"
                               onClick={() => closeComplaintCase.mutate({ id: complaint.id })}
                               disabled={closeComplaintCase.isPending}
+                              className="justify-center"
                             >
                               Tutup Kasus
                             </Button>
@@ -986,11 +1125,14 @@ export default function ComplaintsPage() {
                                 setFollowUpReason('');
                               }}
                               disabled={requestComplaintFollowUp.isPending}
+                              className="justify-center"
                             >
                               Ada Komplen Lagi
                             </Button>
                           </>
                         )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
