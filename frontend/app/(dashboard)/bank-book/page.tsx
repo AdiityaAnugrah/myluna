@@ -16,6 +16,7 @@ import {
   Loader2,
   Search,
   ShieldCheck,
+  Store,
   WalletCards,
   XCircle,
 } from 'lucide-react';
@@ -47,7 +48,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { useSettlementConfirmationRequests, useSettlements } from '@/lib/hooks/useSettlements';
+import { useBankBookCandidates } from '@/lib/hooks/useBankBook';
 import { useAuthStore } from '@/lib/stores/auth';
 import { cn } from '@/lib/utils';
 
@@ -55,6 +56,7 @@ type BankBookRow = {
   id: string;
   source: 'SETTLEMENT' | 'REQUEST';
   invoiceNumber: string;
+  platform: string;
   customerName: string;
   customerPhone: string;
   grossAmount: number;
@@ -84,6 +86,19 @@ const toDateInput = (value?: string | Date | null) => {
 
 const parseAmount = (value: string) => Number(value.replace(/[^0-9]/g, '') || 0);
 
+const platformLabel = (platform?: string | null) => {
+  const value = String(platform || 'LAINNYA').toUpperCase();
+  const labels: Record<string, string> = {
+    OFFLINE_STORE: 'Offline Store',
+    TOKOPEDIA: 'Tokopedia',
+    SHOPEE: 'Shopee',
+    TIKTOK_SHOP: 'TikTok Shop',
+    LAZADA: 'Lazada',
+    OTHER: 'Lainnya',
+  };
+  return labels[value] || value.replace(/_/g, ' ');
+};
+
 export default function BankBookPage() {
   const { user } = useAuthStore();
   const [bankDate, setBankDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -91,6 +106,7 @@ export default function BankBookPage() {
   const [bankAmountInput, setBankAmountInput] = useState('');
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
+  const [platformFilter, setPlatformFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'SETTLEMENT' | 'REQUEST'>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
@@ -98,83 +114,47 @@ export default function BankBookPage() {
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
 
-  const { data: settlementsData, isLoading: isLoadingSettlements } = useSettlements(
+  const { data: candidatesData, isLoading } = useBankBookCandidates(
     {
       page: 1,
-      limit: 200,
-      status: 'settled',
-      sortBy: 'terbaru',
-      userId: user?.id,
-    } as any,
-    { enabled: isAdmin }
-  );
-
-  const { data: requestsData, isLoading: isLoadingRequests } = useSettlementConfirmationRequests(
-    {
-      page: 1,
-      limit: 200,
-      status: 'PENDING',
+      limit: 500,
+      source: 'ALL',
     },
     { enabled: isAdmin }
   );
 
   const rows = useMemo<BankBookRow[]>(() => {
-    const settlements = ((settlementsData as any)?.data?.settlements || []).map((item: any) => {
-      const sale = item.sale || {};
-      const gross = Number(sale.totalAmount || 0);
-      const net = Number(item.netAmount || 0);
-      return {
-        id: `SETTLEMENT:${item.id}`,
-        source: 'SETTLEMENT' as const,
-        invoiceNumber: sale.saleNumber || item.invoiceNumber || '-',
-        customerName: sale.customerName || '-',
-        customerPhone: sale.customerPhone || '-',
-        grossAmount: gross,
-        netAmount: net,
-        difference: Math.max(gross - net, 0),
-        settlementDate: toDateInput(item.settlementDate),
-        inputDate: item.createdAt || item.updatedAt || item.settlementDate,
-        responsibleName: sale.creator?.fullName || item.creator?.fullName || '-',
-        statusLabel: 'Siap dicocokkan',
-        statusTone: 'ready' as const,
-        notes: item.notes || '',
-      };
-    });
+    const candidates = ((candidatesData as any)?.data?.candidates || []).map((candidate: any) => ({
+      id: candidate.id,
+      source: candidate.source,
+      invoiceNumber: candidate.invoiceNumber || '-',
+      platform: candidate.platform || 'OTHER',
+      customerName: candidate.customerName || '-',
+      customerPhone: candidate.customerPhone || '-',
+      grossAmount: Number(candidate.grossAmount || 0),
+      netAmount: Number(candidate.netAmount || 0),
+      difference: Number(candidate.difference || 0),
+      settlementDate: candidate.settlementDate || '',
+      inputDate: candidate.inputDate || candidate.settlementDate || '',
+      responsibleName: candidate.responsibleName || '-',
+      statusLabel: candidate.statusLabel || (candidate.source === 'REQUEST' ? 'Pending lama' : 'Siap dicocokkan'),
+      statusTone: candidate.statusTone || (candidate.source === 'REQUEST' ? 'pending' : 'ready'),
+      notes: candidate.notes || '',
+    }));
 
-    const pendingRequests = ((requestsData as any)?.data?.requests || []).map((request: any) => {
-      const sale = request.sale || {};
-      const gross = Number(sale.totalAmount || 0);
-      const net = Number(request.netAmount || 0);
-      return {
-        id: `REQUEST:${request.id}`,
-        source: 'REQUEST' as const,
-        invoiceNumber: sale.saleNumber || request.invoiceNumber || '-',
-        customerName: sale.customerName || '-',
-        customerPhone: sale.customerPhone || '-',
-        grossAmount: gross,
-        netAmount: net,
-        difference: Math.max(gross - net, 0),
-        settlementDate: toDateInput(request.settlementDate),
-        inputDate: request.createdAt || request.settlementDate,
-        responsibleName: request.requester?.fullName || sale.creator?.fullName || '-',
-        statusLabel: 'Pending lama',
-        statusTone: 'pending' as const,
-        notes: request.notes || '',
-      };
-    });
-
-    return [...pendingRequests, ...settlements].sort((a, b) => {
+    return candidates.sort((a: BankBookRow, b: BankBookRow) => {
       const dateA = a.settlementDate || '9999-12-31';
       const dateB = b.settlementDate || '9999-12-31';
       return dateA.localeCompare(dateB);
     });
-  }, [settlementsData, requestsData]);
+  }, [candidatesData]);
 
   const filteredRows = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return rows.filter((row) => {
       const matchesSearch = !keyword || [
         row.invoiceNumber,
+        platformLabel(row.platform),
         row.customerName,
         row.customerPhone,
         row.responsibleName,
@@ -183,23 +163,36 @@ export default function BankBookPage() {
       ].join(' ').toLowerCase().includes(keyword);
 
       const matchesDate = dateFilter === 'all' || row.settlementDate === dateFilter;
+      const matchesPlatform = platformFilter === 'all' || row.platform === platformFilter;
       const matchesSource = sourceFilter === 'all' || row.source === sourceFilter;
-      return matchesSearch && matchesDate && matchesSource;
+      return matchesSearch && matchesDate && matchesPlatform && matchesSource;
     });
-  }, [rows, search, dateFilter, sourceFilter]);
+  }, [rows, search, dateFilter, platformFilter, sourceFilter]);
 
   const uniqueDates = useMemo(
     () => Array.from(new Set(rows.map((row) => row.settlementDate).filter(Boolean))).sort(),
+    [rows]
+  );
+  const uniquePlatforms = useMemo(
+    () => Array.from(new Set(rows.map((row) => row.platform).filter(Boolean))).sort((a, b) => platformLabel(a).localeCompare(platformLabel(b))),
     [rows]
   );
 
   const bankAmount = parseAmount(bankAmountInput);
   const selectedRows = rows.filter((row) => selectedIds.includes(row.id));
   const selectedTotal = selectedRows.reduce((sum, row) => sum + row.netAmount, 0);
+  const selectedPlatformSummary = useMemo(
+    () => Array.from(
+      selectedRows.reduce((map, row) => {
+        map.set(row.platform, (map.get(row.platform) || 0) + row.netAmount);
+        return map;
+      }, new Map<string, number>())
+    ).sort((a, b) => b[1] - a[1]),
+    [selectedRows]
+  );
   const difference = bankAmount - selectedTotal;
   const isMatch = bankAmount > 0 && selectedRows.length > 0 && difference === 0;
   const isOver = selectedTotal > bankAmount && bankAmount > 0;
-  const isLoading = isLoadingSettlements || isLoadingRequests;
 
   const toggleRow = (id: string, checked: boolean | string) => {
     setSelectedIds((current) => checked ? Array.from(new Set([...current, id])) : current.filter((item) => item !== id));
@@ -376,6 +369,25 @@ export default function BankBookPage() {
                   <div className="flex justify-between"><span>Total dicentang</span><strong>{formatCurrency(selectedTotal)}</strong></div>
                   <div className="flex justify-between"><span>Jumlah invoice</span><strong>{selectedRows.length}</strong></div>
                 </div>
+                {selectedPlatformSummary.length > 0 && (
+                  <>
+                    <Separator className="my-3" />
+                    <div>
+                      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Rincian Platform</p>
+                      <div className="space-y-1.5">
+                        {selectedPlatformSummary.map(([platform, total]) => (
+                          <div key={platform} className="flex items-center justify-between rounded-lg bg-background px-2 py-1.5 text-xs">
+                            <span className="flex items-center gap-1.5 font-medium">
+                              <Store className="h-3.5 w-3.5 text-primary" />
+                              {platformLabel(platform)}
+                            </span>
+                            <strong>{formatCurrency(total)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className={cn(
@@ -426,13 +438,13 @@ export default function BankBookPage() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="grid gap-3 border-b bg-background p-4 lg:grid-cols-[1fr_190px_190px]">
+            <div className="grid gap-3 border-b bg-background p-4 xl:grid-cols-[1fr_190px_190px_190px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Cari invoice, pelanggan, nominal, penanggung jawab..."
+                  placeholder="Cari invoice, platform, pelanggan, nominal, penanggung jawab..."
                   className="pl-9"
                 />
               </div>
@@ -445,6 +457,18 @@ export default function BankBookPage() {
                   <SelectItem value="all">Semua tanggal</SelectItem>
                   {uniqueDates.map((date) => (
                     <SelectItem key={date} value={date}>{format(new Date(`${date}T00:00:00`), 'dd MMM yyyy', { locale: idLocale })}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={platformFilter} onValueChange={setPlatformFilter}>
+                <SelectTrigger>
+                  <Store className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Platform" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua platform</SelectItem>
+                  {uniquePlatforms.map((platform) => (
+                    <SelectItem key={platform} value={platform}>{platformLabel(platform)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -470,6 +494,7 @@ export default function BankBookPage() {
                       />
                     </TableHead>
                     <TableHead>No Invoice</TableHead>
+                    <TableHead>Platform</TableHead>
                     <TableHead>Pelanggan</TableHead>
                     <TableHead>Tgl Pelunasan</TableHead>
                     <TableHead className="text-right">Dana Bersih</TableHead>
@@ -481,14 +506,14 @@ export default function BankBookPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-14 text-center">
+                      <TableCell colSpan={9} className="py-14 text-center">
                         <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-muted-foreground" />
                         <p className="text-sm text-muted-foreground">Memuat data pelunasan...</p>
                       </TableCell>
                     </TableRow>
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-14 text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="py-14 text-center text-muted-foreground">
                         <BookOpenCheck className="mx-auto mb-3 h-10 w-10 opacity-40" />
                         <p className="font-medium">Data pelunasan belum ditemukan</p>
                         <p className="mt-1 text-xs">Coba ubah filter tanggal, sumber, atau kata kunci pencarian.</p>
@@ -509,6 +534,12 @@ export default function BankBookPage() {
                                 {copiedInvoice === row.invoiceNumber ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
                               </Button>
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-200">
+                              <Store className="mr-1 h-3 w-3" />
+                              {platformLabel(row.platform)}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="font-medium">{row.customerName}</div>
@@ -550,7 +581,9 @@ export default function BankBookPage() {
                   </div>
                   <div>
                     <p className="font-semibold">Aturan mudahnya</p>
-                    <p className="text-sm text-muted-foreground">Nominal bank harus sama persis dengan total dana bersih yang dicentang.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Nominal bank harus sama persis dengan total dana bersih yang dicentang. Platform boleh gabungan, rinciannya tetap terlihat.
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
