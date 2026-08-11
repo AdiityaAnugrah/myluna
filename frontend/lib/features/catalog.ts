@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+import type { AppRole } from '@/types';
 import {
   BarChart3,
   Code2,
@@ -8,6 +9,7 @@ import {
   FileText,
   FolderTree,
   History,
+  Landmark,
   LayoutDashboard,
   MessageSquareWarning,
   Package,
@@ -34,6 +36,7 @@ export interface NavigationItem {
   icon: LucideIcon;
   featureKey: string;
   notificationKey?: NotificationKey;
+  navRoles?: AppRole[];
 }
 
 export interface NavigationGroup {
@@ -78,6 +81,7 @@ export const navigationGroups: NavigationGroup[] = [
     items: [
       { name: 'Ringkasan Keuangan', href: '/financial-summary', icon: DollarSign, featureKey: 'financial-summary' },
       { name: 'Pelunasan', href: '/settlements', icon: Coins, featureKey: 'settlements', notificationKey: 'overdueSettlements' },
+      { name: 'Buku Bank', href: '/bank-book', icon: Landmark, featureKey: 'settlements', navRoles: ['ADMIN', 'SUPER_ADMIN', 'DEV'] },
       { name: 'Laporan Global', href: '/finance/global-report', icon: FileText, featureKey: 'finance-global-report' },
     ],
   },

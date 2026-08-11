@@ -34,6 +34,7 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
       groupItems = group.items.filter((item) => {
         const feature = featureMap.get(item.featureKey);
         if (!feature) return false;
+        if (item.navRoles && !item.navRoles.includes(role as any)) return false;
         return isDev || feature.isEnabled;
       });
     } else {
