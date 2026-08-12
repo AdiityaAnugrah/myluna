@@ -97,7 +97,7 @@ function buildCandidate(row: any, source: CandidateSource) {
       source === 'REQUEST'
         ? plain.requester?.email || sale.creator?.email || ''
         : sale.creator?.email || plain.creator?.email || '',
-    statusLabel: source === 'REQUEST' ? 'Pending lama' : 'Siap dicocokkan',
+    statusLabel: source === 'REQUEST' ? 'Menunggu Konfirmasi Admin Pelunasan' : 'Siap dicocokkan',
     statusTone: source === 'REQUEST' ? 'pending' : 'ready',
     notes: plain.notes || '',
   };

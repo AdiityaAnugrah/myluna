@@ -145,7 +145,7 @@ export default function BankBookPage() {
       settlementDate: candidate.settlementDate || '',
       inputDate: candidate.inputDate || candidate.settlementDate || '',
       responsibleName: candidate.responsibleName || '-',
-      statusLabel: candidate.statusLabel || (candidate.source === 'REQUEST' ? 'Pending lama' : 'Siap dicocokkan'),
+      statusLabel: candidate.statusLabel || (candidate.source === 'REQUEST' ? 'Menunggu Konfirmasi Admin Pelunasan' : 'Siap dicocokkan'),
       statusTone: candidate.statusTone || (candidate.source === 'REQUEST' ? 'pending' : 'ready'),
       notes: candidate.notes || '',
     }));
@@ -229,7 +229,7 @@ export default function BankBookPage() {
       return;
     }
     if (selectedHasPending) {
-      toast.warning('Yang bisa disimpan ke Buku Bank hanya pelunasan resmi. Pending lama harus dikonfirmasi dulu.');
+      toast.warning('Yang bisa disimpan ke Buku Bank hanya pelunasan resmi. Data yang masih menunggu konfirmasi admin harus dikonfirmasi dulu.');
       return;
     }
     if (!isMatch) {
@@ -440,7 +440,7 @@ export default function BankBookPage() {
                   {isMatch ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /> : isOver ? <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" /> : <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-orange-600" />}
                   <div>
                     <p className="font-bold">
-                      {isMatch ? 'Cocok. Siap disimpan ke riwayat.' : selectedHasPending ? 'Ada pending lama yang belum bisa disimpan.' : isOver ? 'Total centang melebihi nominal bank.' : 'Masih perlu dicocokkan.'}
+                      {isMatch ? 'Cocok. Siap disimpan ke riwayat.' : selectedHasPending ? 'Ada data menunggu konfirmasi admin yang belum bisa disimpan.' : isOver ? 'Total centang melebihi nominal bank.' : 'Masih perlu dicocokkan.'}
                     </p>
                     <p className="mt-1 text-xs opacity-80">
                       {isMatch
@@ -518,7 +518,7 @@ export default function BankBookPage() {
                 <SelectTrigger><SelectValue placeholder="Sumber" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Semua sumber</SelectItem>
-                  <SelectItem value="REQUEST">Pending lama</SelectItem>
+                  <SelectItem value="REQUEST">Menunggu Konfirmasi Admin</SelectItem>
                   <SelectItem value="SETTLEMENT">Pelunasan resmi</SelectItem>
                 </SelectContent>
               </Select>
