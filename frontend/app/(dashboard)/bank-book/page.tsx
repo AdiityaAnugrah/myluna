@@ -48,7 +48,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { useBankBookCandidates } from '@/lib/hooks/useBankBook';
+import { useBankBookCandidates, useBankBookEntries, useCreateBankBookEntry } from '@/lib/hooks/useBankBook';
 import { useAuthStore } from '@/lib/stores/auth';
 import { cn } from '@/lib/utils';
 
@@ -101,7 +101,8 @@ const platformLabel = (platform?: string | null) => {
 
 export default function BankBookPage() {
   const { user } = useAuthStore();
-  const [bankDate, setBankDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 8) + '01');
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [bankName, setBankName] = useState('BCA');
   const [bankAmountInput, setBankAmountInput] = useState('');
   const [search, setSearch] = useState('');
@@ -111,6 +112,7 @@ export default function BankBookPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [copiedInvoice, setCopiedInvoice] = useState<string | null>(null);
+  const createEntry = useCreateBankBookEntry();
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
 
@@ -119,7 +121,13 @@ export default function BankBookPage() {
       page: 1,
       limit: 500,
       source: 'ALL',
+      startDate,
+      endDate,
     },
+    { enabled: isAdmin }
+  );
+  const { data: entriesData, isLoading: isLoadingEntries } = useBankBookEntries(
+    { page: 1, limit: 10 },
     { enabled: isAdmin }
   );
 
@@ -181,6 +189,7 @@ export default function BankBookPage() {
   const bankAmount = parseAmount(bankAmountInput);
   const selectedRows = rows.filter((row) => selectedIds.includes(row.id));
   const selectedTotal = selectedRows.reduce((sum, row) => sum + row.netAmount, 0);
+  const selectedHasPending = selectedRows.some((row) => row.source !== 'SETTLEMENT');
   const selectedPlatformSummary = useMemo(
     () => Array.from(
       selectedRows.reduce((map, row) => {
@@ -191,7 +200,8 @@ export default function BankBookPage() {
     [selectedRows]
   );
   const difference = bankAmount - selectedTotal;
-  const isMatch = bankAmount > 0 && selectedRows.length > 0 && difference === 0;
+  const hasValidRange = !!startDate && !!endDate && startDate <= endDate;
+  const isMatch = hasValidRange && bankAmount > 0 && selectedRows.length > 0 && difference === 0 && !selectedHasPending;
   const isOver = selectedTotal > bankAmount && bankAmount > 0;
 
   const toggleRow = (id: string, checked: boolean | string) => {
@@ -214,11 +224,32 @@ export default function BankBookPage() {
   };
 
   const handleSaveDraft = () => {
+    if (!hasValidRange) {
+      toast.warning('Tanggal mulai dan tanggal akhir wajib diisi dengan benar.');
+      return;
+    }
+    if (selectedHasPending) {
+      toast.warning('Yang bisa disimpan ke Buku Bank hanya pelunasan resmi. Pending lama harus dikonfirmasi dulu.');
+      return;
+    }
     if (!isMatch) {
       toast.warning('Total centang harus sama dengan nominal bank dulu.');
       return;
     }
-    toast.success('Draft UI Buku Bank sudah cocok. Tahap berikutnya sambungkan ke backend riwayat Buku Bank.');
+    createEntry.mutate({
+      bankName,
+      startDate,
+      endDate,
+      bankAmount,
+      selectedIds,
+      notes,
+    }, {
+      onSuccess: () => {
+        setSelectedIds([]);
+        setBankAmountInput('');
+        setNotes('');
+      },
+    });
   };
 
   if (!isAdmin) {
@@ -301,9 +332,14 @@ export default function BankBookPage() {
             </CardHeader>
             <CardContent className="space-y-4 p-4">
               <div className="space-y-2">
-                <Label htmlFor="bankDate">Tanggal Bank</Label>
-                <Input id="bankDate" type="date" value={bankDate} onChange={(event) => setBankDate(event.target.value)} />
-                <p className="text-xs text-muted-foreground">Tanggal uang masuk di mutasi rekening.</p>
+                <Label>Range Tanggal Mutasi / Pelunasan</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+                  <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Wajib diisi. Daftar pelunasan otomatis hanya menampilkan tanggal di range ini.
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -361,7 +397,11 @@ export default function BankBookPage() {
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Tanggal</span>
-                  <span className="font-semibold">{bankDate ? format(new Date(`${bankDate}T00:00:00`), 'dd MMM yyyy', { locale: idLocale }) : '-'}</span>
+                  <span className="font-semibold">
+                    {hasValidRange
+                      ? `${format(new Date(`${startDate}T00:00:00`), 'dd MMM yyyy', { locale: idLocale })} - ${format(new Date(`${endDate}T00:00:00`), 'dd MMM yyyy', { locale: idLocale })}`
+                      : '-'}
+                  </span>
                 </div>
                 <Separator className="my-3" />
                 <div className="space-y-2 text-sm">
@@ -400,19 +440,21 @@ export default function BankBookPage() {
                   {isMatch ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /> : isOver ? <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" /> : <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-orange-600" />}
                   <div>
                     <p className="font-bold">
-                      {isMatch ? 'Cocok. Siap disimpan ke riwayat.' : isOver ? 'Total centang melebihi nominal bank.' : 'Masih perlu dicocokkan.'}
+                      {isMatch ? 'Cocok. Siap disimpan ke riwayat.' : selectedHasPending ? 'Ada pending lama yang belum bisa disimpan.' : isOver ? 'Total centang melebihi nominal bank.' : 'Masih perlu dicocokkan.'}
                     </p>
                     <p className="mt-1 text-xs opacity-80">
                       {isMatch
-                        ? 'Setelah backend disambungkan, pelunasan terpilih akan ditandai Sudah Masuk Buku Bank.'
+                        ? 'Setelah disimpan, pelunasan terpilih tidak muncul lagi di kandidat Buku Bank.'
+                        : selectedHasPending
+                          ? 'Konfirmasi pelunasan pending dulu agar menjadi pelunasan resmi, lalu rekonsiliasi di Buku Bank.'
                         : 'Centang pelunasan sampai totalnya sama persis dengan nominal mutasi bank.'}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <Button className="w-full" size="lg" disabled={!isMatch} onClick={handleSaveDraft}>
-                <BookOpenCheck className="mr-2 h-4 w-4" />
+              <Button className="w-full" size="lg" disabled={!isMatch || createEntry.isPending} onClick={handleSaveDraft}>
+                {createEntry.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpenCheck className="mr-2 h-4 w-4" />}
                 Simpan Rekonsiliasi
               </Button>
             </CardContent>
@@ -428,7 +470,7 @@ export default function BankBookPage() {
                   2. Pilih Data Pelunasan
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  Data diambil berdasarkan <strong>tanggal pelunasan</strong>. Pending lama ikut tampil supaya bisa dialihkan ke Buku Bank.
+                  Data otomatis dibatasi berdasarkan <strong>range tanggal pelunasan</strong> di Input Mutasi Bank.
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -602,14 +644,58 @@ export default function BankBookPage() {
         <CardHeader>
           <CardTitle className="text-lg">Riwayat Buku Bank</CardTitle>
           <CardDescription>
-            Nanti setelah backend dibuat, hasil rekonsiliasi tersimpan di sini lengkap dengan tanggal bank, nominal, invoice terpilih, admin pemroses, dan catatan.
+            Hasil rekonsiliasi tersimpan lengkap dengan range tanggal, bank, nominal, invoice terpilih, admin pemroses, dan catatan.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-2xl border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-            <BookOpenCheck className="mx-auto mb-3 h-10 w-10 opacity-40" />
-            Riwayat akan muncul setelah fitur penyimpanan Buku Bank disambungkan.
-          </div>
+          {isLoadingEntries ? (
+            <div className="rounded-2xl border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+              <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin" />
+              Memuat riwayat Buku Bank...
+            </div>
+          ) : ((entriesData as any)?.data?.entries || []).length === 0 ? (
+            <div className="rounded-2xl border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+              <BookOpenCheck className="mx-auto mb-3 h-10 w-10 opacity-40" />
+              Belum ada riwayat Buku Bank.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {((entriesData as any)?.data?.entries || []).map((entry: any) => {
+                const items = entry.items || [];
+                return (
+                  <div key={entry.id} className="rounded-2xl border bg-background p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge className="bg-emerald-600 hover:bg-emerald-600">Cocok</Badge>
+                          <span className="font-bold">{entry.bankName}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {format(new Date(`${entry.startDate}T00:00:00`), 'dd MMM yyyy', { locale: idLocale })} - {format(new Date(`${entry.endDate}T00:00:00`), 'dd MMM yyyy', { locale: idLocale })}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {items.length} invoice · dibuat oleh {entry.creator?.fullName || '-'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Nominal Bank</p>
+                        <p className="text-lg font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(entry.bankAmount)}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {items.slice(0, 8).map((item: any) => (
+                        <Badge key={item.id} variant="outline" className="bg-muted/30">
+                          {item.invoiceNumber || '-'} · {platformLabel(item.platform)} · {formatCurrency(item.netAmount)}
+                        </Badge>
+                      ))}
+                      {items.length > 8 && <Badge variant="secondary">+{items.length - 8} lainnya</Badge>}
+                    </div>
+                    {entry.notes && <p className="mt-3 text-sm text-muted-foreground">{entry.notes}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

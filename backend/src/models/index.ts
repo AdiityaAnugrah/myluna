@@ -18,6 +18,8 @@ import ProductVariant from './ProductVariant';
 import { ChangeRequest, EntityType, RequestType, RequestStatus } from './ChangeRequest';
 import Settlement from './Settlement';
 import SettlementRequest, { SettlementRequestStatus } from './SettlementRequest';
+import BankBookEntry, { BankBookEntryStatus } from './BankBookEntry';
+import BankBookEntryItem from './BankBookEntryItem';
 import Expense from './Expense';
 import ShippingService from './ShippingService';
 import OtherIncome from './OtherIncome';
@@ -140,6 +142,17 @@ SettlementRequest.belongsTo(User, { foreignKey: 'reviewedBy', as: 'reviewer' });
 User.hasMany(SettlementRequest, { foreignKey: 'reviewedBy', as: 'reviewedSettlementRequests' });
 SettlementRequest.belongsTo(Settlement, { foreignKey: 'settlementId', as: 'settlement' });
 Settlement.hasOne(SettlementRequest, { foreignKey: 'settlementId', as: 'sourceRequest' });
+
+BankBookEntry.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+User.hasMany(BankBookEntry, { foreignKey: 'createdBy', as: 'bankBookEntries' });
+BankBookEntry.belongsTo(User, { foreignKey: 'cancelledBy', as: 'canceller' });
+User.hasMany(BankBookEntry, { foreignKey: 'cancelledBy', as: 'cancelledBankBookEntries' });
+BankBookEntry.hasMany(BankBookEntryItem, { foreignKey: 'entryId', as: 'items' });
+BankBookEntryItem.belongsTo(BankBookEntry, { foreignKey: 'entryId', as: 'entry' });
+BankBookEntryItem.belongsTo(Settlement, { foreignKey: 'settlementId', as: 'settlement' });
+Settlement.hasOne(BankBookEntryItem, { foreignKey: 'settlementId', as: 'bankBookItem' });
+BankBookEntryItem.belongsTo(Sale, { foreignKey: 'saleId', as: 'sale' });
+Sale.hasMany(BankBookEntryItem, { foreignKey: 'saleId', as: 'bankBookItems' });
 
 Settlement.belongsTo(Complaint, { foreignKey: 'complaintId', as: 'complaint' });
 Complaint.hasOne(Settlement, { foreignKey: 'complaintId', as: 'complaintSettlement' });
@@ -307,6 +320,9 @@ export {
   Settlement,
   SettlementRequest,
   SettlementRequestStatus,
+  BankBookEntry,
+  BankBookEntryStatus,
+  BankBookEntryItem,
   Expense,
   ShippingService,
   OtherIncome,
