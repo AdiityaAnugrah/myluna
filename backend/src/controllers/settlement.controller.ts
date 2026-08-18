@@ -292,67 +292,8 @@ export const settlementController = {
         proofDocument = req.file.filename;
       }
 
-      if (req.user?.roleName === 'USER') {
-        const settlementRequest = await SettlementRequest.create(
-          {
-            saleId,
-            invoiceNumber: sale.saleNumber,
-            netAmount: parseFloat(netAmount).toFixed(2),
-            settlementDate: new Date(settlementDate),
-            proofDocument,
-            notes: notes || null,
-            status: SettlementRequestStatus.PENDING,
-            requestedBy: req.user!.id,
-          },
-          { transaction }
-        );
-
-        await transaction.commit();
-
-        const completeRequest = await SettlementRequest.findByPk(settlementRequest.id, {
-          include: [
-            {
-              model: Sale,
-              as: 'sale',
-              include: [
-                {
-                  model: User,
-                  as: 'creator',
-                  attributes: ['id', 'fullName', 'email'],
-                },
-              ],
-            },
-            {
-              model: User,
-              as: 'requester',
-              attributes: ['id', 'fullName', 'email'],
-            },
-          ],
-        });
-
-        await auditService.log({
-          userId: req.user!.id,
-          action: 'CREATE' as any,
-          entity: 'SettlementRequest',
-          entityId: settlementRequest.id,
-          before: null,
-          after: completeRequest ? completeRequest.toJSON() : settlementRequest.toJSON(),
-          ip: req.ip || '',
-          userAgent: req.get('User-Agent') || '',
-        });
-
-        const { socketService } = require('../services/socket.service');
-        socketService.emitToAdmins('notification:new', {
-          message: 'Konfirmasi Pelunasan',
-          description: `${(req.user as any)?.fullName || 'User'} mengajukan pelunasan untuk ${sale.saleNumber}.`,
-          type: 'INFO',
-        });
-        socketService.broadcastDataRefresh('settlements');
-
-        return successResponse(res, completeRequest, 'Pengajuan pelunasan berhasil dikirim dan menunggu konfirmasi admin', 201);
-      }
-
-      // Create settlement using sale.saleNumber as the invoice number
+      // Create settlement using sale.saleNumber as the invoice number.
+      // Pelunasan USER sekarang langsung menjadi pelunasan resmi berdasarkan tanggal input USER.
       const settlement = await Settlement.create(
         {
           saleId,
@@ -402,7 +343,7 @@ export const settlementController = {
       socketService.broadcastDataRefresh('settlements');
       socketService.broadcastDataRefresh('sales'); // since sale status changed
 
-      return successResponse(res, completeSettlement, 'Settlement created successfully', 201);
+      return successResponse(res, completeSettlement, 'Pelunasan berhasil dicatat', 201);
     } catch (error) {
       await transaction.rollback();
       return next(error);

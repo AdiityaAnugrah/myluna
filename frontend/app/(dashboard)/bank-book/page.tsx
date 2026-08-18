@@ -108,7 +108,7 @@ export default function BankBookPage() {
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
   const [platformFilter, setPlatformFilter] = useState('all');
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'SETTLEMENT' | 'REQUEST'>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'SETTLEMENT' | 'REQUEST'>('SETTLEMENT');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [copiedInvoice, setCopiedInvoice] = useState<string | null>(null);
@@ -120,7 +120,7 @@ export default function BankBookPage() {
     {
       page: 1,
       limit: 500,
-      source: 'ALL',
+      source: 'SETTLEMENT',
       startDate,
       endDate,
     },
@@ -145,8 +145,8 @@ export default function BankBookPage() {
       settlementDate: candidate.settlementDate || '',
       inputDate: candidate.inputDate || candidate.settlementDate || '',
       responsibleName: candidate.responsibleName || '-',
-      statusLabel: candidate.statusLabel || (candidate.source === 'REQUEST' ? 'Menunggu Konfirmasi Admin Pelunasan' : 'Siap dicocokkan'),
-      statusTone: candidate.statusTone || (candidate.source === 'REQUEST' ? 'pending' : 'ready'),
+      statusLabel: candidate.statusLabel || 'Siap dicocokkan',
+      statusTone: candidate.statusTone || 'ready',
       notes: candidate.notes || '',
     }));
 
@@ -517,8 +517,7 @@ export default function BankBookPage() {
               <Select value={sourceFilter} onValueChange={(value) => setSourceFilter(value as any)}>
                 <SelectTrigger><SelectValue placeholder="Sumber" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Semua sumber</SelectItem>
-                  <SelectItem value="REQUEST">Menunggu Konfirmasi Admin</SelectItem>
+                  <SelectItem value="all">Semua pelunasan resmi</SelectItem>
                   <SelectItem value="SETTLEMENT">Pelunasan resmi</SelectItem>
                 </SelectContent>
               </Select>

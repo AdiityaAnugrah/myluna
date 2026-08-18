@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { useChangeRequests, useProductRequests } from './useRequests';
-import { useSettlementConfirmationRequests } from './useSettlements';
 import { useAuth } from './useAuth';
 import apiClient from '@/lib/api/client';
 import { complaintsApi } from '@/lib/api/complaints';
@@ -31,12 +30,6 @@ export function useNotifications() {
 
   // Fetch pending product status requests - only for admin roles
   const { pendingRequests: productRequests } = useProductRequests({ enabled: isAdmin });
-
-  // Fetch pending settlement confirmations - only for admin roles
-  const { data: settlementConfirmationData } = useSettlementConfirmationRequests(
-    { page: 1, limit: 1, status: 'PENDING' },
-    { enabled: isAdmin, refetchInterval: 30_000 }
-  );
 
   // Fetch overdue pending settlements (>= 15 days) - only non-PUSAT roles
   const { data: overdueData } = useQuery({
@@ -86,11 +79,7 @@ export function useNotifications() {
   // Only compute for admin roles to avoid unnecessary API calls influencing count
   const pendingChangeCount = isAdmin ? (changeRequests.data?.data?.length || 0) : 0;
   const pendingProductCount = isAdmin ? (productRequests.data?.data?.length || 0) : 0;
-  const settlementConfirmationPayload = (settlementConfirmationData as any)?.data || settlementConfirmationData;
-  const pendingSettlementConfirmationCount = isAdmin
-    ? (settlementConfirmationPayload?.pagination?.total || settlementConfirmationPayload?.requests?.length || 0)
-    : 0;
-  const pendingApprovalsCount = pendingChangeCount + pendingProductCount + pendingSettlementConfirmationCount;
+  const pendingApprovalsCount = pendingChangeCount + pendingProductCount;
 
   const overdueSettlementsCount = (overdueData as number) || 0;
   const complaintsCount = complaintsSummary?.data?.badgeCount || 0;

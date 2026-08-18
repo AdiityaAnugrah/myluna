@@ -109,7 +109,7 @@ export const bankBookController = {
       const {
         page = 1,
         limit = 200,
-        source = 'ALL',
+        source = 'SETTLEMENT',
         platform = 'ALL',
         search = '',
         startDate = '',
@@ -131,11 +131,9 @@ export const bankBookController = {
         include: [{ model: User, as: 'creator', attributes: ['id', 'fullName', 'email'] }],
       };
 
-      const sources: CandidateSource[] = requestedSource === 'SETTLEMENT'
-        ? ['SETTLEMENT']
-        : requestedSource === 'REQUEST'
-          ? ['REQUEST']
-          : ['REQUEST', 'SETTLEMENT'];
+      const sources: CandidateSource[] = requestedSource === 'REQUEST'
+        ? []
+        : ['SETTLEMENT'];
 
       const candidates: any[] = [];
 

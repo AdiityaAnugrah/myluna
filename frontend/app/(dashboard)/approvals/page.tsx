@@ -222,16 +222,9 @@ export default function ApprovalsPage() {
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
   const { pendingRequests: masterRequests } = useChangeRequests({ enabled: isAdmin });
   const { pendingRequests: statusRequests } = useProductRequests({ enabled: isAdmin });
-  const { data: settlementConfirmationData } = useSettlementConfirmationRequests(
-    { page: 1, limit: 1, status: 'PENDING' },
-    { enabled: isAdmin }
-  );
 
   const masterCount = masterRequests.data?.data?.length || 0;
   const statusCount = statusRequests.data?.data?.length || 0;
-  const settlementConfirmationCount = (settlementConfirmationData as any)?.data?.pagination?.total || 0;
-  const monthEndWarning = getMonthEndWarningInfo();
-  const showSettlementMonthEndWarning = monthEndWarning.isActive && settlementConfirmationCount > 0;
 
   if (user && user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN' && user.role !== 'DEV') {
     return (
@@ -254,47 +247,8 @@ export default function ApprovalsPage() {
         </p>
       </div>
 
-      {showSettlementMonthEndWarning && (
-        <div
-          className={`rounded-2xl border-2 p-5 shadow-lg ${
-            monthEndWarning.isCritical
-              ? 'border-red-600 bg-red-50 text-red-950 dark:bg-red-950/30 dark:text-red-100'
-              : 'border-orange-500 bg-orange-50 text-orange-950 dark:bg-orange-950/30 dark:text-orange-100'
-          }`}
-        >
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex gap-3">
-              <div className={`mt-0.5 rounded-full p-2 ${monthEndWarning.isCritical ? 'bg-red-600 text-white' : 'bg-orange-500 text-white'}`}>
-                <AlertCircle className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-lg font-black uppercase tracking-wide">
-                  PERINGATAN KERAS AKHIR BULAN: KONFIRMASI PELUNASAN BELUM SELESAI
-                </p>
-                <p className="mt-1 text-sm font-medium">
-                  Ada <span className="font-black">{settlementConfirmationCount}</span> pengajuan pelunasan yang masih menunggu konfirmasi.
-                  Batas akhir bulan: <span className="font-black">{monthEndWarning.endDateText}</span>
-                  {monthEndWarning.daysLeft === 0
-                    ? ' — hari ini hari terakhir.'
-                    : ` — tersisa ${monthEndWarning.daysLeft} hari.`}
-                </p>
-                <p className="mt-1 text-xs">
-                  Segera cocokkan mutasi/bukti bayar lalu tekan Konfirmasi atau Tolak agar laporan bulanan tidak menggantung.
-                </p>
-              </div>
-            </div>
-            <Button
-              className={monthEndWarning.isCritical ? 'bg-red-700 hover:bg-red-800' : 'bg-orange-600 hover:bg-orange-700'}
-              onClick={() => setActiveTab('settlements')}
-            >
-              Buka Konfirmasi Pelunasan
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card className="border-l-4 border-l-orange-400">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -323,22 +277,6 @@ export default function ApprovalsPage() {
             </p>
           </CardContent>
         </Card>
-        <Card className={`border-l-4 ${showSettlementMonthEndWarning ? 'border-l-red-600 bg-red-50/40 dark:bg-red-950/10' : 'border-l-green-400'}`}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Wallet className="h-4 w-4" />
-              Konfirmasi Pelunasan
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-3xl font-bold ${showSettlementMonthEndWarning ? 'text-red-600' : 'text-green-500'}`}>
-              {settlementConfirmationCount}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              pengajuan pelunasan user yang menunggu konfirmasi
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Tabs */}
@@ -360,16 +298,6 @@ export default function ApprovalsPage() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="settlements" className="relative">
-            Konfirmasi Pelunasan
-            {settlementConfirmationCount > 0 && (
-              <span className={`ml-2 flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white ${
-                showSettlementMonthEndWarning ? 'animate-pulse bg-red-600' : 'bg-green-500'
-              }`}>
-                {settlementConfirmationCount}
-              </span>
-            )}
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="master">
@@ -380,9 +308,9 @@ export default function ApprovalsPage() {
           <StatusApprovals />
         </TabsContent>
 
-        <TabsContent value="settlements">
+        {false && <TabsContent value="settlements">
           <SettlementConfirmationApprovals />
-        </TabsContent>
+        </TabsContent>}
       </Tabs>
     </div>
   );
