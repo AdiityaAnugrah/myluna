@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { Settlement, Sale, SaleItem, Product, User } from '../models';
+import { Settlement, Sale, SaleItem, Product, User, Platform } from '../models';
 import { PaymentMethod, SalePlatform } from '../models/Sale';
 import OtherIncome from '../models/OtherIncome';
 import HistoricalSettlement from '../models/HistoricalSettlement';
@@ -187,6 +187,16 @@ export const financialController = {
       }
       const otherIncomes = await OtherIncome.findAll({ where: otherIncomeWhere });
 
+      const platforms = await Platform.findAll({ attributes: ['name', 'feePercentage'] });
+      const platformFeeMap = new Map(
+        platforms.map((platform: any) => [
+          String(platform.name).toUpperCase(),
+          Number(platform.feePercentage ?? 25),
+        ])
+      );
+      const getPlatformFeePercentage = (platformName: string | null | undefined) =>
+        platformFeeMap.get(String(platformName || '').toUpperCase()) ?? 25;
+
       // ─── Build unified transaction list ────────────────────────────────────
       const allTransactions: any[] = [];
 
@@ -217,6 +227,8 @@ export const financialController = {
           credit: 0,
           netAmount: 0,
           platformFee: 0,
+          platformFeePercentage: getPlatformFeePercentage(sale.platform),
+          platform: sale.platform,
           invoiceNumber: sale.saleNumber || '-',
         });
       });
@@ -246,6 +258,8 @@ export const financialController = {
           credit: netAmount,
           netAmount,
           platformFee: fee,
+          platformFeePercentage: getPlatformFeePercentage(sale?.platform),
+          platform: sale?.platform ?? null,
           invoiceNumber: settlement.invoiceNumber,
         });
         if (fee > 0) {
@@ -342,6 +356,8 @@ export const financialController = {
           credit: txn.credit,
           netAmount: txn.netAmount,
           platformFee: txn.platformFee,
+          platformFeePercentage: txn.platformFeePercentage ?? 25,
+          platform: txn.platform ?? null,
           balance: affectsBalance ? runningBalance : null,
           invoiceNumber: txn.invoiceNumber,
         };

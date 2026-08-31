@@ -41,14 +41,17 @@ export default function PlatformsPage() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingPlatform, setEditingPlatform] = useState<any>(null);
   const [name, setName] = useState('');
+  const [feePercentage, setFeePercentage] = useState('25');
 
   const handleOpen = (platform?: any) => {
     if (platform) {
       setEditingPlatform(platform);
       setName(platform.name);
+      setFeePercentage(String(platform.feePercentage ?? 25));
     } else {
       setEditingPlatform(null);
       setName('');
+      setFeePercentage('25');
     }
     setIsOpen(true);
   };
@@ -57,6 +60,7 @@ export default function PlatformsPage() {
     setIsOpen(false);
     setEditingPlatform(null);
     setName('');
+    setFeePercentage('25');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -66,15 +70,20 @@ export default function PlatformsPage() {
       toast.error('Nama platform tidak boleh kosong');
       return;
     }
+    const normalizedFeePercentage = Number(feePercentage);
+    if (!Number.isFinite(normalizedFeePercentage) || normalizedFeePercentage < 0 || normalizedFeePercentage > 100) {
+      toast.error('Persentase biaya harus di antara 0 sampai 100');
+      return;
+    }
 
     if (editingPlatform) {
       updateMutation.mutate(
-        { id: editingPlatform.id, data: { name } },
+        { id: editingPlatform.id, data: { name, feePercentage: normalizedFeePercentage } },
         { onSuccess: handleClose }
       );
     } else {
       createMutation.mutate(
-        { name },
+        { name, feePercentage: normalizedFeePercentage },
         { onSuccess: handleClose }
       );
     }
@@ -135,6 +144,23 @@ export default function PlatformsPage() {
                   Gunakan huruf kapital (otomatis).
                 </p>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="feePercentage">Biaya Platform (%)</Label>
+                <Input
+                  id="feePercentage"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={feePercentage}
+                  onChange={(e) => setFeePercentage(e.target.value)}
+                  placeholder="25"
+                  disabled={isPending}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Dipakai Buku Biaya. Jika penjualan 150.000 dan biaya 25%, kredit biaya menjadi 37.500.
+                </p>
+              </div>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={handleClose} disabled={isPending}>
                   Batal
@@ -164,6 +190,7 @@ export default function PlatformsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nama Platform</TableHead>
+                  <TableHead>Biaya Platform</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
@@ -171,7 +198,7 @@ export default function PlatformsPage() {
               <TableBody>
                 {platforms?.data?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                       Belum ada platform.
                     </TableCell>
                   </TableRow>
@@ -183,6 +210,9 @@ export default function PlatformsPage() {
                           <Store className="h-4 w-4 text-muted-foreground" />
                           {platform.name}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-semibold tabular-nums">{Number(platform.feePercentage ?? 25).toLocaleString('id-ID')}%</span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">

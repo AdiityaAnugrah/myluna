@@ -3,6 +3,7 @@ import api from './client';
 export interface Platform {
   id: string;
   name: string;
+  feePercentage: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -14,12 +15,12 @@ export const platformsApi = {
     return response.data;
   },
 
-  create: async (data: { name: string }) => {
+  create: async (data: { name: string; feePercentage?: number }) => {
     const response = await api.post('/platforms', data);
     return response.data;
   },
 
-  update: async (id: string, data: { name?: string; isActive?: boolean }) => {
+  update: async (id: string, data: { name?: string; feePercentage?: number; isActive?: boolean }) => {
     const response = await api.put(`/platforms/${id}`, data);
     return response.data;
   },

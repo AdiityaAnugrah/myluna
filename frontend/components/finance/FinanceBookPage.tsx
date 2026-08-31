@@ -45,6 +45,8 @@ type Transaction = {
   credit: number;
   netAmount?: number;
   platformFee?: number;
+  platformFeePercentage?: number;
+  platform?: string | null;
   group?: number;
 };
 
@@ -60,16 +62,7 @@ type BookRow = {
   statusLabel: string;
 };
 
-type Summary = {
-  saldoAwalPiutang?: number;
-  omsetKeseluruhan?: number;
-  totalGrossSettled?: number;
-  totalPelunasanNet?: number;
-  totalSelisih?: number;
-  danaBersih?: number;
-  sisaPiutangAkhir?: number;
-  saldoAkhirAR?: number;
-};
+const DEFAULT_COST_RATE = 25;
 
 const formatDateInput = (date: Date) => {
   const y = date.getFullYear();
@@ -95,6 +88,12 @@ const formatCurrency = (value: number | null | undefined) => {
   }).format(value);
 };
 
+const isSaleTransaction = (txn: Transaction) => txn.type === 'sale_settled' || txn.type === 'sale_pending';
+
+const isBookTransaction = (txn: Transaction) => isSaleTransaction(txn) || txn.type === 'settlement';
+
+const getMonthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
 function getStatusTone(type: BookRow['type']) {
   if (type === 'sale') return 'border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300';
   if (type === 'settlement') return 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300';
@@ -107,32 +106,24 @@ function buildRows(transactions: Transaction[], mode: BookMode): BookRow[] {
   const rows: BookRow[] = [];
   let runningBalance = 0;
   let counter = 1;
+  let activeMonthKey: string | null = null;
 
-  for (const txn of transactions) {
-    if (txn.type === 'settlement_fee') continue;
-
+  for (const txn of transactions.filter(isBookTransaction)) {
     const date = new Date(txn.date);
+    const monthKey = getMonthKey(date);
     const invoiceNumber = txn.invoiceNumber || null;
-    const description = txn.description || '-';
+    const baseDescription = txn.description || '-';
+    const description = txn.platform ? `${baseDescription} (${txn.platform})` : baseDescription;
 
-    if (txn.type === 'carry_forward') {
-      runningBalance += Number(txn.debit || 0);
-      rows.push({
-        no: counter++,
-        date,
-        invoiceNumber,
-        description: 'Saldo Awal Piutang',
-        debit: mode === 'sales' ? Number(txn.debit || 0) : null,
-        credit: null,
-        balance: runningBalance,
-        type: 'opening',
-        statusLabel: 'Saldo Awal',
-      });
-      continue;
+    if (activeMonthKey !== monthKey) {
+      activeMonthKey = monthKey;
+      runningBalance = 0;
     }
 
-    if (txn.type === 'sale_settled' || txn.type === 'sale_pending') {
-      const gross = Number(txn.debit || 0);
+    const gross = Number(txn.debit || 0);
+    const feePercentage = Number(txn.platformFeePercentage ?? DEFAULT_COST_RATE);
+
+    if (isSaleTransaction(txn)) {
       runningBalance += gross;
       rows.push({
         no: counter++,
@@ -140,61 +131,35 @@ function buildRows(transactions: Transaction[], mode: BookMode): BookRow[] {
         invoiceNumber,
         description,
         debit: mode === 'sales' ? gross : null,
-        credit: null,
+        credit: mode === 'cost' ? gross * (feePercentage / 100) : null,
         balance: runningBalance,
         type: 'sale',
-        statusLabel: txn.type === 'sale_pending' ? 'Penjualan / Piutang' : 'Penjualan',
+        statusLabel: mode === 'sales'
+          ? txn.type === 'sale_pending' ? 'Penjualan / Piutang' : 'Penjualan'
+          : `Biaya Penjualan ${feePercentage.toLocaleString('id-ID')}%`,
       });
       continue;
     }
 
     if (txn.type === 'settlement') {
-      const netAmount = Number(txn.netAmount ?? txn.credit ?? 0);
-      const fee = Number(txn.platformFee || 0);
-      const grossCredit = netAmount + fee;
-      runningBalance -= grossCredit;
+      const actualNetAmount = Number(txn.netAmount ?? txn.credit ?? 0);
+      const platformFee = Number(txn.platformFee || 0);
+      const grossSettlement = actualNetAmount + platformFee;
+      const expectedPlatformFee = grossSettlement * (feePercentage / 100);
+      const expectedNetAmount = grossSettlement - expectedPlatformFee;
+      const adjustmentCredit = expectedNetAmount - actualNetAmount;
+
+      runningBalance -= grossSettlement;
       rows.push({
         no: counter++,
         date,
         invoiceNumber,
         description,
-        debit: mode === 'sales' ? null : netAmount,
-        credit: mode === 'sales' ? grossCredit : fee,
+        debit: mode === 'cost' ? actualNetAmount : null,
+        credit: mode === 'sales' ? grossSettlement : adjustmentCredit,
         balance: runningBalance,
         type: 'settlement',
         statusLabel: mode === 'sales' ? 'Pelunasan' : 'Dana Bersih',
-      });
-      continue;
-    }
-
-    if (txn.type === 'historical_settlement') {
-      const amount = Number(txn.credit || 0);
-      runningBalance -= amount;
-      rows.push({
-        no: counter++,
-        date,
-        invoiceNumber,
-        description,
-        debit: mode === 'sales' ? null : amount,
-        credit: mode === 'sales' ? amount : null,
-        balance: runningBalance,
-        type: 'historical',
-        statusLabel: 'Piutang Historis',
-      });
-      continue;
-    }
-
-    if (txn.type === 'cancelled') {
-      rows.push({
-        no: counter++,
-        date,
-        invoiceNumber,
-        description,
-        debit: null,
-        credit: null,
-        balance: null,
-        type: 'cancelled',
-        statusLabel: 'Dibatalkan',
       });
     }
   }
@@ -224,19 +189,21 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
   );
 
   const transactions: Transaction[] = (data as any)?.data?.transactions || [];
-  const summary: Summary = (data as any)?.data?.summary || {};
   const rows = useMemo(() => buildRows(transactions, mode), [transactions, mode]);
 
   const pageTitle = mode === 'sales' ? 'Buku Penjualan' : 'Buku Biaya';
   const pageDescription =
     mode === 'sales'
-      ? 'Pantau nilai penjualan kotor, pelunasan, dan sisa piutang berjalan.'
-      : 'Pantau dana bersih yang masuk, biaya/potongan, dan saldo piutang terkait.';
+      ? 'Pantau debit penjualan dan saldo penjualan berjalan per bulan.'
+      : 'Pantau kredit biaya platform dari tiap penjualan dengan saldo penjualan berjalan per bulan.';
   const Icon = mode === 'sales' ? BookOpenCheck : ReceiptText;
 
   const totalDebit = rows.reduce((sum, row) => sum + Number(row.debit || 0), 0);
   const totalCredit = rows.reduce((sum, row) => sum + Number(row.credit || 0), 0);
-  const finalBalance = summary.saldoAkhirAR ?? summary.sisaPiutangAkhir ?? rows.at(-1)?.balance ?? 0;
+  const totalSalesBasis = transactions
+    .filter(isSaleTransaction)
+    .reduce((sum, txn) => sum + Number(txn.debit || 0), 0);
+  const finalBalance = rows.at(-1)?.balance ?? 0;
 
   if (!isAllowed) {
     return (
@@ -326,8 +293,8 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
           <CardContent className="flex items-center gap-3 p-4">
             <TrendingUp className="h-9 w-9 rounded-xl bg-green-100 p-2 text-green-700 dark:bg-green-950/40 dark:text-green-300" />
             <div>
-              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Debit Penjualan' : 'Total Dana Bersih'}</p>
-              <p className="text-lg font-bold tabular-nums">{formatCurrency(totalDebit)}</p>
+              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Debit Penjualan' : 'Total Dasar Penjualan'}</p>
+              <p className="text-lg font-bold tabular-nums">{formatCurrency(mode === 'sales' ? totalDebit : totalSalesBasis)}</p>
             </div>
           </CardContent>
         </Card>
@@ -335,7 +302,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
           <CardContent className="flex items-center gap-3 p-4">
             <TrendingDown className="h-9 w-9 rounded-xl bg-orange-100 p-2 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300" />
             <div>
-              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Kredit Pelunasan' : 'Total Biaya/Potongan'}</p>
+              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Kredit' : 'Total Kredit Biaya Platform'}</p>
               <p className="text-lg font-bold tabular-nums">{formatCurrency(totalCredit)}</p>
             </div>
           </CardContent>
@@ -344,7 +311,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
           <CardContent className="flex items-center gap-3 p-4">
             <Wallet className="h-9 w-9 rounded-xl bg-purple-100 p-2 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300" />
             <div>
-              <p className="text-xs text-muted-foreground">Sisa Piutang</p>
+              <p className="text-xs text-muted-foreground">Saldo Penjualan</p>
               <p className="text-lg font-bold tabular-nums">{formatCurrency(finalBalance)}</p>
             </div>
           </CardContent>
@@ -369,7 +336,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
                 Kotak {pageTitle}
               </CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
-                D = {mode === 'sales' ? 'penjualan kotor' : 'dana bersih'} · K = {mode === 'sales' ? 'pelunasan kotor' : 'biaya/potongan'} · S = saldo piutang
+                D = {mode === 'sales' ? 'penjualan' : '-'} · K = {mode === 'sales' ? '-' : 'persentase platform dari penjualan'} · S = saldo penjualan bulanan
               </p>
             </div>
             <Badge variant="outline" className="w-fit">{rows.length} baris</Badge>
