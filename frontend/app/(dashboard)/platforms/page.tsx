@@ -27,6 +27,8 @@ import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { FormFieldError, FormValidationSummary, errorInputClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 
 
 export default function PlatformsPage() {
@@ -42,6 +44,7 @@ export default function PlatformsPage() {
   const [editingPlatform, setEditingPlatform] = useState<any>(null);
   const [name, setName] = useState('');
   const [feePercentage, setFeePercentage] = useState('25');
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const handleOpen = (platform?: any) => {
     if (platform) {
@@ -61,10 +64,12 @@ export default function PlatformsPage() {
     setEditingPlatform(null);
     setName('');
     setFeePercentage('25');
+    setSubmitAttempted(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitAttempted(true);
     
     if (!name.trim()) {
       toast.error('Nama platform tidak boleh kosong');
@@ -131,6 +136,13 @@ export default function PlatformsPage() {
               <DialogTitle>{editingPlatform ? 'Edit Platform' : 'Tambah Platform'}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <FormValidationSummary
+                show={submitAttempted && (!name.trim() || !Number.isFinite(Number(feePercentage)) || Number(feePercentage) < 0 || Number(feePercentage) > 100)}
+                fields={[
+                  ...(!name.trim() ? ['Nama Platform'] : []),
+                  ...(!Number.isFinite(Number(feePercentage)) || Number(feePercentage) < 0 || Number(feePercentage) > 100 ? ['Biaya Platform'] : []),
+                ]}
+              />
               <div className="space-y-2">
                 <Label htmlFor="name">Nama Platform</Label>
                 <Input
@@ -139,7 +151,10 @@ export default function PlatformsPage() {
                   onChange={(e) => setName(e.target.value.toUpperCase())}
                   placeholder="Contoh: TOKOPEDIA"
                   disabled={isPending}
+                  aria-invalid={submitAttempted && !name.trim() ? true : undefined}
+                  className={cn(submitAttempted && !name.trim() && errorInputClass)}
                 />
+                <FormFieldError message={submitAttempted && !name.trim() ? 'Nama platform wajib diisi.' : undefined} />
                 <p className="text-xs text-muted-foreground">
                   Gunakan huruf kapital (otomatis).
                 </p>
@@ -156,7 +171,10 @@ export default function PlatformsPage() {
                   onChange={(e) => setFeePercentage(e.target.value)}
                   placeholder="25"
                   disabled={isPending}
+                  aria-invalid={submitAttempted && (!Number.isFinite(Number(feePercentage)) || Number(feePercentage) < 0 || Number(feePercentage) > 100) ? true : undefined}
+                  className={cn(submitAttempted && (!Number.isFinite(Number(feePercentage)) || Number(feePercentage) < 0 || Number(feePercentage) > 100) && errorInputClass)}
                 />
+                <FormFieldError message={submitAttempted && (!Number.isFinite(Number(feePercentage)) || Number(feePercentage) < 0 || Number(feePercentage) > 100) ? 'Biaya platform harus angka 0 sampai 100.' : undefined} />
                 <p className="text-xs text-muted-foreground">
                   Dipakai Buku Biaya. Jika penjualan 150.000 dan biaya 25%, kredit biaya menjadi 37.500.
                 </p>

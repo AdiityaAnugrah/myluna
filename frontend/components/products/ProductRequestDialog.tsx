@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { FormFieldError, FormValidationSummary, errorInputClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface ProductRequestDialogProps {
@@ -26,13 +28,15 @@ export function ProductRequestDialog({
   onOpenChange,
 }: ProductRequestDialogProps) {
   const [reason, setReason] = useState('');
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const { createRequest } = useProductRequests();
   const [requestedStatus, setRequestedStatus] = useState<'ACTIVE' | 'PASSIVE'>(
     product.isActive ? 'PASSIVE' : 'ACTIVE'
   );
 
   const handleSubmit = () => {
-    if (!reason) return;
+    setSubmitAttempted(true);
+    if (!reason.trim()) return;
 
     createRequest.mutate(
       {
@@ -43,6 +47,7 @@ export function ProductRequestDialog({
       {
         onSuccess: () => {
           setReason('');
+          setSubmitAttempted(false);
           onOpenChange(false);
         },
       }
@@ -59,6 +64,7 @@ export function ProductRequestDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
+          <FormValidationSummary show={submitAttempted && !reason.trim()} fields={["Alasan"]} />
           <div className="grid gap-2">
             <Label>Status yang Diminta</Label>
             <div className="flex items-center space-x-2">
@@ -78,14 +84,17 @@ export function ProductRequestDialog({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Mengapa perubahan status ini diperlukan?"
+              className={cn(submitAttempted && !reason.trim() && errorInputClass)}
+              aria-invalid={submitAttempted && !reason.trim()}
             />
+            {submitAttempted && !reason.trim() && <FormFieldError message="Isi alasan sebelum mengirim permintaan." />}
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => { setSubmitAttempted(false); onOpenChange(false); }}>
             Batal
           </Button>
-          <Button onClick={handleSubmit} disabled={!reason || createRequest.isPending}>
+          <Button onClick={handleSubmit} disabled={createRequest.isPending}>
             {createRequest.isPending ? 'Mengirim...' : 'Kirim Permintaan'}
           </Button>
         </DialogFooter>

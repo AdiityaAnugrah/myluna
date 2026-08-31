@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Table,
   TableBody,
@@ -41,6 +42,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ProductSelector } from '@/components/sales/ProductSelector';
 import { BulkProductSelector } from '@/components/sales/BulkProductSelector';
 import { formatCurrency, getVariants } from '@/lib/utils/sales';
+import { cn } from '@/lib/utils';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import {
   RegionAddressFields,
@@ -54,6 +56,23 @@ interface SaleItem {
   price: number;
   priceType: 'regular' | 'warranty';
 }
+
+type SaleFormErrors = {
+  invoiceNumber?: string;
+  platform?: string;
+  shippingService?: string;
+  shippingDocument?: string;
+  addressDetail?: string;
+  provinceId?: string;
+  regencyId?: string;
+  districtId?: string;
+  villageId?: string;
+  items?: string;
+  itemErrors: Array<Partial<Record<'productId' | 'variantName' | 'quantity' | 'price', string>>>;
+};
+
+const hasFieldError = (errors: Partial<Record<string, string>> | undefined) =>
+  Boolean(errors && Object.keys(errors).length > 0);
 
 export default function NewSalePage() {
   const router = useRouter();
@@ -129,10 +148,12 @@ export default function NewSalePage() {
   });
   const [shippingDocument, setShippingDocument] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const validationSummaryRef = useRef<HTMLDivElement>(null);
   const formStartTime = useRef<number>(Date.now()); // track how long form was open
 
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [nextPath, setNextPath] = useState<string | null>(null);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // Define before isFormValid (const not hoisted — must be declared before use)
   const getProductStock = (productId: string, variantName?: string | null) => {
@@ -156,34 +177,67 @@ export default function NewSalePage() {
     return Number(product.stock) || 0;
   };
 
-  const hasCompleteShippingAddress = Boolean(
-    shippingAddress.addressDetail.trim()
-    && shippingAddress.provinceId
-    && shippingAddress.regencyId
-    && shippingAddress.districtId
-    && shippingAddress.villageId
-  );
+  const validationErrors = useMemo<SaleFormErrors>(() => {
+    const nextErrors: SaleFormErrors = { itemErrors: [] };
 
-  const isFormValid = invoiceNumber.trim() !== ''
-    && shippingService !== ''
-    && hasCompleteShippingAddress
-    && items.length > 0
-    && items.every((item) => {
-    if (!item.productId) return false;
-    if (item.quantity <= 0) return false;
-    if (item.price < 0) return false;
-    
-    // Check if variant is required but missing
-    const product = products.find(p => p.id === item.productId);
-    const variants = getVariants(product?.variants);
-    if (variants.length > 0 && !item.variantName) {
-      return false;
-    }
-    // Validate against correct stock (variant or main)
-    const stock = getProductStock(item.productId, item.variantName);
-    if (item.quantity > stock) return false;
-    return true;
-  });
+    if (!invoiceNumber.trim()) nextErrors.invoiceNumber = 'Nomor Invoice wajib diisi.';
+    if (!platform) nextErrors.platform = 'Pilih platform penjualan.';
+    if (!shippingService) nextErrors.shippingService = 'Pilih jasa pengiriman.';
+    if (!shippingAddress.provinceId) nextErrors.provinceId = 'Pilih provinsi tujuan.';
+    if (!shippingAddress.regencyId) nextErrors.regencyId = 'Pilih kabupaten/kota tujuan.';
+    if (!shippingAddress.districtId) nextErrors.districtId = 'Pilih kecamatan tujuan.';
+    if (!shippingAddress.villageId) nextErrors.villageId = 'Pilih kelurahan/desa tujuan.';
+    if (!shippingAddress.addressDetail.trim()) nextErrors.addressDetail = 'Isi detail alamat seperti jalan, nomor rumah, RT/RW, atau patokan.';
+    if (isDocumentRequired && !shippingDocument) nextErrors.shippingDocument = `Upload dokumen PDF untuk ${shippingService}.`;
+    if (items.length === 0) nextErrors.items = 'Tambahkan minimal satu barang.';
+
+    nextErrors.itemErrors = items.map((item) => {
+      const itemError: SaleFormErrors['itemErrors'][number] = {};
+      const product = products.find(p => p.id === item.productId);
+      const variants = getVariants(product?.variants);
+      const stock = getProductStock(item.productId, item.variantName);
+
+      if (!item.productId) itemError.productId = 'Pilih produk.';
+      if (variants.length > 0 && !item.variantName) itemError.variantName = 'Pilih varian.';
+      if (item.quantity <= 0) itemError.quantity = 'Jumlah minimal 1.';
+      if (item.productId && item.quantity > stock) itemError.quantity = `Stok tersedia hanya ${stock}.`;
+      if (item.price <= 0) itemError.price = 'Harga harus lebih dari 0.';
+
+      return itemError;
+    });
+
+    return nextErrors;
+  }, [
+    invoiceNumber,
+    platform,
+    shippingService,
+    shippingAddress,
+    isDocumentRequired,
+    shippingDocument,
+    items,
+    products,
+    getProductStock,
+  ]);
+
+  const missingFields = useMemo(() => {
+    const labels: string[] = [];
+    if (validationErrors.invoiceNumber) labels.push('Nomor Invoice');
+    if (validationErrors.platform) labels.push('Platform');
+    if (validationErrors.shippingService) labels.push('Jasa Pengiriman');
+    if (validationErrors.provinceId) labels.push('Provinsi');
+    if (validationErrors.regencyId) labels.push('Kabupaten/Kota');
+    if (validationErrors.districtId) labels.push('Kecamatan');
+    if (validationErrors.villageId) labels.push('Kelurahan/Desa');
+    if (validationErrors.addressDetail) labels.push('Detail Alamat');
+    if (validationErrors.shippingDocument) labels.push('Dokumen Pengiriman');
+    if (validationErrors.items) labels.push('Barang');
+    validationErrors.itemErrors.forEach((itemError, index) => {
+      if (hasFieldError(itemError)) labels.push(`Barang #${index + 1}`);
+    });
+    return labels;
+  }, [validationErrors]);
+
+  const isFormValid = missingFields.length === 0;
 
   const isDirty = invoiceNumber !== ''
     || customerName !== ''
@@ -306,50 +360,12 @@ export default function NewSalePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitAttempted(true);
 
-    if (!invoiceNumber || invoiceNumber.trim() === '') {
-      toast.error('Nomor Invoice wajib diisi');
+    if (!isFormValid) {
+      validationSummaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast.error(`Lengkapi dulu: ${missingFields.slice(0, 3).join(', ')}${missingFields.length > 3 ? ', dan lainnya' : ''}`);
       return;
-    }
-
-    if (items.length === 0) {
-      toast.error('Mohon tambahkan setidaknya satu barang');
-      return;
-    }
-
-    const invalidItems = items.filter(
-      (item) => !item.productId || item.quantity <= 0 || item.price <= 0
-    );
-    if (invalidItems.length > 0) {
-      toast.error('Mohon isi semua data barang dengan benar');
-      return;
-    }
-
-    // Stock validation (per-variant aware)
-    const outOfStockItems = items.filter((item) => {
-      const stock = getProductStock(item.productId, item.variantName);
-      return item.quantity > stock;
-    });
-
-    if (outOfStockItems.length > 0) {
-      toast.error('Beberapa barang memiliki stok tidak mencukupi. Mohon periksa jumlah pesanan.');
-      return;
-    }
-    
-    // Shipping validation
-    if (!shippingService) {
-        toast.error('Mohon pilih Jasa Pengiriman');
-        return;
-    }
-
-    if (!hasCompleteShippingAddress) {
-        toast.error('Mohon lengkapi wilayah dan detail alamat pengiriman');
-        return;
-    }
-
-    if (isDocumentRequired && !shippingDocument) {
-        toast.error(`Mohon unggah dokumen PDF untuk ${shippingService}`);
-        return;
     }
 
     const formData = new FormData();
@@ -412,6 +428,27 @@ export default function NewSalePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {submitAttempted && !isFormValid && (
+          <Alert
+            ref={validationSummaryRef}
+            variant="destructive"
+            className="border-destructive/60 bg-destructive/5"
+          >
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Form belum lengkap</AlertTitle>
+            <AlertDescription>
+              <p className="mb-2">Lengkapi bagian berikut sebelum membuat penjualan:</p>
+              <div className="flex flex-wrap gap-2">
+                {missingFields.map((field) => (
+                  <span key={field} className="rounded-full border border-destructive/30 bg-background px-2 py-1 text-xs font-medium">
+                    {field}
+                  </span>
+                ))}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>Informasi Penjualan</CardTitle>
@@ -427,7 +464,12 @@ export default function NewSalePage() {
                 disabled={isPending}
                 placeholder="Contoh: INV-2024-001"
                 maxLength={100}
+                aria-invalid={submitAttempted && !!validationErrors.invoiceNumber ? true : undefined}
+                className={cn(submitAttempted && validationErrors.invoiceNumber && 'border-destructive focus-visible:ring-destructive')}
               />
+              {submitAttempted && validationErrors.invoiceNumber && (
+                <p className="text-xs font-medium text-destructive" role="alert">{validationErrors.invoiceNumber}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -466,7 +508,7 @@ export default function NewSalePage() {
                   onValueChange={(value: any) => setPaymentMethod(value)}
                   disabled={isPending}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={cn(submitAttempted && validationErrors.platform && 'border-destructive focus:ring-destructive')}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -512,6 +554,9 @@ export default function NewSalePage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {submitAttempted && validationErrors.platform && (
+                  <p className="text-xs font-medium text-destructive" role="alert">{validationErrors.platform}</p>
+                )}
               </div>
             </div>
 
@@ -537,7 +582,7 @@ export default function NewSalePage() {
                       }}
                       disabled={isPending}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={cn(submitAttempted && validationErrors.shippingService && 'border-destructive focus:ring-destructive')}>
                         <SelectValue placeholder="Pilih Jasa Pengiriman" />
                       </SelectTrigger>
                       <SelectContent>
@@ -558,6 +603,9 @@ export default function NewSalePage() {
                         )}
                       </SelectContent>
                     </Select>
+                    {submitAttempted && validationErrors.shippingService && (
+                      <p className="text-xs font-medium text-destructive" role="alert">{validationErrors.shippingService}</p>
+                    )}
                   </div>
                 </div>
 
@@ -565,6 +613,14 @@ export default function NewSalePage() {
                   value={shippingAddress}
                   onChange={setShippingAddress}
                   disabled={isPending}
+                  showErrors={submitAttempted}
+                  errors={{
+                    addressDetail: validationErrors.addressDetail,
+                    provinceId: validationErrors.provinceId,
+                    regencyId: validationErrors.regencyId,
+                    districtId: validationErrors.districtId,
+                    villageId: validationErrors.villageId,
+                  }}
                 />
 
                 {isDocumentRequired ? (
@@ -577,7 +633,12 @@ export default function NewSalePage() {
                             onChange={handleFileChange}
                             disabled={isPending}
                             ref={fileInputRef}
+                            aria-invalid={submitAttempted && !!validationErrors.shippingDocument ? true : undefined}
+                            className={cn(submitAttempted && validationErrors.shippingDocument && 'border-destructive focus-visible:ring-destructive')}
                         />
+                        {submitAttempted && validationErrors.shippingDocument && (
+                            <p className="text-xs font-medium text-destructive" role="alert">{validationErrors.shippingDocument}</p>
+                        )}
                         <p className="text-sm text-gray-500">
                             Wajib upload untuk {shippingService}. Catatan dinonaktifkan.
                         </p>
@@ -600,7 +661,12 @@ export default function NewSalePage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Barang</CardTitle>
+            <div>
+              <CardTitle>Barang</CardTitle>
+              {submitAttempted && validationErrors.items && (
+                <p className="mt-2 text-xs font-medium text-destructive" role="alert">{validationErrors.items}</p>
+              )}
+            </div>
             <BulkProductSelector 
                 onSelect={handleBulkSelect} 
                 disabled={isPending}
@@ -637,17 +703,23 @@ export default function NewSalePage() {
                     const stock = getProductStock(item.productId, item.variantName);
                     const isOutOfStock = item.quantity > stock;
                     const subtotal = item.quantity * item.price;
+                    const itemError = validationErrors.itemErrors[index] || {};
 
                     return (
-                      <TableRow key={index}>
+                      <TableRow key={index} className={cn(submitAttempted && hasFieldError(itemError) && 'bg-destructive/5')}>
                         <TableCell>
-                          <ProductSelector
-                            selectedProductId={item.productId}
-                            onSelect={(value) => {
-                                updateItemFields(index, { productId: value, variantName: null });
-                            }}
-                            disabled={isPending}
-                          />
+                          <div className={cn(submitAttempted && itemError.productId && 'rounded-md border border-destructive')}>
+                            <ProductSelector
+                              selectedProductId={item.productId}
+                              onSelect={(value) => {
+                                  updateItemFields(index, { productId: value, variantName: null });
+                              }}
+                              disabled={isPending}
+                            />
+                          </div>
+                          {submitAttempted && itemError.productId && (
+                            <p className="mt-1 text-xs font-medium text-destructive" role="alert">{itemError.productId}</p>
+                          )}
                         </TableCell>
                         <TableCell>
                           {(() => {
@@ -666,7 +738,7 @@ export default function NewSalePage() {
                                   onValueChange={(val) => updateItem(index, 'variantName', val)}
                                   disabled={isPending}
                                 >
-                                  <SelectTrigger className="h-9">
+                                  <SelectTrigger className={cn('h-9', submitAttempted && itemError.variantName && 'border-destructive focus:ring-destructive')}>
                                     <SelectValue placeholder="Pilih Varian" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -702,6 +774,9 @@ export default function NewSalePage() {
                                 </Select>
                             );
                           })()}
+                          {submitAttempted && itemError.variantName && (
+                            <p className="mt-1 text-xs font-medium text-destructive" role="alert">{itemError.variantName}</p>
+                          )}
                         </TableCell>
                         <TableCell>
                           <span className={stock <= 0 ? 'text-red-600 font-semibold' : ''}>
@@ -729,9 +804,15 @@ export default function NewSalePage() {
                               }
                             }}
                             disabled={isPending}
-                            className={isOutOfStock ? 'border-red-500' : ''}
+                            aria-invalid={submitAttempted && !!itemError.quantity ? true : undefined}
+                            className={cn(isOutOfStock && 'border-red-500', submitAttempted && itemError.quantity && 'border-destructive focus-visible:ring-destructive')}
                           />
-                          {isOutOfStock && (
+                          {submitAttempted && itemError.quantity ? (
+                            <div className="flex items-center gap-1 text-xs text-destructive mt-1" role="alert">
+                              <AlertTriangle className="h-3 w-3" />
+                              {itemError.quantity}
+                            </div>
+                          ) : isOutOfStock && (
                             <div className="flex items-center gap-1 text-xs text-red-600 mt-1">
                               <AlertTriangle className="h-3 w-3" />
                               Stok tidak cukup
@@ -745,13 +826,19 @@ export default function NewSalePage() {
                             if (!hasWarrantyPrice) {
                               // No warranty price — just show price as read-only
                               return (
-                                <Input
-                                  type="number"
-                                  value={item.price}
-                                  readOnly
-                                  disabled={isPending}
-                                  className="bg-muted cursor-not-allowed"
-                                />
+                                <div>
+                                  <Input
+                                    type="number"
+                                    value={item.price}
+                                    readOnly
+                                    disabled={isPending}
+                                    aria-invalid={submitAttempted && !!itemError.price ? true : undefined}
+                                    className={cn('bg-muted cursor-not-allowed', submitAttempted && itemError.price && 'border-destructive')}
+                                  />
+                                  {submitAttempted && itemError.price && (
+                                    <p className="mt-1 text-xs font-medium text-destructive" role="alert">{itemError.price}</p>
+                                  )}
+                                </div>
                               );
                             }
                             // Has warranty price — show toggle buttons
@@ -798,8 +885,12 @@ export default function NewSalePage() {
                                   value={item.price}
                                   readOnly
                                   disabled={isPending}
-                                  className="bg-muted cursor-not-allowed"
+                                  aria-invalid={submitAttempted && !!itemError.price ? true : undefined}
+                                  className={cn('bg-muted cursor-not-allowed', submitAttempted && itemError.price && 'border-destructive')}
                                 />
+                                {submitAttempted && itemError.price && (
+                                  <p className="mt-1 text-xs font-medium text-destructive" role="alert">{itemError.price}</p>
+                                )}
                               </div>
                             );
                           })()}
@@ -839,7 +930,7 @@ export default function NewSalePage() {
         </Card>
 
         <div className="flex gap-4">
-          <Button type="submit" disabled={isPending || !isFormValid}>
+          <Button type="submit" disabled={isPending}>
             {isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

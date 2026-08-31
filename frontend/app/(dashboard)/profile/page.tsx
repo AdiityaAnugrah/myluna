@@ -11,11 +11,14 @@ import { Badge } from '@/components/ui/badge';
 import { User, Mail, Shield, AlertTriangle, KeyRound, Lock, UserCircle } from 'lucide-react';
 import { formatRole } from '@/lib/utils/format';
 import { toast } from 'sonner';
+import { FormFieldError, FormValidationSummary, errorInputClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 
 export default function ProfilePage() {
   const { user } = useAuth();
   const changePasswordResult = useChangePassword();
 
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [passwords, setPasswords] = useState({
     currentPassword: '',
     newPassword: '',
@@ -29,21 +32,19 @@ export default function ProfilePage() {
     }));
   };
 
+  const missingFields = [
+    !passwords.currentPassword ? 'Kata Sandi Saat Ini' : '',
+    passwords.newPassword.length < 6 ? 'Kata Sandi Baru minimal 6 karakter' : '',
+    !passwords.confirmPassword ? 'Konfirmasi Kata Sandi Baru' : '',
+    passwords.confirmPassword && passwords.newPassword !== passwords.confirmPassword ? 'Konfirmasi kata sandi tidak cocok' : '',
+  ].filter(Boolean);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitAttempted(true);
 
-    if (!passwords.currentPassword) {
-      toast.error('Kata sandi saat ini harus diisi');
-      return;
-    }
-
-    if (passwords.newPassword.length < 6) {
-      toast.error('Kata sandi baru minimal 6 karakter');
-      return;
-    }
-
-    if (passwords.newPassword !== passwords.confirmPassword) {
-      toast.error('Konfirmasi kata sandi tidak cocok');
+    if (missingFields.length > 0) {
+      toast.error(`Lengkapi dulu: ${missingFields.join(', ')}`);
       return;
     }
 
@@ -53,6 +54,7 @@ export default function ProfilePage() {
     }, {
       onSuccess: () => {
         setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setSubmitAttempted(false);
       }
     });
   };
@@ -129,6 +131,7 @@ export default function ProfilePage() {
           
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
+              <FormValidationSummary show={submitAttempted && missingFields.length > 0} fields={missingFields} />
               <div className="space-y-2">
                 <Label htmlFor="currentPassword">Kata Sandi Saat Ini</Label>
                 <div className="relative">
@@ -139,11 +142,14 @@ export default function ProfilePage() {
                     name="currentPassword"
                     value={passwords.currentPassword}
                     onChange={handleChange}
-                    className="pl-9" 
+                    className={cn('pl-9', submitAttempted && !passwords.currentPassword && errorInputClass)}
+                    aria-invalid={submitAttempted && !passwords.currentPassword}
+                    
                     placeholder="Masukkan kata sandi saat ini" 
                     required 
                   />
                 </div>
+                {submitAttempted && !passwords.currentPassword && <FormFieldError message="Isi kata sandi saat ini." />}
               </div>
 
               <div className="space-y-2">
@@ -156,12 +162,15 @@ export default function ProfilePage() {
                     name="newPassword"
                     value={passwords.newPassword}
                     onChange={handleChange}
-                    className="pl-9" 
+                    className={cn('pl-9', submitAttempted && passwords.newPassword.length < 6 && errorInputClass)}
+                    aria-invalid={submitAttempted && passwords.newPassword.length < 6}
+                    
                     placeholder="Masukkan kata sandi baru (min. 6 karakter)" 
                     required 
                     minLength={6}
                   />
                 </div>
+                {submitAttempted && passwords.newPassword.length < 6 && <FormFieldError message="Kata sandi baru minimal 6 karakter." />}
               </div>
 
               <div className="space-y-2">
@@ -174,12 +183,16 @@ export default function ProfilePage() {
                     name="confirmPassword"
                     value={passwords.confirmPassword}
                     onChange={handleChange}
-                    className="pl-9" 
+                    className={cn('pl-9', submitAttempted && (!passwords.confirmPassword || passwords.newPassword !== passwords.confirmPassword) && errorInputClass)}
+                    aria-invalid={submitAttempted && (!passwords.confirmPassword || passwords.newPassword !== passwords.confirmPassword)}
+                    
                     placeholder="Ketik ulang kata sandi baru" 
                     required 
                     minLength={6}
                   />
                 </div>
+                {submitAttempted && !passwords.confirmPassword && <FormFieldError message="Isi konfirmasi kata sandi baru." />}
+                {submitAttempted && passwords.confirmPassword && passwords.newPassword !== passwords.confirmPassword && <FormFieldError message="Konfirmasi kata sandi harus sama dengan kata sandi baru." />}
               </div>
 
               {/* Information Alert */}

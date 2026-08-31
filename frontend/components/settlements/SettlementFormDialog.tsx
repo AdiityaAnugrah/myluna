@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, AlertTriangle } from 'lucide-react';
+import { FormFieldError, FormValidationSummary, errorInputClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +46,7 @@ export function SettlementFormDialog({
   const [netAmount, setNetAmount] = useState('');
   const [settlementDate, setSettlementDate] = useState(getTodayDateInputValue());
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const createMutation = useCreateSettlement();
   const { user } = useAuthStore();
   const isUser = user?.role === 'USER';
@@ -82,6 +85,7 @@ export function SettlementFormDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitAttempted(true);
 
     if (!netAmount || parseFloat(netAmount) <= 0) {
       notify.error('Dana bersih belum valid', {
@@ -139,6 +143,11 @@ export function SettlementFormDialog({
   const isFormValid = netAmountNum > 0 && 
                       !!settlementDate && 
                       netAmountNum <= totalAmount;
+  const missingFields = [
+    ...(!netAmount || netAmountNum <= 0 ? ['Dana Bersih'] : []),
+    ...(netAmountNum > totalAmount ? ['Dana Bersih melebihi total penjualan'] : []),
+    ...(!settlementDate ? ['Tanggal Pelunasan'] : []),
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -152,6 +161,7 @@ export function SettlementFormDialog({
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            <FormValidationSummary show={submitAttempted && missingFields.length > 0} fields={missingFields} />
             {/* Sale Info */}
             <div className="bg-muted/40 border border-border p-4 rounded-lg space-y-2">
               <div className="flex justify-between">
@@ -183,7 +193,17 @@ export function SettlementFormDialog({
                 onChange={handleAmountChange}
                 placeholder="Rp 0"
                 required
-                className="text-lg font-semibold"
+                aria-invalid={submitAttempted && (!netAmount || netAmountNum <= 0 || netAmountNum > totalAmount) ? true : undefined}
+                className={cn('text-lg font-semibold', submitAttempted && (!netAmount || netAmountNum <= 0 || netAmountNum > totalAmount) && errorInputClass)}
+              />
+              <FormFieldError
+                message={
+                  submitAttempted && (!netAmount || netAmountNum <= 0)
+                    ? 'Dana bersih wajib diisi dan harus lebih dari 0.'
+                    : submitAttempted && netAmountNum > totalAmount
+                      ? 'Dana bersih melebihi total penjualan.'
+                      : undefined
+                }
               />
               <p className="text-xs text-muted-foreground">
                 Masukkan jumlah dana bersih yang benar-benar diterima
@@ -217,7 +237,10 @@ export function SettlementFormDialog({
                 }}
                 {...getUserTodayDateInputProps(isUser)}
                 required
+                aria-invalid={submitAttempted && !settlementDate ? true : undefined}
+                className={cn(submitAttempted && !settlementDate && errorInputClass)}
               />
+              <FormFieldError message={submitAttempted && !settlementDate ? 'Tanggal pelunasan wajib diisi.' : undefined} />
             </div>
           </div>
 
@@ -230,7 +253,7 @@ export function SettlementFormDialog({
             >
               Batal
             </Button>
-            <Button type="submit" disabled={createMutation.isPending || !isFormValid}>
+            <Button type="submit" disabled={createMutation.isPending}>
               {createMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

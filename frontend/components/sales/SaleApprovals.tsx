@@ -26,6 +26,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { formatStatus } from '@/lib/utils/format';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { FormFieldError, FormValidationSummary, errorInputClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 
 
 export function SaleApprovals() {
@@ -38,6 +40,7 @@ export function SaleApprovals() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectSubmitAttempted, setRejectSubmitAttempted] = useState(false);
   const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
   const [requestToApprove, setRequestToApprove] = useState<string | null>(null);
 
@@ -57,17 +60,20 @@ export function SaleApprovals() {
 
   const openRejectDialog = (id: string) => {
     setSelectedRequestId(id);
+    setRejectSubmitAttempted(false);
     setRejectDialogOpen(true);
   };
 
   const handleReject = () => {
-    if (selectedRequestId && rejectionReason) {
+    setRejectSubmitAttempted(true);
+    if (selectedRequestId && rejectionReason.trim()) {
       rejectRequest.mutate(
-        { id: selectedRequestId, reason: rejectionReason },
+        { id: selectedRequestId, reason: rejectionReason.trim() },
         {
           onSuccess: () => {
             setRejectDialogOpen(false);
             setRejectionReason('');
+            setRejectSubmitAttempted(false);
             setSelectedRequestId(null);
           },
         }
@@ -161,7 +167,7 @@ export function SaleApprovals() {
         </Table>
       </div>
 
-      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+      <Dialog open={rejectDialogOpen} onOpenChange={(open) => { if (!open) setRejectSubmitAttempted(false); setRejectDialogOpen(open); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Tolak Permintaan</DialogTitle>
@@ -170,6 +176,7 @@ export function SaleApprovals() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            <FormValidationSummary show={rejectSubmitAttempted && !rejectionReason.trim()} fields={["Alasan Penolakan"]} />
             <div className="grid gap-2">
               <Label htmlFor="rejectReason">Alasan Penolakan</Label>
               <Textarea
@@ -177,17 +184,20 @@ export function SaleApprovals() {
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
                 placeholder="Mengapa permintaan ini ditolak?"
+                className={cn(rejectSubmitAttempted && !rejectionReason.trim() && errorInputClass)}
+                aria-invalid={rejectSubmitAttempted && !rejectionReason.trim()}
               />
+              {rejectSubmitAttempted && !rejectionReason.trim() && <FormFieldError message="Isi alasan penolakan sebelum menolak permintaan." />}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
+            <Button variant="outline" onClick={() => { setRejectSubmitAttempted(false); setRejectDialogOpen(false); }}>
               Batal
             </Button>
             <Button
               variant="destructive"
               onClick={handleReject}
-              disabled={!rejectionReason || rejectRequest.isPending}
+              disabled={rejectRequest.isPending}
             >
               {rejectRequest.isPending ? 'Menolak...' : 'Tolak Permintaan'}
             </Button>

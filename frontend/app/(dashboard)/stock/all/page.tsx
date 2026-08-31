@@ -5,6 +5,7 @@ import { useProducts } from '@/lib/hooks/useProducts';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useCreateStockAdjustment, useCreateStockRequest } from '@/lib/hooks/useStock';
 import { cn } from '@/lib/utils';
+import { FormFieldError, FormValidationSummary, errorInputClass, errorSelectClass } from '@/components/forms/FormValidationFeedback';
 import {
   Table,
   TableBody,
@@ -78,6 +79,7 @@ export default function TotalStockPage() {
   const [adjVariant, setAdjVariant] = useState<string | null>(null);
   const [adjQuantity, setAdjQuantity] = useState<number>(1);
   const [adjNotes, setAdjNotes] = useState('');
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const { data, isLoading } = useProducts({ limit: 1000 });
 
@@ -103,11 +105,13 @@ export default function TotalStockPage() {
 
     setAdjQuantity(1);
     setAdjNotes('');
+    setSubmitAttempted(false);
     setDialogOpen(true);
   };
 
   const handleSubmit = () => {
-    if (!selectedProduct || adjQuantity <= 0) return;
+    setSubmitAttempted(true);
+    if (missingFields.length > 0) return;
 
     const payload = {
       productId: selectedProduct.id,
@@ -148,6 +152,15 @@ export default function TotalStockPage() {
     return getEffectiveStock(selectedProduct);
   };
   const currentStockShown = getSelectedStock();
+
+  const missingFields = [
+    !selectedProduct ? 'Produk' : '',
+    selectedProduct?.variantItems && selectedProduct.variantItems.length > 0 && !adjVariant ? 'Varian' : '',
+    adjQuantity <= 0 ? 'Jumlah' : '',
+    adjType === 'OUT' && adjQuantity > currentStockShown ? 'Jumlah melebihi stok' : '',
+    !isAdmin && !adjNotes.trim() ? 'Alasan Pengajuan' : '',
+  ].filter(Boolean);
+
 
   return (
     <div className="space-y-6">
@@ -315,7 +328,7 @@ export default function TotalStockPage() {
       </div>
 
       {/* Adjustment Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) setSubmitAttempted(false); setDialogOpen(open); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -334,6 +347,7 @@ export default function TotalStockPage() {
 
           {selectedProduct && (
             <div className="space-y-5 py-2">
+              <FormValidationSummary show={submitAttempted && missingFields.length > 0} fields={missingFields} />
               {/* Product info */}
               <div className="rounded-lg border bg-muted/40 p-3">
                 <div className="flex items-center gap-3">
@@ -361,7 +375,7 @@ export default function TotalStockPage() {
                 <div className="space-y-2">
                   <Label>Pilih Varian *</Label>
                   <Select value={adjVariant || ''} onValueChange={setAdjVariant}>
-                    <SelectTrigger>
+                    <SelectTrigger className={cn(submitAttempted && !adjVariant && errorSelectClass)} aria-invalid={submitAttempted && !adjVariant}>
                       <SelectValue placeholder="Pilih varian produk" />
                     </SelectTrigger>
                     <SelectContent>
@@ -372,6 +386,7 @@ export default function TotalStockPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {submitAttempted && !adjVariant && <FormFieldError message="Pilih varian produk." />}
                 </div>
               )}
 
@@ -423,7 +438,10 @@ export default function TotalStockPage() {
                    value={adjQuantity}
                    onChange={(e) => setAdjQuantity(Math.max(1, Number(e.target.value)))}
                    placeholder="0"
+                   className={cn(submitAttempted && adjQuantity <= 0 && errorInputClass)}
+                   aria-invalid={submitAttempted && adjQuantity <= 0}
                  />
+                 {submitAttempted && adjQuantity <= 0 && <FormFieldError message="Isi jumlah lebih dari 0." />}
                  {adjType === 'OUT' && adjQuantity > currentStockShown && (
                    <p className="text-xs text-destructive flex items-center gap-1">
                      <AlertTriangle className="h-3.5 w-3.5" />
@@ -451,7 +469,10 @@ export default function TotalStockPage() {
                   onChange={(e) => setAdjNotes(e.target.value)}
                   placeholder={!isAdmin ? 'Jelaskan alasan penyesuaian stok ini...' : 'Alasan/keterangan penyesuaian (opsional)'}
                   rows={3}
+                  className={cn(submitAttempted && !isAdmin && !adjNotes.trim() && errorInputClass)}
+                  aria-invalid={submitAttempted && !isAdmin && !adjNotes.trim()}
                 />
+                {submitAttempted && !isAdmin && !adjNotes.trim() && <FormFieldError message="Isi alasan pengajuan penyesuaian stok." />}
               </div>
 
               {/* Role info */}
@@ -470,14 +491,7 @@ export default function TotalStockPage() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={
-                !selectedProduct ||
-                isPending ||
-                adjQuantity <= 0 ||
-                (!isAdmin && !adjNotes.trim()) ||
-                (adjType === 'OUT' && adjQuantity > currentStockShown) ||
-                (selectedProduct?.variantItems && selectedProduct.variantItems.length > 0 && !adjVariant)
-              }
+              disabled={isPending}
               className={isAdmin ? '' : 'bg-blue-600 hover:bg-blue-700'}
             >
               {isPending ? (

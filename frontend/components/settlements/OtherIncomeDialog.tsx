@@ -25,6 +25,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
+import { FormFieldError, FormValidationSummary, errorInputClass, errorSelectClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 
 const BANK_OPTIONS = [
   { value: 'BCA', label: 'BCA' },
@@ -75,6 +77,7 @@ export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncome
   const [amount, setAmount] = useState('');
   const [keterangan, setKeterangan] = useState('');
   const [proofFile, setProofFile] = useState<File | null>(null);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const createMutation = useCreateOtherIncome();
 
@@ -93,11 +96,15 @@ export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncome
   const effectiveBank = bankOption === 'LAINNYA' ? customBank : bankOption;
   const amountNum = parseInt(amount || '0', 10);
 
-  const isFormValid =
-    transactionDate &&
-    effectiveBank.trim() !== '' &&
-    buyerName.trim() !== '' &&
-    amountNum > 0;
+  const missingFields = [
+    !transactionDate ? 'Tanggal' : '',
+    !bankOption ? 'Bank / Metode Pembayaran' : '',
+    bankOption === 'LAINNYA' && !customBank.trim() ? 'Nama Bank/Metode Lainnya' : '',
+    !buyerName.trim() ? 'Nama Pembeli' : '',
+    amountNum <= 0 ? 'Jumlah Transaksi' : '',
+  ].filter(Boolean);
+
+  const isFormValid = missingFields.length === 0;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -123,11 +130,16 @@ export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncome
     setAmount('');
     setKeterangan('');
     setProofFile(null);
+    setSubmitAttempted(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isFormValid) return;
+    setSubmitAttempted(true);
+    if (!isFormValid) {
+      toast.error(`Lengkapi dulu: ${missingFields.join(', ')}`);
+      return;
+    }
 
     const formData = new FormData();
     formData.append('transactionDate', isUser ? today : transactionDate);
@@ -158,6 +170,7 @@ export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncome
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            <FormValidationSummary show={submitAttempted && !isFormValid} fields={missingFields} />
             {/* Tanggal */}
             <div className="space-y-2">
               <Label htmlFor="transactionDate">
@@ -172,6 +185,8 @@ export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncome
                 }}
                 {...getUserTodayDateInputProps(isUser)}
                 required
+                className={cn(submitAttempted && !transactionDate && errorInputClass)}
+                aria-invalid={submitAttempted && !transactionDate}
               />
             </div>
 
@@ -181,7 +196,7 @@ export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncome
                 Bank / Metode Pembayaran <span className="text-red-500">*</span>
               </Label>
               <Select value={bankOption} onValueChange={setBankOption}>
-                <SelectTrigger>
+                <SelectTrigger className={cn(submitAttempted && !bankOption && errorSelectClass)} aria-invalid={submitAttempted && !bankOption}>
                   <SelectValue placeholder="Pilih Bank..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -192,14 +207,18 @@ export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncome
                   ))}
                 </SelectContent>
               </Select>
+              {submitAttempted && !bankOption && <FormFieldError message="Pilih bank/metode pembayaran." />}
               {bankOption === 'LAINNYA' && (
                 <Input
                   placeholder="Nama bank atau metode lainnya"
                   value={customBank}
                   onChange={(e) => setCustomBank(e.target.value)}
                   required
+                  className={cn(submitAttempted && !customBank.trim() && errorInputClass)}
+                  aria-invalid={submitAttempted && !customBank.trim()}
                 />
               )}
+              {submitAttempted && bankOption === 'LAINNYA' && !customBank.trim() && <FormFieldError message="Isi nama bank/metode lainnya." />}
             </div>
 
             {/* Nama Pembeli */}
@@ -213,7 +232,10 @@ export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncome
                 onChange={(e) => setBuyerName(e.target.value)}
                 placeholder="Nama pembeli / pengirim uang"
                 required
+                className={cn(submitAttempted && !buyerName.trim() && errorInputClass)}
+                aria-invalid={submitAttempted && !buyerName.trim()}
               />
+              {submitAttempted && !buyerName.trim() && <FormFieldError message="Isi nama pembeli/pengirim uang." />}
             </div>
 
             {/* Jumlah Transaksi */}
@@ -226,9 +248,11 @@ export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncome
                 value={amount ? formatCurrency(amount) : ''}
                 onChange={(e) => setAmount(parseAmount(e.target.value))}
                 placeholder="Rp 0"
-                className="text-lg font-semibold"
+                className={cn('text-lg font-semibold', submitAttempted && amountNum <= 0 && errorInputClass)}
+                aria-invalid={submitAttempted && amountNum <= 0}
                 required
               />
+              {submitAttempted && amountNum <= 0 && <FormFieldError message="Isi jumlah transaksi lebih dari 0." />}
             </div>
 
             {/* Keterangan / Keperluan */}
@@ -289,7 +313,7 @@ export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncome
             >
               Batal
             </Button>
-            <Button type="submit" disabled={createMutation.isPending || !isFormValid}>
+            <Button type="submit" disabled={createMutation.isPending}>
               {createMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

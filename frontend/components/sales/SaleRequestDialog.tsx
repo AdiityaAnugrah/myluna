@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { FormFieldError, FormValidationSummary, errorInputClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface SaleRequestDialogProps {
@@ -26,11 +28,13 @@ export function SaleRequestDialog({
   onOpenChange,
 }: SaleRequestDialogProps) {
   const [reason, setReason] = useState('');
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const { createRequest } = useSaleRequests();
   const [type, setType] = useState<'RETURN' | 'EXCHANGE'>('RETURN');
 
   const handleSubmit = () => {
-    if (!reason) return;
+    setSubmitAttempted(true);
+    if (!reason.trim()) return;
 
     createRequest.mutate(
       {
@@ -41,6 +45,7 @@ export function SaleRequestDialog({
       {
         onSuccess: () => {
           setReason('');
+          setSubmitAttempted(false);
           onOpenChange(false);
         },
       }
@@ -57,6 +62,7 @@ export function SaleRequestDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
+          <FormValidationSummary show={submitAttempted && !reason.trim()} fields={["Alasan"]} />
           <div className="grid gap-2">
             <Label>Tipe Permintaan</Label>
             <Select value={type} onValueChange={(val: any) => setType(val)}>
@@ -76,14 +82,17 @@ export function SaleRequestDialog({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Mengapa retur/tukar ini diajukan?"
+              className={cn(submitAttempted && !reason.trim() && errorInputClass)}
+              aria-invalid={submitAttempted && !reason.trim()}
             />
+            {submitAttempted && !reason.trim() && <FormFieldError message="Isi alasan sebelum mengirim permintaan." />}
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => { setSubmitAttempted(false); onOpenChange(false); }}>
             Batal
           </Button>
-          <Button onClick={handleSubmit} disabled={!reason || createRequest.isPending}>
+          <Button onClick={handleSubmit} disabled={createRequest.isPending}>
             {createRequest.isPending ? 'Mengirim...' : 'Kirim Permintaan'}
           </Button>
         </DialogFooter>

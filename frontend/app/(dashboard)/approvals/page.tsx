@@ -39,6 +39,8 @@ import { toast } from 'sonner';
 import { DiffViewer } from '@/components/approvals/DiffViewer';
 import { ChangeRequest } from '@/types';
 import { formatRoleLabel } from '@/lib/utils/roleLabel';
+import { FormFieldError, FormValidationSummary, errorInputClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 
 const parsePayload = (payload: any): any => {
   if (typeof payload !== 'string') return payload;
@@ -326,6 +328,7 @@ function MasterApprovals() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<ChangeRequest | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectSubmitAttempted, setRejectSubmitAttempted] = useState(false);
 
   const handleApprove = (id: string) => {
     approveRequest.mutate(id, {
@@ -340,6 +343,7 @@ function MasterApprovals() {
   const openRejectDialog = (req: ChangeRequest) => {
     setSelectedRequest(req);
     setRejectReason('');
+    setRejectSubmitAttempted(false);
     setRejectOpen(true);
   };
 
@@ -589,7 +593,7 @@ function MasterApprovals() {
       </Dialog>
 
       {/* Reject Dialog */}
-      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+      <Dialog open={rejectOpen} onOpenChange={(open) => { if (!open) setRejectSubmitAttempted(false); setRejectOpen(open); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600">
@@ -603,22 +607,25 @@ function MasterApprovals() {
               })()}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 space-y-2">
+            <FormValidationSummary show={rejectSubmitAttempted && !rejectReason.trim()} fields={["Alasan Penolakan"]} />
             <Label>Alasan Penolakan <span className="text-red-500">*</span></Label>
             <Textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               placeholder="Jelaskan alasan penolakan permintaan ini secara spesifik..."
-              className="mt-2"
+              className={cn('mt-2', rejectSubmitAttempted && !rejectReason.trim() && errorInputClass)}
+              aria-invalid={rejectSubmitAttempted && !rejectReason.trim()}
               rows={3}
             />
+            {rejectSubmitAttempted && !rejectReason.trim() && <FormFieldError message="Isi alasan penolakan." />}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectOpen(false)}>Batal</Button>
+            <Button variant="outline" onClick={() => { setRejectSubmitAttempted(false); setRejectOpen(false); }}>Batal</Button>
             <Button
               variant="destructive"
               onClick={handleReject}
-              disabled={rejectRequest.isPending || !rejectReason.trim()}
+              disabled={rejectRequest.isPending}
             >
               {rejectRequest.isPending ? 'Menolak...' : 'Tolak Permintaan'}
             </Button>
@@ -668,6 +675,7 @@ function SettlementConfirmationApprovals() {
   const rejectMutation = useRejectSettlementConfirmation();
   const [rejectRequestId, setRejectRequestId] = useState<string | null>(null);
   const [rejectNotes, setRejectNotes] = useState('');
+  const [rejectSubmitAttempted, setRejectSubmitAttempted] = useState(false);
   const [copiedInvoice, setCopiedInvoice] = useState<string | null>(null);
 
   const requests = (data as any)?.data?.requests || [];
@@ -749,13 +757,18 @@ function SettlementConfirmationApprovals() {
   };
 
   const handleReject = () => {
-    if (!rejectRequestId || !rejectNotes.trim()) return;
+    setRejectSubmitAttempted(true);
+    if (!rejectRequestId || !rejectNotes.trim()) {
+      toast.error('Lengkapi dulu: Alasan Penolakan');
+      return;
+    }
     rejectMutation.mutate(
       { id: rejectRequestId, reviewNotes: rejectNotes },
       {
         onSuccess: () => {
           setRejectRequestId(null);
           setRejectNotes('');
+          setRejectSubmitAttempted(false);
         },
       }
     );
@@ -995,6 +1008,7 @@ function SettlementConfirmationApprovals() {
                                 onClick={() => {
                                   setRejectRequestId(request.id);
                                   setRejectNotes('');
+                                  setRejectSubmitAttempted(false);
                                 }}
                                 disabled={approveMutation.isPending || rejectMutation.isPending}
                               >
@@ -1040,6 +1054,7 @@ function SettlementConfirmationApprovals() {
         if (!open) {
           setRejectRequestId(null);
           setRejectNotes('');
+          setRejectSubmitAttempted(false);
         }
       }}>
         <DialogContent>
@@ -1052,15 +1067,18 @@ function SettlementConfirmationApprovals() {
               Isi alasan agar user tahu apa yang perlu diperbaiki sebelum mengajukan ulang.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 space-y-2">
+            <FormValidationSummary show={rejectSubmitAttempted && !rejectNotes.trim()} fields={["Alasan Penolakan"]} />
             <Label>Alasan Penolakan <span className="text-red-500">*</span></Label>
             <Textarea
               value={rejectNotes}
               onChange={(e) => setRejectNotes(e.target.value)}
               placeholder="Contoh: Nominal dana bersih belum sesuai mutasi rekening."
-              className="mt-2"
+              className={cn('mt-2', rejectSubmitAttempted && !rejectNotes.trim() && errorInputClass)}
+              aria-invalid={rejectSubmitAttempted && !rejectNotes.trim()}
               rows={3}
             />
+            {rejectSubmitAttempted && !rejectNotes.trim() && <FormFieldError message="Isi alasan penolakan." />}
           </div>
           <DialogFooter>
             <Button
@@ -1068,6 +1086,7 @@ function SettlementConfirmationApprovals() {
               onClick={() => {
                 setRejectRequestId(null);
                 setRejectNotes('');
+                setRejectSubmitAttempted(false);
               }}
               disabled={rejectMutation.isPending}
             >
@@ -1076,7 +1095,7 @@ function SettlementConfirmationApprovals() {
             <Button
               variant="destructive"
               onClick={handleReject}
-              disabled={!rejectNotes.trim() || rejectMutation.isPending}
+              disabled={rejectMutation.isPending}
             >
               {rejectMutation.isPending ? 'Menolak...' : 'Tolak Pengajuan'}
             </Button>
@@ -1097,6 +1116,7 @@ function StatusApprovals() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedReq, setSelectedReq] = useState<any | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectSubmitAttempted, setRejectSubmitAttempted] = useState(false);
 
   const handleApprove = (id: string) => {
     approveRequest.mutate(id, {
@@ -1109,6 +1129,7 @@ function StatusApprovals() {
     setSelectedId(req.id);
     setSelectedReq(req);
     setRejectReason('');
+    setRejectSubmitAttempted(false);
     setRejectOpen(true);
   };
 
@@ -1257,7 +1278,7 @@ function StatusApprovals() {
       </Card>
 
       {/* Reject Dialog */}
-      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+      <Dialog open={rejectOpen} onOpenChange={(open) => { if (!open) setRejectSubmitAttempted(false); setRejectOpen(open); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600">
@@ -1274,22 +1295,25 @@ function StatusApprovals() {
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 space-y-2">
+            <FormValidationSummary show={rejectSubmitAttempted && !rejectReason.trim()} fields={["Alasan Penolakan"]} />
             <Label>Alasan Penolakan <span className="text-red-500">*</span></Label>
             <Textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               placeholder="Jelaskan mengapa permintaan ini ditolak..."
-              className="mt-2"
+              className={cn('mt-2', rejectSubmitAttempted && !rejectReason.trim() && errorInputClass)}
+              aria-invalid={rejectSubmitAttempted && !rejectReason.trim()}
               rows={3}
             />
+            {rejectSubmitAttempted && !rejectReason.trim() && <FormFieldError message="Isi alasan penolakan." />}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectOpen(false)}>Batal</Button>
+            <Button variant="outline" onClick={() => { setRejectSubmitAttempted(false); setRejectOpen(false); }}>Batal</Button>
             <Button
               variant="destructive"
               onClick={handleReject}
-              disabled={rejectRequest.isPending || !rejectReason.trim()}
+              disabled={rejectRequest.isPending}
             >
               {rejectRequest.isPending ? 'Menolak...' : 'Tolak Permintaan'}
             </Button>

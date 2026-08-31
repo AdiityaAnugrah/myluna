@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button';
 import { notify } from '@/lib/notify';
 import { Loader2, Search } from 'lucide-react';
 import { Sale } from '@/types';
+import { FormFieldError, FormValidationSummary, errorInputClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 
 export default function NewReturnPage() {
   const router = useRouter();
@@ -26,6 +28,7 @@ export default function NewReturnPage() {
   const [reason, setReason] = useState('');
   const [photos, setPhotos] = useState<File[]>([]);
   const [itemQtyMap, setItemQtyMap] = useState<Record<string, number>>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const createReturn = useCreateReturn();
   const eligibleSalesQuery = useEligibleReturnSales(debouncedQuery, {
@@ -49,19 +52,23 @@ export default function NewReturnPage() {
     [itemQtyMap, selectedSale]
   );
 
-  const canSubmit =
-    !!selectedSale &&
-    reason.trim().length >= 5 &&
-    photos.length > 0 &&
-    selectedItems.length > 0 &&
-    !createReturn.isPending;
+  const missingFields = [
+    !selectedSale ? 'Penjualan' : '',
+    selectedItems.length === 0 ? 'Item Retur' : '',
+    reason.trim().length < 5 ? 'Alasan Retur (min. 5 karakter)' : '',
+    photos.length === 0 ? 'Foto Bukti Retur' : '',
+    photos.length > 5 ? 'Foto Bukti Retur maksimal 5 foto' : '',
+  ].filter(Boolean);
+
+  const canSubmit = missingFields.length === 0 && !createReturn.isPending;
 
   const handleSubmit = () => {
-    if (!selectedSale) return;
-    if (photos.length > 5) {
-      notify.warning('Maksimal 5 foto bukti retur');
+    setSubmitAttempted(true);
+    if (missingFields.length > 0) {
+      notify.warning(`Lengkapi dulu: ${missingFields.join(', ')}`);
       return;
     }
+    if (!selectedSale) return;
 
     const formData = new FormData();
     formData.append('saleId', selectedSale.id);
@@ -105,17 +112,21 @@ export default function NewReturnPage() {
           <CardTitle>Informasi Retur</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
+          <FormValidationSummary show={submitAttempted && missingFields.length > 0} fields={missingFields} />
+
           <div className="space-y-2">
             <Label>Cari Penjualan</Label>
             <div className="relative">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                className="pl-8"
+                className={cn('pl-8', submitAttempted && !selectedSale && errorInputClass)}
+                aria-invalid={submitAttempted && !selectedSale}
                 placeholder="Cari nomor penjualan atau nama customer"
                 value={saleQuery}
                 onChange={(event) => setSaleQuery(event.target.value)}
               />
             </div>
+            {submitAttempted && !selectedSale && <FormFieldError message="Cari lalu pilih penjualan yang akan diretur." />}
             {debouncedQuery.trim().length >= 2 && (
               <div className="max-h-56 overflow-y-auto rounded-md border">
                 {eligibleSalesQuery.isLoading ? (
@@ -175,6 +186,8 @@ export default function NewReturnPage() {
                         min="0"
                         max={item.quantity}
                         value={itemQtyMap[item.id] || ''}
+                        className={cn(submitAttempted && selectedItems.length === 0 && errorInputClass)}
+                        aria-invalid={submitAttempted && selectedItems.length === 0}
                         onChange={(event) => {
                           const next = Number(event.target.value || 0);
                           setItemQtyMap((prev) => ({
@@ -189,6 +202,7 @@ export default function NewReturnPage() {
               </div>
             </div>
           )}
+          {submitAttempted && selectedSale && selectedItems.length === 0 && <FormFieldError message="Pilih minimal 1 item dan isi qty retur." />}
 
           <div className="space-y-2">
             <Label>Alasan Retur</Label>
@@ -197,7 +211,10 @@ export default function NewReturnPage() {
               placeholder="Jelaskan alasan retur dengan jelas"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
+              className={cn(submitAttempted && reason.trim().length < 5 && errorInputClass)}
+              aria-invalid={submitAttempted && reason.trim().length < 5}
             />
+            {submitAttempted && reason.trim().length < 5 && <FormFieldError message="Isi alasan retur minimal 5 karakter." />}
           </div>
 
           <div className="space-y-2">
@@ -207,7 +224,11 @@ export default function NewReturnPage() {
               multiple
               accept="image/jpeg,image/jpg,image/png,image/webp"
               onChange={(event) => setPhotos(Array.from(event.target.files || []))}
+              className={cn(submitAttempted && (photos.length === 0 || photos.length > 5) && errorInputClass)}
+              aria-invalid={submitAttempted && (photos.length === 0 || photos.length > 5)}
             />
+            {submitAttempted && photos.length === 0 && <FormFieldError message="Upload minimal 1 foto bukti retur." />}
+            {submitAttempted && photos.length > 5 && <FormFieldError message="Maksimal 5 foto bukti retur." />}
             {photos.length > 0 && (
               <div className="space-y-1">
                 {photos.map((photo) => (
@@ -220,7 +241,7 @@ export default function NewReturnPage() {
           </div>
 
           <div className="flex gap-3">
-            <Button onClick={handleSubmit} disabled={!canSubmit}>
+            <Button onClick={handleSubmit} disabled={createReturn.isPending}>
               {createReturn.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

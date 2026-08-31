@@ -19,6 +19,8 @@ import { usePlatforms } from '@/lib/hooks/usePlatforms';
 import { useShippingServices } from '@/lib/hooks/useShipping';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import { RegionAddressFields, ShippingAddressValue } from '@/components/sales/RegionAddressFields';
+import { FormFieldError, FormValidationSummary, errorInputClass, errorSelectClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 
 interface ComponentItem {
   componentName: string;
@@ -51,6 +53,7 @@ export default function NewComponentSalePage() {
   const [items, setItems] = useState<ComponentItem[]>([{ componentName: '', componentNotes: '', quantity: 1, price: 0 }]);
   const [shippingAddress, setShippingAddress] = useState<ShippingAddressValue>({ addressDetail: '', provinceId: '', regencyId: '', districtId: '', villageId: '', postalCode: '' });
   const formStartTime = useRef(Date.now());
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   useEffect(() => {
     if (platformsData?.data) {
@@ -69,7 +72,24 @@ export default function NewComponentSalePage() {
   );
 
   const totalAmount = useMemo(() => items.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.price)), 0), [items]);
-  const isFormValid = shippingService && hasCompleteShippingAddress && items.every((item) => item.componentName.trim() && item.quantity > 0 && item.price > 0);
+  const shippingAddressErrors = {
+    addressDetail: !shippingAddress.addressDetail.trim() ? 'Isi alamat lengkap/detail jalan.' : '',
+    provinceId: !shippingAddress.provinceId ? 'Pilih provinsi.' : '',
+    regencyId: !shippingAddress.regencyId ? 'Pilih kabupaten/kota.' : '',
+    districtId: !shippingAddress.districtId ? 'Pilih kecamatan.' : '',
+    villageId: !shippingAddress.villageId ? 'Pilih desa/kelurahan.' : '',
+  };
+  const itemErrors = items.map((item, index) => ({
+    componentName: !item.componentName.trim() ? `Komponen #${index + 1}: Nama Komponen` : '',
+    quantity: Number(item.quantity) <= 0 ? `Komponen #${index + 1}: Qty` : '',
+    price: Number(item.price) <= 0 ? `Komponen #${index + 1}: Harga` : '',
+  }));
+  const missingFields = [
+    !shippingService ? 'Jasa Pengiriman' : '',
+    !hasCompleteShippingAddress ? 'Alamat Pengiriman' : '',
+    ...itemErrors.flatMap((error) => Object.values(error)),
+  ].filter(Boolean);
+  const isFormValid = missingFields.length === 0;
 
   const updateItem = (index: number, updates: Partial<ComponentItem>) => {
     setItems((rows) => rows.map((row, i) => i === index ? { ...row, ...updates } : row));
@@ -80,8 +100,9 @@ export default function NewComponentSalePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitAttempted(true);
     if (!isFormValid) {
-      toast.error('Lengkapi data komponen dan pengiriman terlebih dahulu');
+      toast.error(`Lengkapi dulu: ${missingFields.slice(0, 4).join(', ')}${missingFields.length > 4 ? ', ...' : ''}`);
       return;
     }
 
@@ -126,6 +147,7 @@ export default function NewComponentSalePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <FormValidationSummary show={submitAttempted && !isFormValid} fields={missingFields} />
         <Card>
           <CardHeader><CardTitle>Informasi Penjualan</CardTitle></CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
@@ -167,10 +189,10 @@ export default function NewComponentSalePage() {
               <TableHeader><TableRow><TableHead>Nama Komponen</TableHead><TableHead>Spesifikasi/Catatan</TableHead><TableHead className="w-28 text-right">Qty</TableHead><TableHead className="w-40 text-right">Harga</TableHead><TableHead className="w-40 text-right">Subtotal</TableHead><TableHead className="w-16" /></TableRow></TableHeader>
               <TableBody>
                 {items.map((item, index) => <TableRow key={index}>
-                  <TableCell><Input value={item.componentName} onChange={(e) => updateItem(index, { componentName: e.target.value })} placeholder="Kaca lemari" /></TableCell>
+                  <TableCell><Input value={item.componentName} onChange={(e) => updateItem(index, { componentName: e.target.value })} placeholder="Kaca lemari" className={cn(submitAttempted && !item.componentName.trim() && errorInputClass)} aria-invalid={submitAttempted && !item.componentName.trim()} />{submitAttempted && !item.componentName.trim() && <FormFieldError message="Isi nama komponen." />}</TableCell>
                   <TableCell><Input value={item.componentNotes} onChange={(e) => updateItem(index, { componentNotes: e.target.value })} placeholder="Ukuran/warna/catatan" /></TableCell>
-                  <TableCell><Input type="number" min={1} value={item.quantity} onChange={(e) => updateItem(index, { quantity: Number(e.target.value) })} className="text-right" /></TableCell>
-                  <TableCell><Input type="number" min={0} value={item.price} onChange={(e) => updateItem(index, { price: Number(e.target.value) })} className="text-right" /></TableCell>
+                  <TableCell><Input type="number" min={1} value={item.quantity} onChange={(e) => updateItem(index, { quantity: Number(e.target.value) })} className={cn('text-right', submitAttempted && Number(item.quantity) <= 0 && errorInputClass)} aria-invalid={submitAttempted && Number(item.quantity) <= 0} />{submitAttempted && Number(item.quantity) <= 0 && <FormFieldError message="Qty harus lebih dari 0." />}</TableCell>
+                  <TableCell><Input type="number" min={0} value={item.price} onChange={(e) => updateItem(index, { price: Number(e.target.value) })} className={cn('text-right', submitAttempted && Number(item.price) <= 0 && errorInputClass)} aria-invalid={submitAttempted && Number(item.price) <= 0} />{submitAttempted && Number(item.price) <= 0 && <FormFieldError message="Harga harus lebih dari 0." />}</TableCell>
                   <TableCell className="text-right font-semibold">{formatCurrency(item.quantity * item.price)}</TableCell>
                   <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => removeItem(index)} disabled={items.length === 1}><Trash2 className="h-4 w-4" /></Button></TableCell>
                 </TableRow>)}
@@ -188,16 +210,17 @@ export default function NewComponentSalePage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Jasa Pengiriman</Label>
-              <Select value={shippingService} onValueChange={setShippingService}><SelectTrigger><SelectValue placeholder="Pilih jasa pengiriman" /></SelectTrigger><SelectContent>{shippingServices?.data?.filter((s: any) => s.isActive).map((s: any) => <SelectItem key={s.id || s.name} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select>
+              <Select value={shippingService} onValueChange={setShippingService}><SelectTrigger className={cn(submitAttempted && !shippingService && errorSelectClass)} aria-invalid={submitAttempted && !shippingService}><SelectValue placeholder="Pilih jasa pengiriman" /></SelectTrigger><SelectContent>{shippingServices?.data?.filter((s: any) => s.isActive).map((s: any) => <SelectItem key={s.id || s.name} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select>
+              {submitAttempted && !shippingService && <FormFieldError message="Pilih jasa pengiriman." />}
             </div>
-            <RegionAddressFields value={shippingAddress} onChange={setShippingAddress} />
+            <RegionAddressFields value={shippingAddress} onChange={setShippingAddress} errors={shippingAddressErrors} showErrors={submitAttempted} />
             <div className="space-y-2"><Label>Catatan Internal</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Catatan tambahan untuk PUSAT/finance" /></div>
           </CardContent>
         </Card>
 
         <div className="flex justify-end gap-3">
           <Link href="/sales"><Button type="button" variant="outline">Batal</Button></Link>
-          <Button type="submit" disabled={createSale.isPending || !isFormValid}>{createSale.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Buat Penjualan Komponen</Button>
+          <Button type="submit" disabled={createSale.isPending}>{createSale.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Buat Penjualan Komponen</Button>
         </div>
       </form>
     </div>

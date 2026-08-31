@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label';
 import { useQueryClient } from '@tanstack/react-query';
 import { History, Pencil, Trash2 } from 'lucide-react';
 import apiClient from '@/lib/api/client';
+import { FormFieldError, FormValidationSummary, errorInputClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 
 interface Props {
   isOpen: boolean;
@@ -37,6 +39,7 @@ export function HistoricalSettlementModal({ isOpen, onClose }: Props) {
   const [buyerName, setBuyerName] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const [records, setRecords] = useState<HistoricalRecord[]>([]);
   const [loadingList, setLoadingList] = useState(false);
@@ -59,6 +62,7 @@ export function HistoricalSettlementModal({ isOpen, onClose }: Props) {
   }, [isOpen, tab]);
 
   const resetForm = () => {
+    setSubmitAttempted(false);
     setEditId(null);
     setAmount('');
     setSettlementDate('');
@@ -92,9 +96,15 @@ export function HistoricalSettlementModal({ isOpen, onClose }: Props) {
     }
   };
 
+  const missingFields = [
+    (!amount || Number(amount) <= 0) ? 'Jumlah Cair' : '',
+    !settlementDate ? 'Tanggal Cair' : '',
+  ].filter(Boolean);
+
   const handleSubmit = async () => {
-    if (!amount || !settlementDate) {
-      toast.error('Jumlah dan tanggal cair wajib diisi');
+    setSubmitAttempted(true);
+    if (missingFields.length > 0) {
+      toast.error(`Lengkapi dulu: ${missingFields.join(', ')}`);
       return;
     }
     setLoading(true);
@@ -170,6 +180,7 @@ export function HistoricalSettlementModal({ isOpen, onClose }: Props) {
             </div>
 
             <div className="space-y-4">
+              <FormValidationSummary show={submitAttempted && missingFields.length > 0} fields={missingFields} />
               <div className="space-y-1.5">
                 <Label>Jumlah Cair (Rp) <span className="text-red-500">*</span></Label>
                 <Input
@@ -177,7 +188,10 @@ export function HistoricalSettlementModal({ isOpen, onClose }: Props) {
                   placeholder="5000000"
                   value={amount}
                   onChange={e => setAmount(e.target.value)}
+                  className={cn(submitAttempted && (!amount || Number(amount) <= 0) && errorInputClass)}
+                  aria-invalid={submitAttempted && (!amount || Number(amount) <= 0)}
                 />
+                {submitAttempted && (!amount || Number(amount) <= 0) && <FormFieldError message="Isi jumlah cair lebih dari 0." />}
               </div>
 
               <div className="space-y-1.5">
@@ -186,7 +200,10 @@ export function HistoricalSettlementModal({ isOpen, onClose }: Props) {
                   type="date"
                   value={settlementDate}
                   onChange={e => setSettlementDate(e.target.value)}
+                  className={cn(submitAttempted && !settlementDate && errorInputClass)}
+                  aria-invalid={submitAttempted && !settlementDate}
                 />
+                {submitAttempted && !settlementDate && <FormFieldError message="Isi tanggal cair." />}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

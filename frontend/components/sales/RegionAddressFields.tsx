@@ -25,6 +25,8 @@ interface RegionAddressFieldsProps {
   value: ShippingAddressValue;
   onChange: (value: ShippingAddressValue) => void;
   disabled?: boolean;
+  errors?: Partial<Record<keyof ShippingAddressValue, string>>;
+  showErrors?: boolean;
 }
 
 function LoadingOption() {
@@ -81,6 +83,8 @@ interface SearchableRegionSelectProps<TOption extends RegionOption | VillageOpti
   isLoading?: boolean;
   renderLabel: (option: TOption) => string;
   onSelect: (value: string) => void;
+  errorMessage?: string;
+  showError?: boolean;
 }
 
 function SearchableRegionSelect<TOption extends RegionOption | VillageOption>({
@@ -94,6 +98,8 @@ function SearchableRegionSelect<TOption extends RegionOption | VillageOption>({
   isLoading,
   renderLabel,
   onSelect,
+  errorMessage,
+  showError,
 }: SearchableRegionSelectProps<TOption>) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -113,7 +119,11 @@ function SearchableRegionSelect<TOption extends RegionOption | VillageOption>({
         variant="outline"
         role="combobox"
         aria-expanded={open}
-        className="w-full justify-between font-normal"
+        aria-invalid={showError ? true : undefined}
+        className={cn(
+          'w-full justify-between font-normal',
+          showError && 'border-destructive text-destructive focus-visible:ring-destructive'
+        )}
         disabled={disabled}
         onClick={() => setOpen(true)}
       >
@@ -122,6 +132,9 @@ function SearchableRegionSelect<TOption extends RegionOption | VillageOption>({
         </span>
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </Button>
+      {showError && errorMessage && (
+        <p className="text-xs font-medium text-destructive" role="alert">{errorMessage}</p>
+      )}
 
       <Dialog
         open={open}
@@ -193,7 +206,7 @@ function SearchableRegionSelect<TOption extends RegionOption | VillageOption>({
   );
 }
 
-export function RegionAddressFields({ value, onChange, disabled }: RegionAddressFieldsProps) {
+export function RegionAddressFields({ value, onChange, disabled, errors, showErrors }: RegionAddressFieldsProps) {
   const provincesQuery = useProvinces();
   const regenciesQuery = useRegencies(value.provinceId);
   const districtsQuery = useDistricts(value.regencyId);
@@ -254,6 +267,8 @@ export function RegionAddressFields({ value, onChange, disabled }: RegionAddress
               villageId: '',
               postalCode: '',
             })}
+            showError={showErrors && !!errors?.provinceId}
+            errorMessage={errors?.provinceId}
           />
         </div>
 
@@ -275,6 +290,8 @@ export function RegionAddressFields({ value, onChange, disabled }: RegionAddress
               villageId: '',
               postalCode: '',
             })}
+            showError={showErrors && !!errors?.regencyId}
+            errorMessage={errors?.regencyId}
           />
         </div>
 
@@ -295,6 +312,8 @@ export function RegionAddressFields({ value, onChange, disabled }: RegionAddress
               villageId: '',
               postalCode: '',
             })}
+            showError={showErrors && !!errors?.districtId}
+            errorMessage={errors?.districtId}
           />
         </div>
 
@@ -319,6 +338,8 @@ export function RegionAddressFields({ value, onChange, disabled }: RegionAddress
                 postalCode: village?.postalCode || '',
               });
             }}
+            showError={showErrors && !!errors?.villageId}
+            errorMessage={errors?.villageId}
           />
         </div>
       </div>
@@ -337,7 +358,12 @@ export function RegionAddressFields({ value, onChange, disabled }: RegionAddress
             rows={3}
             maxLength={160}
             placeholder="Nama jalan, nomor rumah, RT/RW, patokan"
+            aria-invalid={showErrors && !!errors?.addressDetail ? true : undefined}
+            className={cn(showErrors && errors?.addressDetail && 'border-destructive focus-visible:ring-destructive')}
           />
+          {showErrors && errors?.addressDetail && (
+            <p className="text-xs font-medium text-destructive" role="alert">{errors.addressDetail}</p>
+          )}
           <p className="text-xs text-muted-foreground">
             Isi hanya jalan/nomor/patokan. Kelurahan, kecamatan, kota, provinsi, dan kode pos diambil otomatis dari pilihan wilayah.
           </p>

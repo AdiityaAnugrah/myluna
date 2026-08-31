@@ -44,6 +44,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
+import { FormFieldError, FormValidationSummary, errorInputClass, errorSelectClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const EXPENSE_CATEGORIES = [
   { value: 'SHIPPING', label: 'Ongkir', color: 'bg-blue-100 text-blue-800' },
@@ -67,6 +70,7 @@ export default function ExpensesPage() {
     expenseDate: '',
     notes: '',
   });
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // Filters
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -121,16 +125,31 @@ export default function ExpensesPage() {
         notes: '',
       });
     }
+    setSubmitAttempted(false);
     setIsDialogOpen(true);
   };
 
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     setSelectedExpense(null);
+    setSubmitAttempted(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitAttempted(true);
+
+    const formErrors = [
+      ...(!formData.category ? ['Kategori'] : []),
+      ...(!formData.description.trim() ? ['Deskripsi'] : []),
+      ...(!formData.amount || !Number.isFinite(Number(formData.amount)) || Number(formData.amount) <= 0 ? ['Jumlah'] : []),
+      ...(!(isUser ? getTodayDateInputValue() : formData.expenseDate) ? ['Tanggal'] : []),
+    ];
+
+    if (formErrors.length > 0) {
+      toast.error(`Lengkapi dulu: ${formErrors.join(', ')}`);
+      return;
+    }
 
     const submitData = {
       ...formData,
@@ -354,6 +373,15 @@ export default function ExpensesPage() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <FormValidationSummary
+              show={submitAttempted}
+              fields={[
+                ...(!formData.category ? ['Kategori'] : []),
+                ...(!formData.description.trim() ? ['Deskripsi'] : []),
+                ...(!formData.amount || !Number.isFinite(Number(formData.amount)) || Number(formData.amount) <= 0 ? ['Jumlah'] : []),
+                ...(!(isUser ? getTodayDateInputValue() : formData.expenseDate) ? ['Tanggal'] : []),
+              ]}
+            />
             <div>
               <Label htmlFor="category">Kategori *</Label>
               <Select
@@ -361,7 +389,7 @@ export default function ExpensesPage() {
                 onValueChange={(value) => setFormData({ ...formData, category: value })}
                 required
               >
-                <SelectTrigger id="category">
+                <SelectTrigger id="category" className={cn(submitAttempted && !formData.category && errorSelectClass)}>
                   <SelectValue placeholder="Pilih kategori" />
                 </SelectTrigger>
                 <SelectContent>
@@ -372,6 +400,7 @@ export default function ExpensesPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <FormFieldError message={submitAttempted && !formData.category ? 'Kategori wajib dipilih.' : undefined} />
             </div>
 
             <div>
@@ -382,7 +411,10 @@ export default function ExpensesPage() {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Contoh: Kirim barang ke Jakarta"
                 required
+                aria-invalid={submitAttempted && !formData.description.trim() ? true : undefined}
+                className={cn(submitAttempted && !formData.description.trim() && errorInputClass)}
               />
+              <FormFieldError message={submitAttempted && !formData.description.trim() ? 'Deskripsi wajib diisi.' : undefined} />
             </div>
 
             <div>
@@ -395,7 +427,10 @@ export default function ExpensesPage() {
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                 placeholder="0"
                 required
+                aria-invalid={submitAttempted && (!formData.amount || !Number.isFinite(Number(formData.amount)) || Number(formData.amount) <= 0) ? true : undefined}
+                className={cn(submitAttempted && (!formData.amount || !Number.isFinite(Number(formData.amount)) || Number(formData.amount) <= 0) && errorInputClass)}
               />
+              <FormFieldError message={submitAttempted && (!formData.amount || !Number.isFinite(Number(formData.amount)) || Number(formData.amount) <= 0) ? 'Jumlah harus lebih dari 0.' : undefined} />
             </div>
 
             <div>
@@ -409,7 +444,10 @@ export default function ExpensesPage() {
                 }}
                 {...getUserTodayDateInputProps(isUser)}
                 required
+                aria-invalid={submitAttempted && !(isUser ? getTodayDateInputValue() : formData.expenseDate) ? true : undefined}
+                className={cn(submitAttempted && !(isUser ? getTodayDateInputValue() : formData.expenseDate) && errorInputClass)}
               />
+              <FormFieldError message={submitAttempted && !(isUser ? getTodayDateInputValue() : formData.expenseDate) ? 'Tanggal wajib diisi.' : undefined} />
             </div>
 
             <div>

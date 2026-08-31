@@ -27,6 +27,8 @@ import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { FormFieldError, FormValidationSummary, errorInputClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 
 
 export default function ShippingPage() {
@@ -42,6 +44,7 @@ export default function ShippingPage() {
   const [editingService, setEditingService] = useState<any>(null);
   const [name, setName] = useState('');
   const [requiresDocument, setRequiresDocument] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const handleOpen = (service?: any) => {
     if (service) {
@@ -61,10 +64,12 @@ export default function ShippingPage() {
     setEditingService(null);
     setName('');
     setRequiresDocument(false);
+    setSubmitAttempted(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitAttempted(true);
     
     if (!name.trim()) {
       toast.error('Nama jasa pengiriman tidak boleh kosong');
@@ -133,6 +138,7 @@ export default function ShippingPage() {
               <DialogTitle>{editingService ? 'Edit Jasa Pengiriman' : 'Tambah Jasa Pengiriman'}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <FormValidationSummary show={submitAttempted && !name.trim()} fields={['Nama Jasa Pengiriman']} />
               <div className="space-y-2">
                 <Label htmlFor="name">Nama Jasa Pengiriman</Label>
                 <Input
@@ -141,7 +147,10 @@ export default function ShippingPage() {
                   onChange={(e) => setName(e.target.value.toUpperCase())}
                   placeholder="Contoh: CENTRAL CARGO"
                   disabled={isPending}
+                  aria-invalid={submitAttempted && !name.trim() ? true : undefined}
+                  className={cn(submitAttempted && !name.trim() && errorInputClass)}
                 />
+                <FormFieldError message={submitAttempted && !name.trim() ? 'Nama jasa pengiriman wajib diisi.' : undefined} />
                 <p className="text-xs text-muted-foreground">
                   Gunakan huruf kapital (otomatis).
                 </p>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useCreatePurchase } from '@/lib/hooks/usePurchases';
@@ -39,6 +39,8 @@ import { ProductSelector } from '@/components/sales/ProductSelector';
 import { BulkProductSelector } from '@/components/sales/BulkProductSelector';
 import { formatCurrency, getVariants } from '@/lib/utils/sales';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
+import { FormFieldError, FormValidationSummary, errorInputClass, errorSelectClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 
 interface PurchaseItem {
   productId: string;
@@ -63,6 +65,7 @@ export default function NewPurchasePage() {
   const [supplierId, setSupplierId] = useState('');
   const [purchaseDate, setPurchaseDate] = useState(() => getTodayDateInputValue());
   const [items, setItems] = useState<PurchaseItem[]>([]);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   if (user?.role === 'TCP') {
     return (
@@ -88,19 +91,25 @@ export default function NewPurchasePage() {
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [nextPath, setNextPath] = useState<string | null>(null);
 
-  const isFormValid = items.length > 0 && items.every((item) => {
-    if (!item.productId) return false;
-    if (item.quantity <= 0) return false;
-    if (item.price === undefined || item.price < 0) return false;
-    
-    // Check if variant is required but missing
+  const itemErrors = useMemo(() => items.map((item) => {
+    const errors: Partial<Record<'productId' | 'variantName' | 'quantity' | 'price', string>> = {};
     const product = products.find(p => p.id === item.productId);
     const variants = getVariants(product?.variants);
-    if (variants.length > 0 && !item.variantName) {
-      return false;
-    }
-    return true;
-  });
+    if (!item.productId) errors.productId = 'Pilih produk.';
+    if (variants.length > 0 && !item.variantName) errors.variantName = 'Pilih varian.';
+    if (item.quantity <= 0) errors.quantity = 'Jumlah minimal 1.';
+    if (item.price === undefined || item.price < 0) errors.price = 'Harga pembelian belum valid.';
+    return errors;
+  }), [items, products]);
+
+  const missingFields = useMemo(() => [
+    ...(!supplierId ? ['Pemasok'] : []),
+    ...(!(isUser ? getTodayDateInputValue() : purchaseDate) ? ['Tanggal Pembelian'] : []),
+    ...(items.length === 0 ? ['Barang'] : []),
+    ...itemErrors.flatMap((errors, index) => Object.keys(errors).length > 0 ? [`Barang #${index + 1}`] : []),
+  ], [supplierId, isUser, purchaseDate, items.length, itemErrors]);
+
+  const isFormValid = missingFields.length === 0;
 
   const isDirty = supplierId !== '' || items.length > 0;
   useConfirmPageLeave(isDirty, () => {
@@ -192,22 +201,10 @@ export default function NewPurchasePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitAttempted(true);
 
-    if (!supplierId) {
-      toast.error('Mohon pilih pemasok');
-      return;
-    }
-
-
-    if (items.length === 0) {
-      toast.error('Mohon tambahkan setidaknya satu barang');
-      return;
-    }
-
-
-    const invalidItems = items.filter((item) => !item.productId || item.quantity <= 0);
-    if (invalidItems.length > 0) {
-      toast.error('Mohon isi semua data barang dengan benar');
+    if (!isFormValid) {
+      toast.error(`Lengkapi dulu: ${missingFields.slice(0, 3).join(', ')}${missingFields.length > 3 ? ', dan lainnya' : ''}`);
       return;
     }
 
@@ -254,6 +251,7 @@ export default function NewPurchasePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <FormValidationSummary show={submitAttempted && !isFormValid} fields={missingFields} />
         <Card>
           <CardHeader>
             <CardTitle>Informasi Pembelian</CardTitle>
@@ -263,7 +261,7 @@ export default function NewPurchasePage() {
               <div className="space-y-2">
                 <Label htmlFor="supplier">Pemasok *</Label>
                 <Select value={supplierId} onValueChange={setSupplierId} disabled={isPending}>
-                  <SelectTrigger>
+                  <SelectTrigger className={cn(submitAttempted && !supplierId && errorSelectClass)}>
                     <SelectValue placeholder="Pilih pemasok" />
                   </SelectTrigger>
                   <SelectContent>
@@ -274,6 +272,7 @@ export default function NewPurchasePage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <FormFieldError message={submitAttempted && !supplierId ? 'Pemasok wajib dipilih.' : undefined} />
               </div>
 
               <div className="space-y-2">
@@ -287,7 +286,10 @@ export default function NewPurchasePage() {
                   }}
                   disabled={isPending}
                   {...getUserTodayDateInputProps(isUser)}
+                  aria-invalid={submitAttempted && !(isUser ? getTodayDateInputValue() : purchaseDate) ? true : undefined}
+                  className={cn(submitAttempted && !(isUser ? getTodayDateInputValue() : purchaseDate) && errorInputClass)}
                 />
+                <FormFieldError message={submitAttempted && !(isUser ? getTodayDateInputValue() : purchaseDate) ? 'Tanggal pembelian wajib diisi.' : undefined} />
               </div>
             </div>
 
@@ -296,7 +298,12 @@ export default function NewPurchasePage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Barang</CardTitle>
+            <div>
+              <CardTitle>Barang</CardTitle>
+              {submitAttempted && items.length === 0 && (
+                <FormFieldError message="Tambahkan minimal satu barang." />
+              )}
+            </div>
             <BulkProductSelector 
                 onSelect={handleBulkSelect} 
                 disabled={isPending}
@@ -327,15 +334,20 @@ export default function NewPurchasePage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  items.map((item, index) => (
-                    <TableRow key={index}>
+                  items.map((item, index) => {
+                    const rowErrors = itemErrors[index] || {};
+                    return (
+                    <TableRow key={index} className={cn(submitAttempted && Object.keys(rowErrors).length > 0 && 'bg-destructive/5')}>
                       <TableCell>
-                        <ProductSelector
-                          selectedProductId={item.productId}
-                          onSelect={(value) => handleProductSelect(index, value)}
-                          disabled={isPending}
-                          allowOutOfStock={true}
-                        />
+                        <div className={cn(submitAttempted && rowErrors.productId && 'rounded-md border border-destructive')}>
+                          <ProductSelector
+                            selectedProductId={item.productId}
+                            onSelect={(value) => handleProductSelect(index, value)}
+                            disabled={isPending}
+                            allowOutOfStock={true}
+                          />
+                        </div>
+                        {submitAttempted && <FormFieldError message={rowErrors.productId} />}
                       </TableCell>
                       <TableCell>
                           {(() => {
@@ -354,7 +366,7 @@ export default function NewPurchasePage() {
                                     onValueChange={(val) => updateItem(index, 'variantName', val)}
                                     disabled={isPending}
                                   >
-                                    <SelectTrigger className="h-9">
+                                    <SelectTrigger className={cn('h-9', submitAttempted && rowErrors.variantName && errorSelectClass)}>
                                       <SelectValue placeholder="Pilih Varian" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -390,6 +402,7 @@ export default function NewPurchasePage() {
                                   </Select>
                               );
                           })()}
+                          {submitAttempted && <FormFieldError message={rowErrors.variantName} />}
                       </TableCell>
                       <TableCell>
                         <Input
@@ -398,7 +411,10 @@ export default function NewPurchasePage() {
                           value={item.quantity}
                           onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 0)}
                           disabled={isPending}
+                          aria-invalid={submitAttempted && !!rowErrors.quantity ? true : undefined}
+                          className={cn(submitAttempted && rowErrors.quantity && errorInputClass)}
                         />
+                        {submitAttempted && <FormFieldError message={rowErrors.quantity} />}
                       </TableCell>
                       <TableCell>
                         <Button
@@ -412,7 +428,8 @@ export default function NewPurchasePage() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))
+                  );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -423,7 +440,7 @@ export default function NewPurchasePage() {
         </Card>
 
         <div className="flex gap-4">
-          <Button type="submit" disabled={isPending || !isFormValid}>
+          <Button type="submit" disabled={isPending}>
             {isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

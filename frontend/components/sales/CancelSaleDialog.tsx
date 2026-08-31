@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
+import { FormFieldError, FormValidationSummary, errorInputClass } from '@/components/forms/FormValidationFeedback';
+import { cn } from '@/lib/utils';
 
 interface CancelSaleDialogProps {
   open: boolean;
@@ -21,10 +23,12 @@ interface CancelSaleDialogProps {
 
 export function CancelSaleDialog({ open, onOpenChange, saleId }: CancelSaleDialogProps) {
   const [reason, setReason] = useState('');
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const cancelMutation = useRequestCancelSale();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitAttempted(true);
     if (saleId && reason.trim()) {
       cancelMutation.mutate(
         { id: saleId, reason: reason.trim() },
@@ -32,6 +36,7 @@ export function CancelSaleDialog({ open, onOpenChange, saleId }: CancelSaleDialo
           onSuccess: () => {
              onOpenChange(false);
              setReason('');
+             setSubmitAttempted(false);
           }
         }
       );
@@ -41,6 +46,7 @@ export function CancelSaleDialog({ open, onOpenChange, saleId }: CancelSaleDialo
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       setReason(''); // Reset on close
+      setSubmitAttempted(false);
     }
     onOpenChange(newOpen);
   };
@@ -57,6 +63,7 @@ export function CancelSaleDialog({ open, onOpenChange, saleId }: CancelSaleDialo
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
+            <FormValidationSummary show={submitAttempted && !reason.trim()} fields={["Alasan Pembatalan"]} />
             <div className="grid gap-2">
               <Label htmlFor="reason" className="font-semibold">Alasan Pembatalan *</Label>
               <Textarea
@@ -65,9 +72,11 @@ export function CancelSaleDialog({ open, onOpenChange, saleId }: CancelSaleDialo
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Masukkan alasan pembatalan..."
                 required
-                className="min-h-[100px]"
+                className={cn('min-h-[100px]', submitAttempted && !reason.trim() && errorInputClass)}
+                aria-invalid={submitAttempted && !reason.trim()}
                 disabled={cancelMutation.isPending}
               />
+              {submitAttempted && !reason.trim() && <FormFieldError message="Isi alasan pembatalan sebelum mengajukan." />}
             </div>
           </div>
 
@@ -83,7 +92,7 @@ export function CancelSaleDialog({ open, onOpenChange, saleId }: CancelSaleDialo
             <Button 
               type="submit" 
               variant="destructive"
-              disabled={cancelMutation.isPending || !reason.trim()}
+              disabled={cancelMutation.isPending}
             >
               {cancelMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Ajukan Batal
