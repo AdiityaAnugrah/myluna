@@ -242,12 +242,11 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
       : 'Pantau biaya platform, dana bersih masuk, dan sisa piutang pada periode yang dipilih.';
   const Icon = mode === 'sales' ? BookOpenCheck : ReceiptText;
 
-  const totalDebit = rows.reduce((sum, row) => sum + Number(row.debit || 0), 0);
-  const totalCredit = rows.reduce((sum, row) => sum + Number(row.credit || 0), 0);
-  const totalSalesBasis = transactions
-    .filter(isSaleTransaction)
-    .reduce((sum, txn) => sum + Number(txn.debit || 0), 0);
-  const finalBalance = rows.at(-1)?.balance ?? 0;
+  const summary = (data as any)?.data?.summary || {};
+  const totalSales = Number(summary.omsetKeseluruhan || 0);
+  const totalSettlementInvoice = Number(summary.totalGrossSettled || 0);
+  const totalPlatformFee = Number(summary.totalSelisih || 0);
+  const finalReceivable = Number(summary.saldoAkhirAR || 0);
 
   if (!isAllowed) {
     return (
@@ -340,7 +339,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
             <TrendingUp className="h-9 w-9 rounded-xl bg-green-100 p-2 text-green-700 dark:bg-green-950/40 dark:text-green-300" />
             <div>
               <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Penjualan' : 'Total Penjualan'}</p>
-              <p className="text-lg font-bold tabular-nums">{formatCurrency(mode === 'sales' ? totalDebit : totalSalesBasis)}</p>
+              <p className="text-lg font-bold tabular-nums">{formatCurrency(totalSales)}</p>
             </div>
           </CardContent>
         </Card>
@@ -349,7 +348,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
             <TrendingDown className="h-9 w-9 rounded-xl bg-orange-100 p-2 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300" />
             <div>
               <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Pelunasan Invoice' : 'Biaya Platform'}</p>
-              <p className="text-lg font-bold tabular-nums">{formatCurrency(totalCredit)}</p>
+              <p className="text-lg font-bold tabular-nums">{formatCurrency(mode === 'sales' ? totalSettlementInvoice : totalPlatformFee)}</p>
             </div>
           </CardContent>
         </Card>
@@ -358,7 +357,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
             <Wallet className="h-9 w-9 rounded-xl bg-purple-100 p-2 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300" />
             <div>
               <p className="text-xs text-muted-foreground">Sisa Piutang</p>
-              <p className="text-lg font-bold tabular-nums">{formatCurrency(finalBalance)}</p>
+              <p className="text-lg font-bold tabular-nums">{formatCurrency(finalReceivable)}</p>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
                 {mode === 'sales' ? 'Dari Buku Penjualan' : 'Dari Buku Biaya'}
               </p>
