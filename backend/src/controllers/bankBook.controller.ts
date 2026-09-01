@@ -20,11 +20,6 @@ function normalize(value: unknown) {
   return String(value ?? '').toLowerCase();
 }
 
-function amountText(value: unknown) {
-  const numeric = Number(value || 0);
-  return [String(value ?? ''), String(numeric), numeric.toLocaleString('id-ID')].join(' ').toLowerCase();
-}
-
 function toDateInput(value: unknown) {
   if (!value) return '';
   const date = new Date(value as string | Date);
@@ -124,36 +119,55 @@ export const bankBookController = {
       const start = String(startDate || '').trim();
       const end = String(endDate || '').trim();
 
-      const includeSale = {
+      const likeKeyword = `%${keyword}%`;
+      const includeSale: any = {
         model: Sale,
         as: 'sale',
         required: true,
+        ...(requestedPlatform !== 'ALL' ? { where: { platform: requestedPlatform } } : {}),
         include: [{ model: User, as: 'creator', attributes: ['id', 'fullName', 'email'] }],
       };
 
       const sources: CandidateSource[] = requestedSource === 'REQUEST'
-        ? []
+        ? ['REQUEST']
         : ['SETTLEMENT'];
 
-      const candidates: any[] = [];
+      let count = 0;
+      let candidates: any[] = [];
 
       if (sources.includes('SETTLEMENT')) {
-        const reconciledItems = await BankBookEntryItem.findAll({
-          attributes: ['settlementId'],
-        });
-        const reconciledSettlementIds = reconciledItems.map((item: any) => item.settlementId).filter(Boolean);
         const settlementWhere: any = {};
         if (start && end) settlementWhere.settlementDate = { [Op.between]: [start, end] };
         else if (start) settlementWhere.settlementDate = { [Op.gte]: start };
         else if (end) settlementWhere.settlementDate = { [Op.lte]: end };
-        if (reconciledSettlementIds.length > 0) settlementWhere.id = { [Op.notIn]: reconciledSettlementIds };
+        settlementWhere['$bankBookItem.id$'] = { [Op.is]: null };
+        if (keyword) {
+          settlementWhere[Op.or] = [
+            { invoiceNumber: { [Op.like]: likeKeyword } },
+            { netAmount: { [Op.like]: likeKeyword } },
+            { notes: { [Op.like]: likeKeyword } },
+            { '$sale.saleNumber$': { [Op.like]: likeKeyword } },
+            { '$sale.customerName$': { [Op.like]: likeKeyword } },
+            { '$sale.customerPhone$': { [Op.like]: likeKeyword } },
+            { '$sale.totalAmount$': { [Op.like]: likeKeyword } },
+          ];
+        }
 
-        const settlements = await Settlement.findAll({
+        const result = await Settlement.findAndCountAll({
           where: settlementWhere,
-          include: [includeSale, { model: User, as: 'creator', attributes: ['id', 'fullName', 'email'] }],
+          include: [
+            includeSale,
+            { model: User, as: 'creator', attributes: ['id', 'fullName', 'email'] },
+            { model: BankBookEntryItem, as: 'bankBookItem', attributes: [], required: false },
+          ],
+          distinct: true,
+          subQuery: false,
+          limit: perPage,
+          offset: (currentPage - 1) * perPage,
           order: [['settlementDate', 'ASC'], ['createdAt', 'ASC']],
         });
-        candidates.push(...settlements.map((row) => buildCandidate(row, 'SETTLEMENT')));
+        count = result.count;
+        candidates = result.rows.map((row) => buildCandidate(row, 'SETTLEMENT'));
       }
 
       if (sources.includes('REQUEST')) {
@@ -161,44 +175,31 @@ export const bankBookController = {
         if (start && end) requestWhere.settlementDate = { [Op.between]: [start, end] };
         else if (start) requestWhere.settlementDate = { [Op.gte]: start };
         else if (end) requestWhere.settlementDate = { [Op.lte]: end };
+        if (keyword) {
+          requestWhere[Op.or] = [
+            { invoiceNumber: { [Op.like]: likeKeyword } },
+            { netAmount: { [Op.like]: likeKeyword } },
+            { notes: { [Op.like]: likeKeyword } },
+            { '$sale.saleNumber$': { [Op.like]: likeKeyword } },
+            { '$sale.customerName$': { [Op.like]: likeKeyword } },
+            { '$sale.customerPhone$': { [Op.like]: likeKeyword } },
+            { '$sale.totalAmount$': { [Op.like]: likeKeyword } },
+          ];
+        }
 
-        const requests = await SettlementRequest.findAll({
+        const result = await SettlementRequest.findAndCountAll({
           where: requestWhere,
           include: [includeSale, { model: User, as: 'requester', attributes: ['id', 'fullName', 'email'] }],
+          distinct: true,
+          subQuery: false,
+          limit: perPage,
+          offset: (currentPage - 1) * perPage,
           order: [['settlementDate', 'ASC'], ['createdAt', 'ASC']],
         });
-        candidates.push(...requests.map((row) => buildCandidate(row, 'REQUEST')));
+        count = result.count;
+        candidates = result.rows.map((row) => buildCandidate(row, 'REQUEST'));
       }
 
-      const filtered = candidates
-        .filter((candidate) => requestedPlatform === 'ALL' || String(candidate.platform).toUpperCase() === requestedPlatform)
-        .filter((candidate) => !start && !end ? true : matchesDateRange(candidate.settlementDate, start || undefined, end || undefined))
-        .filter((candidate) => {
-          if (!keyword) return true;
-          const searchable = [
-            candidate.invoiceNumber,
-            candidate.platform,
-            candidate.platformLabel,
-            candidate.customerName,
-            candidate.customerPhone,
-            candidate.responsibleName,
-            candidate.responsibleEmail,
-            candidate.settlementDate,
-            amountText(candidate.grossAmount),
-            amountText(candidate.netAmount),
-            amountText(candidate.difference),
-            candidate.notes,
-          ].join(' ').toLowerCase();
-          return searchable.includes(keyword);
-        })
-        .sort((a, b) => {
-          const dateCompare = String(a.settlementDate || '').localeCompare(String(b.settlementDate || ''));
-          if (dateCompare !== 0) return dateCompare;
-          return String(a.invoiceNumber || '').localeCompare(String(b.invoiceNumber || ''));
-        });
-
-      const offset = (currentPage - 1) * perPage;
-      const rows = filtered.slice(offset, offset + perPage);
       const platforms = Array.from(new Set(candidates.map((candidate) => candidate.platform).filter(Boolean)))
         .sort((a, b) => platformLabel(a).localeCompare(platformLabel(b)))
         .map((value) => ({ value, label: platformLabel(value) }));
@@ -206,18 +207,19 @@ export const bankBookController = {
       return successResponse(
         res,
         {
-          candidates: rows,
+          candidates,
           platforms,
           summary: {
-            totalGrossAmount: filtered.reduce((sum, item) => sum + item.grossAmount, 0),
-            totalNetAmount: filtered.reduce((sum, item) => sum + item.netAmount, 0),
-            totalDifference: filtered.reduce((sum, item) => sum + item.difference, 0),
+            totalGrossAmount: candidates.reduce((sum, item) => sum + item.grossAmount, 0),
+            totalNetAmount: candidates.reduce((sum, item) => sum + item.netAmount, 0),
+            totalDifference: candidates.reduce((sum, item) => sum + item.difference, 0),
+            scope: 'current_page',
           },
           pagination: {
-            total: filtered.length,
+            total: count,
             page: currentPage,
             limit: perPage,
-            totalPages: Math.max(Math.ceil(filtered.length / perPage), 1),
+            totalPages: Math.max(Math.ceil(count / perPage), 1),
           },
         },
         'Bank book candidates retrieved successfully',

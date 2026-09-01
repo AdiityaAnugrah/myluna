@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { financialApi } from '../api/financial';
 
 export const useFinancialSummary = (
-  params?: { startDate?: string; endDate?: string },
+  params?: { startDate?: string; endDate?: string; page?: number; limit?: number; bookMode?: 'sales' | 'cost' },
   options?: any
 ) => {
   return useQuery({

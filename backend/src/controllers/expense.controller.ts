@@ -13,7 +13,9 @@ export const expenseController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
       const { page = 1, limit = 20, startDate, endDate, category } = req.query;
-      const offset = (Number(page) - 1) * Number(limit);
+      const currentPage = Math.max(Number(page) || 1, 1);
+      const perPage = Math.min(Math.max(Number(limit) || 20, 1), 100);
+      const offset = (currentPage - 1) * perPage;
 
       const where: any = {};
 
@@ -36,7 +38,7 @@ export const expenseController = {
             attributes: ['id', 'fullName', 'email'],
           },
         ],
-        limit: Number(limit),
+        limit: perPage,
         offset,
         order: [['expenseDate', 'DESC']],
       });
@@ -47,9 +49,9 @@ export const expenseController = {
           expenses: rows,
           pagination: {
             total: count,
-            page: Number(page),
-            limit: Number(limit),
-            totalPages: Math.ceil(count / Number(limit)),
+            page: currentPage,
+            limit: perPage,
+            totalPages: Math.max(Math.ceil(count / perPage), 1),
           },
         },
         'Expenses retrieved successfully',

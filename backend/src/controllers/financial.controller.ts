@@ -14,10 +14,53 @@ function saleItemName(item: any) {
     : item?.product?.name || 'Unknown';
 }
 
+function isFinanceBookTransaction(txn: any) {
+  return txn.type === 'sale_settled' || txn.type === 'sale_pending' || txn.type === 'settlement';
+}
+
+function getFinanceBookMonthKey(value: Date | string) {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function calculateFinanceBookOpeningBalance(transactions: any[], mode: string) {
+  let balance = 0;
+  let activeMonthKey: string | null = null;
+
+  for (const txn of transactions.filter(isFinanceBookTransaction)) {
+    const monthKey = getFinanceBookMonthKey(txn.date);
+    if (activeMonthKey !== monthKey) {
+      activeMonthKey = monthKey;
+      balance = 0;
+    }
+
+    const feePercentage = Number(txn.platformFeePercentage ?? 25);
+    if (txn.type === 'sale_settled' || txn.type === 'sale_pending') {
+      const gross = Number(txn.debit || 0);
+      balance += mode === 'sales' ? gross : gross - (gross * feePercentage / 100);
+    }
+
+    if (txn.type === 'settlement') {
+      const actualNetAmount = Number(txn.netAmount ?? txn.credit ?? 0);
+      const platformFee = Number(txn.platformFee || 0);
+      const grossSettlement = actualNetAmount + platformFee;
+      balance -= mode === 'sales' ? grossSettlement : actualNetAmount;
+    }
+  }
+
+  return {
+    openingBalance: balance,
+    openingMonthKey: activeMonthKey,
+  };
+}
+
 export const financialController = {
   async getSummary(req: Request, res: Response, next: NextFunction) {
     try {
-      const { startDate, endDate } = req.query;
+      const { startDate, endDate, page = 1, limit = 200, bookMode } = req.query;
+      const currentPage = Math.max(Number(page) || 1, 1);
+      const perPage = Math.min(Math.max(Number(limit) || 200, 1), 500);
+      const isBookRequest = ['sales', 'cost'].includes(String(bookMode || '').toLowerCase());
 
       const whereClause: any = {};
       let start: Date | null = null;
@@ -29,6 +72,16 @@ export const financialController = {
 
         start = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
         end = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+
+        if (isBookRequest) {
+          const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          if (diffDays > 93) {
+            return res.status(400).json({
+              success: false,
+              message: 'Range Buku Penjualan/Biaya maksimal 93 hari per request. Persempit tanggal atau export per kuartal.',
+            });
+          }
+        }
 
         // settlementDate is DATEONLY — compare with date strings, not Date objects
         whereClause.settlementDate = {
@@ -425,9 +478,40 @@ export const financialController = {
         ).length,
       };
 
-      successResponse(res, { transactions, summary }, 'Financial summary retrieved successfully', 200);
+      const responseTransactions = isBookRequest
+        ? transactions.filter(isFinanceBookTransaction)
+        : transactions;
+      const totalTransactions = responseTransactions.length;
+      const pageOffset = (currentPage - 1) * perPage;
+      const pageTransactions = responseTransactions.slice(pageOffset, pageOffset + perPage);
+      const opening = isBookRequest
+        ? calculateFinanceBookOpeningBalance(responseTransactions.slice(0, pageOffset), String(bookMode || '').toLowerCase())
+        : { openingBalance: 0, openingMonthKey: null };
+      const paginatedTransactions = isBookRequest
+        ? pageTransactions
+        : responseTransactions;
+
+      return successResponse(
+        res,
+        {
+          transactions: paginatedTransactions,
+          summary,
+          ...(isBookRequest && {
+            pagination: {
+              total: totalTransactions,
+              page: currentPage,
+              limit: perPage,
+              totalPages: Math.max(Math.ceil(totalTransactions / perPage), 1),
+              openingBalance: opening.openingBalance,
+              openingMonthKey: opening.openingMonthKey,
+            },
+          }),
+        },
+        'Financial summary retrieved successfully',
+        200
+      );
     } catch (error) {
-      next(error);
+      return next(error);
     }
   },
 

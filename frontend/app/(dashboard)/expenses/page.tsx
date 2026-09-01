@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useExpenses, useCreateExpense, useUpdateExpense, useDeleteExpense } from '@/lib/hooks/useExpense';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Pagination } from '@/components/ui/pagination';
 import {
   Dialog,
   DialogContent,
@@ -76,8 +77,12 @@ export default function ExpensesPage() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
 
   const { data, isLoading, refetch } = useExpenses({
+    page,
+    limit,
     category: categoryFilter || undefined,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
@@ -88,6 +93,16 @@ export default function ExpensesPage() {
   const deleteMutation = useDeleteExpense();
 
   const expenses = (data as any)?.data?.expenses || [];
+  const pagination = (data as any)?.data?.pagination || {
+    total: 0,
+    page,
+    limit,
+    totalPages: 1,
+  };
+
+  useEffect(() => {
+    setPage(1);
+  }, [categoryFilter, startDate, endDate, limit]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -178,6 +193,7 @@ export default function ExpensesPage() {
   };
 
   const handleApplyFilter = () => {
+    setPage(1);
     refetch();
   };
 
@@ -185,6 +201,7 @@ export default function ExpensesPage() {
     setCategoryFilter('');
     setStartDate('');
     setEndDate('');
+    setPage(1);
   };
 
   // Check authorization
@@ -358,6 +375,20 @@ export default function ExpensesPage() {
               </TableBody>
             </Table>
           </div>
+          {!isLoading && expenses.length > 0 && (
+            <Pagination
+              currentPage={Number(pagination.page || page)}
+              totalPages={Number(pagination.totalPages || 1)}
+              totalItems={Number(pagination.total || 0)}
+              itemsPerPage={Number(pagination.limit || limit)}
+              onPageChange={setPage}
+              onItemsPerPageChange={(value) => {
+                setLimit(value);
+                setPage(1);
+              }}
+              pageSizeOptions={[10, 20, 50, 100]}
+            />
+          )}
         </CardContent>
       </Card>
 

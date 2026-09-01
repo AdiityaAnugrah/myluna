@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   BookOpenCheck,
@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Pagination } from '@/components/ui/pagination';
 import {
   Table,
   TableBody,
@@ -102,11 +103,16 @@ function getStatusTone(type: BookRow['type']) {
   return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300';
 }
 
-function buildRows(transactions: Transaction[], mode: BookMode): BookRow[] {
+function buildRows(
+  transactions: Transaction[],
+  mode: BookMode,
+  openingBalance = 0,
+  openingMonthKey: string | null = null
+): BookRow[] {
   const rows: BookRow[] = [];
-  let runningBalance = 0;
+  let runningBalance = openingBalance;
   let counter = 1;
-  let activeMonthKey: string | null = null;
+  let activeMonthKey: string | null = openingMonthKey;
 
   for (const txn of transactions.filter(isBookTransaction)) {
     const date = new Date(txn.date);
@@ -124,14 +130,16 @@ function buildRows(transactions: Transaction[], mode: BookMode): BookRow[] {
     const feePercentage = Number(txn.platformFeePercentage ?? DEFAULT_COST_RATE);
 
     if (isSaleTransaction(txn)) {
-      runningBalance += gross;
+      const estimatedFee = gross * (feePercentage / 100);
+      const estimatedNetAmount = gross - estimatedFee;
+      runningBalance += mode === 'sales' ? gross : estimatedNetAmount;
       rows.push({
         no: counter++,
         date,
         invoiceNumber,
         description,
         debit: mode === 'sales' ? gross : null,
-        credit: mode === 'cost' ? gross * (feePercentage / 100) : null,
+        credit: mode === 'cost' ? estimatedFee : null,
         balance: runningBalance,
         type: 'sale',
         statusLabel: mode === 'sales'
@@ -149,7 +157,7 @@ function buildRows(transactions: Transaction[], mode: BookMode): BookRow[] {
       const expectedNetAmount = grossSettlement - expectedPlatformFee;
       const adjustmentCredit = expectedNetAmount - actualNetAmount;
 
-      runningBalance -= grossSettlement;
+      runningBalance -= mode === 'sales' ? grossSettlement : actualNetAmount;
       rows.push({
         no: counter++,
         date,
@@ -175,6 +183,8 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
   const lastDay = formatDateInput(new Date(today.getFullYear(), today.getMonth() + 1, 0));
   const [startDate, setStartDate] = useState(firstDay);
   const [endDate, setEndDate] = useState(lastDay);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(100);
 
   const isAllowed = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'DEV';
   const featureKey = mode === 'sales' ? 'finance-sales-book' : 'finance-cost-book';
@@ -184,12 +194,30 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
   const feature = features.find((item: any) => item.key === featureKey);
   const isFeatureAvailable = user?.role === 'DEV' || !featureControlReady || !!feature;
   const { data, isLoading } = useFinancialSummary(
-    startDate && endDate ? { startDate, endDate } : undefined,
+    startDate && endDate ? { startDate, endDate, page, limit, bookMode: mode } : undefined,
     { enabled: isAllowed && isFeatureAvailable }
   );
 
   const transactions: Transaction[] = (data as any)?.data?.transactions || [];
-  const rows = useMemo(() => buildRows(transactions, mode), [transactions, mode]);
+  const pagination = (data as any)?.data?.pagination || {
+    total: 0,
+    page,
+    limit,
+    totalPages: 1,
+  };
+  const rows = useMemo(
+    () => buildRows(
+      transactions,
+      mode,
+      Number(pagination.openingBalance || 0),
+      pagination.openingMonthKey || null
+    ),
+    [transactions, mode, pagination.openingBalance, pagination.openingMonthKey]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [startDate, endDate, mode, limit]);
 
   const pageTitle = mode === 'sales' ? 'Buku Penjualan' : 'Buku Biaya';
   const pageDescription =
@@ -339,7 +367,9 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
                 D = {mode === 'sales' ? 'penjualan' : '-'} · K = {mode === 'sales' ? '-' : 'persentase platform dari penjualan'} · S = saldo penjualan bulanan
               </p>
             </div>
-            <Badge variant="outline" className="w-fit">{rows.length} baris</Badge>
+            <Badge variant="outline" className="w-fit">
+              {rows.length} baris tampil · {pagination.total} total transaksi
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -394,6 +424,22 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          {!isLoading && rows.length > 0 && (
+            <div className="border-t bg-muted/20 px-4">
+              <Pagination
+                currentPage={Number(pagination.page || page)}
+                totalPages={Number(pagination.totalPages || 1)}
+                totalItems={Number(pagination.total || 0)}
+                itemsPerPage={Number(pagination.limit || limit)}
+                onPageChange={setPage}
+                onItemsPerPageChange={(value) => {
+                  setLimit(value);
+                  setPage(1);
+                }}
+                pageSizeOptions={[50, 100, 200, 500]}
+              />
             </div>
           )}
         </CardContent>

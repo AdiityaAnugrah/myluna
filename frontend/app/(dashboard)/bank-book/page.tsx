@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -48,6 +48,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { Pagination } from '@/components/ui/pagination';
 import { useBankBookCandidates, useBankBookEntries, useCreateBankBookEntry } from '@/lib/hooks/useBankBook';
 import { useAuthStore } from '@/lib/stores/auth';
 import { cn } from '@/lib/utils';
@@ -99,6 +100,8 @@ const platformLabel = (platform?: string | null) => {
   return labels[value] || value.replace(/_/g, ' ');
 };
 
+const BANK_BOOK_PLATFORM_OPTIONS = ['OFFLINE_STORE', 'TOKOPEDIA', 'SHOPEE', 'TIKTOK_SHOP', 'LAZADA', 'OTHER'];
+
 export default function BankBookPage() {
   const { user } = useAuthStore();
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 8) + '01');
@@ -109,6 +112,8 @@ export default function BankBookPage() {
   const [dateFilter, setDateFilter] = useState('all');
   const [platformFilter, setPlatformFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'SETTLEMENT' | 'REQUEST'>('SETTLEMENT');
+  const [candidatePage, setCandidatePage] = useState(1);
+  const [candidateLimit, setCandidateLimit] = useState(100);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [copiedInvoice, setCopiedInvoice] = useState<string | null>(null);
@@ -118,9 +123,11 @@ export default function BankBookPage() {
 
   const { data: candidatesData, isLoading } = useBankBookCandidates(
     {
-      page: 1,
-      limit: 500,
+      page: candidatePage,
+      limit: candidateLimit,
       source: 'SETTLEMENT',
+      platform: platformFilter === 'all' ? 'ALL' : platformFilter,
+      search,
       startDate,
       endDate,
     },
@@ -157,6 +164,13 @@ export default function BankBookPage() {
     });
   }, [candidatesData]);
 
+  const candidatePagination = (candidatesData as any)?.data?.pagination || {
+    total: 0,
+    page: candidatePage,
+    limit: candidateLimit,
+    totalPages: 1,
+  };
+
   const filteredRows = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return rows.filter((row) => {
@@ -171,21 +185,20 @@ export default function BankBookPage() {
       ].join(' ').toLowerCase().includes(keyword);
 
       const matchesDate = dateFilter === 'all' || row.settlementDate === dateFilter;
-      const matchesPlatform = platformFilter === 'all' || row.platform === platformFilter;
       const matchesSource = sourceFilter === 'all' || row.source === sourceFilter;
-      return matchesSearch && matchesDate && matchesPlatform && matchesSource;
+      return matchesSearch && matchesDate && matchesSource;
     });
   }, [rows, search, dateFilter, platformFilter, sourceFilter]);
+
+  useEffect(() => {
+    setCandidatePage(1);
+    setSelectedIds([]);
+  }, [startDate, endDate, search, platformFilter, sourceFilter, candidateLimit]);
 
   const uniqueDates = useMemo(
     () => Array.from(new Set(rows.map((row) => row.settlementDate).filter(Boolean))).sort(),
     [rows]
   );
-  const uniquePlatforms = useMemo(
-    () => Array.from(new Set(rows.map((row) => row.platform).filter(Boolean))).sort((a, b) => platformLabel(a).localeCompare(platformLabel(b))),
-    [rows]
-  );
-
   const bankAmount = parseAmount(bankAmountInput);
   const selectedRows = rows.filter((row) => selectedIds.includes(row.id));
   const selectedTotal = selectedRows.reduce((sum, row) => sum + row.netAmount, 0);
@@ -475,6 +488,7 @@ export default function BankBookPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline" className="bg-background">{filteredRows.length} data tampil</Badge>
+                <Badge variant="outline" className="bg-background">{candidatePagination.total} total kandidat</Badge>
                 <Badge variant="outline" className="bg-background">{selectedRows.length} dicentang</Badge>
               </div>
             </div>
@@ -509,7 +523,7 @@ export default function BankBookPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Semua platform</SelectItem>
-                  {uniquePlatforms.map((platform) => (
+                  {BANK_BOOK_PLATFORM_OPTIONS.map((platform) => (
                     <SelectItem key={platform} value={platform}>{platformLabel(platform)}</SelectItem>
                   ))}
                 </SelectContent>
@@ -615,6 +629,22 @@ export default function BankBookPage() {
             </div>
 
             <div className="border-t bg-muted/20 p-4">
+              <Pagination
+                currentPage={Number(candidatePagination.page || candidatePage)}
+                totalPages={Number(candidatePagination.totalPages || 1)}
+                totalItems={Number(candidatePagination.total || 0)}
+                itemsPerPage={Number(candidatePagination.limit || candidateLimit)}
+                onPageChange={(page) => {
+                  setCandidatePage(page);
+                  setSelectedIds([]);
+                }}
+                onItemsPerPageChange={(limit) => {
+                  setCandidateLimit(limit);
+                  setCandidatePage(1);
+                  setSelectedIds([]);
+                }}
+                pageSizeOptions={[50, 100, 200, 500]}
+              />
               <div className="flex flex-col gap-3 rounded-2xl border bg-background p-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
