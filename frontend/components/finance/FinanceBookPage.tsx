@@ -222,7 +222,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
   const pageDescription =
     mode === 'sales'
       ? 'Pantau debit penjualan dan saldo penjualan berjalan per bulan.'
-      : 'Pantau kredit biaya platform dari tiap penjualan dengan saldo penjualan berjalan per bulan.';
+      : 'Pantau estimasi biaya platform, dana bersih pelunasan, koreksi biaya, dan sisa piutang gross pada periode yang dipilih.';
   const Icon = mode === 'sales' ? BookOpenCheck : ReceiptText;
 
   const totalDebit = rows.reduce((sum, row) => sum + Number(row.debit || 0), 0);
@@ -311,7 +311,9 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
         <BookOpenCheck className="h-4 w-4" />
         <AlertTitle>Mode Preview Read-only</AlertTitle>
         <AlertDescription>
-          Halaman ini hanya membaca data finance existing dan tidak mengubah data produksi. Gunakan untuk validasi angka sebelum dijadikan acuan operasional.
+          {mode === 'sales'
+            ? 'Buku Penjualan membaca nilai invoice gross: penjualan menambah saldo, pelunasan mengurangi saldo sebesar nilai invoice.'
+            : 'Buku Biaya membaca biaya/potongan: kredit awal adalah estimasi biaya platform, debit pelunasan adalah dana bersih aktual, dan saldo tetap menunjukkan sisa piutang gross pada periode yang dipilih.'}
         </AlertDescription>
       </Alert>
 
@@ -320,7 +322,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
           <CardContent className="flex items-center gap-3 p-4">
             <TrendingUp className="h-9 w-9 rounded-xl bg-green-100 p-2 text-green-700 dark:bg-green-950/40 dark:text-green-300" />
             <div>
-              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Debit Penjualan' : 'Total Dasar Penjualan'}</p>
+              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Debit Penjualan' : 'Dasar Piutang Gross'}</p>
               <p className="text-lg font-bold tabular-nums">{formatCurrency(mode === 'sales' ? totalDebit : totalSalesBasis)}</p>
             </div>
           </CardContent>
@@ -329,7 +331,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
           <CardContent className="flex items-center gap-3 p-4">
             <TrendingDown className="h-9 w-9 rounded-xl bg-orange-100 p-2 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300" />
             <div>
-              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Kredit' : 'Total Kredit Biaya Platform'}</p>
+              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Kredit Penjualan' : 'Estimasi/Koreksi Biaya'}</p>
               <p className="text-lg font-bold tabular-nums">{formatCurrency(totalCredit)}</p>
             </div>
           </CardContent>
@@ -338,8 +340,11 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
           <CardContent className="flex items-center gap-3 p-4">
             <Wallet className="h-9 w-9 rounded-xl bg-purple-100 p-2 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300" />
             <div>
-              <p className="text-xs text-muted-foreground">Saldo Penjualan</p>
+              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Piutang Buku Penjualan' : 'Piutang Buku Biaya'}</p>
               <p className="text-lg font-bold tabular-nums">{formatCurrency(finalBalance)}</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                {mode === 'sales' ? 'Sisa invoice gross' : 'Sisa piutang gross sesuai referensi'}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -363,7 +368,9 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
                 Kotak {pageTitle}
               </CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
-                D = {mode === 'sales' ? 'penjualan' : '-'} · K = {mode === 'sales' ? '-' : 'persentase platform dari penjualan'} · S = saldo penjualan bulanan
+                {mode === 'sales'
+                  ? 'D = penjualan gross · K = pelunasan gross · S = piutang Buku Penjualan sesuai periode'
+                  : 'D = dana bersih pelunasan · K = estimasi/koreksi biaya · S = piutang Buku Biaya sesuai periode'}
               </p>
             </div>
             <Badge variant="outline" className="w-fit">
