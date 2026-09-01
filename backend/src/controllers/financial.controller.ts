@@ -15,7 +15,7 @@ function saleItemName(item: any) {
 }
 
 function isFinanceBookTransaction(txn: any) {
-  return txn.type === 'sale_settled' || txn.type === 'sale_pending' || txn.type === 'settlement';
+  return txn.type === 'carry_forward' || txn.type === 'sale_settled' || txn.type === 'sale_pending' || txn.type === 'settlement';
 }
 
 function getFinanceBookMonthKey(value: Date | string) {
@@ -32,6 +32,11 @@ function calculateFinanceBookOpeningBalance(transactions: any[]) {
     if (activeMonthKey !== monthKey) {
       activeMonthKey = monthKey;
       balance = 0;
+    }
+
+    if (txn.type === 'carry_forward') {
+      balance = Number(txn.debit || 0);
+      continue;
     }
 
     if (txn.type === 'sale_settled' || txn.type === 'sale_pending') {
@@ -502,7 +507,7 @@ export const financialController = {
               limit: perPage,
               totalPages: Math.max(Math.ceil(totalTransactions / perPage), 1),
               openingBalance: opening.openingBalance,
-              openingMonthKey: opening.openingMonthKey,
+              openingMonthKey: opening.openingMonthKey || (startDate ? String(startDate).slice(0, 7) : null),
             },
           }),
         },

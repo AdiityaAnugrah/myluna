@@ -91,7 +91,7 @@ const formatCurrency = (value: number | null | undefined) => {
 
 const isSaleTransaction = (txn: Transaction) => txn.type === 'sale_settled' || txn.type === 'sale_pending';
 
-const isBookTransaction = (txn: Transaction) => isSaleTransaction(txn) || txn.type === 'settlement';
+const isBookTransaction = (txn: Transaction) => txn.type === 'carry_forward' || isSaleTransaction(txn) || txn.type === 'settlement';
 
 const getMonthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
@@ -124,6 +124,23 @@ function buildRows(
     if (activeMonthKey !== monthKey) {
       activeMonthKey = monthKey;
       runningBalance = 0;
+    }
+
+    if (txn.type === 'carry_forward') {
+      runningBalance = Number(txn.debit || 0);
+      activeMonthKey = openingMonthKey || monthKey;
+      rows.push({
+        no: counter++,
+        date,
+        invoiceNumber,
+        description: baseDescription,
+        debit: mode === 'sales' ? runningBalance : null,
+        credit: null,
+        balance: runningBalance,
+        type: 'opening',
+        statusLabel: 'Saldo Awal Piutang',
+      });
+      continue;
     }
 
     const gross = Number(txn.debit || 0);
@@ -222,7 +239,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
   const pageDescription =
     mode === 'sales'
       ? 'Pantau debit penjualan dan saldo penjualan berjalan per bulan.'
-      : 'Pantau estimasi biaya platform, dana bersih pelunasan, koreksi biaya, dan sisa piutang gross pada periode yang dipilih.';
+      : 'Pantau biaya platform, dana bersih masuk, dan sisa piutang pada periode yang dipilih.';
   const Icon = mode === 'sales' ? BookOpenCheck : ReceiptText;
 
   const totalDebit = rows.reduce((sum, row) => sum + Number(row.debit || 0), 0);
@@ -312,8 +329,8 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
         <AlertTitle>Mode Preview Read-only</AlertTitle>
         <AlertDescription>
           {mode === 'sales'
-            ? 'Buku Penjualan membaca nilai invoice gross: penjualan menambah saldo, pelunasan mengurangi saldo sebesar nilai invoice.'
-            : 'Buku Biaya membaca biaya/potongan: kredit awal adalah estimasi biaya platform, debit pelunasan adalah dana bersih aktual, dan saldo tetap menunjukkan sisa piutang gross pada periode yang dipilih.'}
+            ? 'Buku Penjualan membaca nilai invoice penuh: penjualan menambah piutang, pelunasan mengurangi piutang sebesar nilai invoice.'
+            : 'Buku Biaya membaca biaya platform: saat penjualan muncul biaya platform, saat pelunasan muncul dana bersih yang masuk, dan saldo tetap menunjukkan sisa piutang pada periode yang dipilih.'}
         </AlertDescription>
       </Alert>
 
@@ -322,7 +339,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
           <CardContent className="flex items-center gap-3 p-4">
             <TrendingUp className="h-9 w-9 rounded-xl bg-green-100 p-2 text-green-700 dark:bg-green-950/40 dark:text-green-300" />
             <div>
-              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Debit Penjualan' : 'Dasar Piutang Gross'}</p>
+              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Penjualan' : 'Total Penjualan'}</p>
               <p className="text-lg font-bold tabular-nums">{formatCurrency(mode === 'sales' ? totalDebit : totalSalesBasis)}</p>
             </div>
           </CardContent>
@@ -331,7 +348,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
           <CardContent className="flex items-center gap-3 p-4">
             <TrendingDown className="h-9 w-9 rounded-xl bg-orange-100 p-2 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300" />
             <div>
-              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Kredit Penjualan' : 'Estimasi/Koreksi Biaya'}</p>
+              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Pelunasan Invoice' : 'Biaya Platform'}</p>
               <p className="text-lg font-bold tabular-nums">{formatCurrency(totalCredit)}</p>
             </div>
           </CardContent>
@@ -340,10 +357,10 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
           <CardContent className="flex items-center gap-3 p-4">
             <Wallet className="h-9 w-9 rounded-xl bg-purple-100 p-2 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300" />
             <div>
-              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Piutang Buku Penjualan' : 'Piutang Buku Biaya'}</p>
+              <p className="text-xs text-muted-foreground">Sisa Piutang</p>
               <p className="text-lg font-bold tabular-nums">{formatCurrency(finalBalance)}</p>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
-                {mode === 'sales' ? 'Sisa invoice gross' : 'Sisa piutang gross sesuai referensi'}
+                {mode === 'sales' ? 'Dari Buku Penjualan' : 'Dari Buku Biaya'}
               </p>
             </div>
           </CardContent>
@@ -369,8 +386,8 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
               </CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
                 {mode === 'sales'
-                  ? 'D = penjualan gross · K = pelunasan gross · S = piutang Buku Penjualan sesuai periode'
-                  : 'D = dana bersih pelunasan · K = estimasi/koreksi biaya · S = piutang Buku Biaya sesuai periode'}
+                  ? 'D = nilai penjualan · K = nilai invoice yang sudah lunas · S = sisa piutang periode ini'
+                  : 'D = dana bersih masuk · K = biaya platform · S = sisa piutang periode ini'}
               </p>
             </div>
             <Badge variant="outline" className="w-fit">
