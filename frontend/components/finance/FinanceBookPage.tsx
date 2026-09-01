@@ -131,8 +131,7 @@ function buildRows(
 
     if (isSaleTransaction(txn)) {
       const estimatedFee = gross * (feePercentage / 100);
-      const estimatedNetAmount = gross - estimatedFee;
-      runningBalance += mode === 'sales' ? gross : estimatedNetAmount;
+      runningBalance += gross;
       rows.push({
         no: counter++,
         date,
@@ -157,7 +156,7 @@ function buildRows(
       const expectedNetAmount = grossSettlement - expectedPlatformFee;
       const adjustmentCredit = expectedNetAmount - actualNetAmount;
 
-      runningBalance -= mode === 'sales' ? grossSettlement : actualNetAmount;
+      runningBalance -= grossSettlement;
       rows.push({
         no: counter++,
         date,

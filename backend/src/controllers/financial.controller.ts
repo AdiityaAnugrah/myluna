@@ -23,7 +23,7 @@ function getFinanceBookMonthKey(value: Date | string) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function calculateFinanceBookOpeningBalance(transactions: any[], mode: string) {
+function calculateFinanceBookOpeningBalance(transactions: any[]) {
   let balance = 0;
   let activeMonthKey: string | null = null;
 
@@ -34,17 +34,16 @@ function calculateFinanceBookOpeningBalance(transactions: any[], mode: string) {
       balance = 0;
     }
 
-    const feePercentage = Number(txn.platformFeePercentage ?? 25);
     if (txn.type === 'sale_settled' || txn.type === 'sale_pending') {
       const gross = Number(txn.debit || 0);
-      balance += mode === 'sales' ? gross : gross - (gross * feePercentage / 100);
+      balance += gross;
     }
 
     if (txn.type === 'settlement') {
       const actualNetAmount = Number(txn.netAmount ?? txn.credit ?? 0);
       const platformFee = Number(txn.platformFee || 0);
       const grossSettlement = actualNetAmount + platformFee;
-      balance -= mode === 'sales' ? grossSettlement : actualNetAmount;
+      balance -= grossSettlement;
     }
   }
 
@@ -485,7 +484,7 @@ export const financialController = {
       const pageOffset = (currentPage - 1) * perPage;
       const pageTransactions = responseTransactions.slice(pageOffset, pageOffset + perPage);
       const opening = isBookRequest
-        ? calculateFinanceBookOpeningBalance(responseTransactions.slice(0, pageOffset), String(bookMode || '').toLowerCase())
+        ? calculateFinanceBookOpeningBalance(responseTransactions.slice(0, pageOffset))
         : { openingBalance: 0, openingMonthKey: null };
       const paginatedTransactions = isBookRequest
         ? pageTransactions
