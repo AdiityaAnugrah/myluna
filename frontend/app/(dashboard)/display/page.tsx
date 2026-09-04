@@ -147,7 +147,7 @@ export default function DisplaySystemPage() {
     <style jsx global>{`@media print { body * { visibility: hidden; } #display-letter, #display-letter * { visibility: visible; } #display-letter { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; border: none !important; } .no-print { display: none !important; } }`}</style>
     <Breadcrumbs items={[{ label: 'Sistem Display' }]} />
     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">Cek produk display, lalu ajukan produk yang perlu dipasang display. Jika produk sudah tidak dijual, lakukan Retur Display.</p></div><div className="flex flex-col gap-2 sm:flex-row no-print">{!isTcp && <Button onClick={() => { setDisplayFilter('all'); setActiveTab('products'); }}><ClipboardList className="mr-2 h-4 w-4" /> Cek Produk Display</Button>}<Button variant={isTcp ? 'default' : 'outline'} onClick={() => { setShowReturnForm(true); setActiveTab('returns'); }}><Truck className="mr-2 h-4 w-4" /> Retur Display</Button></div></div>
-    <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Semua Produk" value={summary.data?.data?.totalProducts ?? totalProductCount} note="Isi semua produk master" /><Summary title="Produk Siap Jual" value={readyToSellCount} note="Tersedia dan siap jual" /><Summary title="Ada Display" value={activeDisplayCount} note="Produk yang ada displaynya" /><Summary title="Menunggu Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note="Pengajuan dari user" /></div>
+    <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Semua Produk Master" value={summary.data?.data?.totalProducts ?? totalProductCount} note="Semua data produk aktif dan nonaktif" /><Summary title="Ready Stock" value={readyToSellCount} note="Produk aktif dengan stok jual tersedia" /><Summary title="Sedang Display" value={activeDisplayCount} note="Slot display sedang terisi" /><Summary title="Menunggu Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note="Pengajuan dari user" /></div>
     <RoleGuide role={role} isAdmin={isAdmin} isTcp={isTcp} />
     <Card className="no-print"><CardContent className="pt-4"><div className="flex flex-wrap gap-2">{tabs.filter((tab) => tab.visible !== false).map((tab) => { const Icon = tab.icon; return <Button key={tab.key} type="button" variant={activeTab === tab.key ? 'default' : 'outline'} onClick={() => setActiveTab(tab.key)} className="gap-2"><Icon className="h-4 w-4" />{tab.label}{tab.count !== undefined && <Badge variant="secondary" className="ml-1">{tab.count}</Badge>}</Button>; })}</div></CardContent></Card>
     {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); }} ensureSlotThenRequest={ensureSlotThenRequest} startReturn={startReturn} displayFilter={displayFilter} setDisplayFilter={setDisplayFilter} />}
@@ -237,7 +237,7 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
           <div className="flex flex-col gap-4">
             <div>
               <h2 className="text-lg font-semibold">Cek Display</h2>
-              <p className="text-sm text-muted-foreground">Lihat semua produk, produk siap jual, atau produk yang sudah ada displaynya.</p>
+              <p className="text-sm text-muted-foreground">Lihat semua produk master, produk ready stock, atau produk yang sedang display.</p>
             </div>
             <div className="rounded-lg border bg-muted/30 p-3 text-sm">
               <span className="font-medium">Alur:</span> User cek produk → Ajukan Display → Admin setujui.
@@ -245,9 +245,9 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap gap-2">
                 {[
-                  { key: 'all', label: 'Semua Produk' },
-                  { key: 'ready-to-sell', label: 'Produk Siap Jual' },
-                  { key: 'has-display', label: 'Produk Ada Display' },
+                  { key: 'all', label: 'Semua Produk Master' },
+                  { key: 'ready-to-sell', label: 'Ready Stock' },
+                  { key: 'has-display', label: 'Sedang Display' },
                 ].map((item) => <Button key={item.key} type="button" size="sm" variant={displayFilter === item.key ? 'default' : 'outline'} onClick={() => setDisplayFilter(item.key as DisplayFilter)}>{item.label}</Button>)}
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">

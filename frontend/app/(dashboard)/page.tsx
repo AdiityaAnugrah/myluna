@@ -546,7 +546,7 @@ export default function DashboardPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-muted-foreground">Total Produk</p>
+                    <p className="text-sm font-medium text-muted-foreground">Produk Aktif</p>
                     <p className="text-2xl font-bold text-info">{totalProducts}</p>
                   </div>
                   <div className="p-3 bg-info/10 rounded-2xl">
