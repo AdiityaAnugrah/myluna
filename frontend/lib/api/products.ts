@@ -27,6 +27,19 @@ export const productApi = {
     return response.data;
   },
 
+  requestPriceChange: async (
+    id: string,
+    data: {
+      purchasePrice?: number;
+      sellingPrice?: number;
+      warrantyPrice?: number | null;
+      reason?: string;
+    }
+  ) => {
+    const response = await apiClient.post<ApiResponse<any>>(`/products/${id}/price-change-requests`, data);
+    return response.data;
+  },
+
   delete: async (id: string) => {
     const response = await apiClient.delete(`/products/${id}`);
     return response.data;

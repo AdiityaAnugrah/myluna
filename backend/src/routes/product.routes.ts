@@ -124,6 +124,8 @@ router.get('/:id', productController.getById);
  */
 router.post('/', auth, checkRole(['ADMIN', 'SUPER_ADMIN', 'USER']), productController.create);
 
+router.post('/:id/price-change-requests', auth, checkRole(['USER']), productController.requestPriceChange);
+
 /**
  * @swagger
  * /products/{id}:
@@ -187,7 +189,7 @@ router.delete('/:id', auth, checkRole(['ADMIN', 'SUPER_ADMIN', 'USER']), product
  *       200:
  *         description: Products deleted successfully
  */
-router.post('/bulk/delete', auth, checkRole(['ADMIN', 'SUPER_ADMIN']), productController.bulkDelete);
+router.post('/bulk/delete', auth, checkRole(['ADMIN', 'SUPER_ADMIN', 'DEV']), productController.bulkDelete);
 
 /**
  * @swagger
@@ -214,6 +216,6 @@ router.post('/bulk/delete', auth, checkRole(['ADMIN', 'SUPER_ADMIN']), productCo
  *       200:
  *         description: Products updated successfully
  */
-router.post('/bulk/update', auth, checkRole(['ADMIN', 'SUPER_ADMIN']), productController.bulkUpdate);
+router.post('/bulk/update', auth, checkRole(['ADMIN', 'SUPER_ADMIN', 'DEV']), productController.bulkUpdate);
 
 export default router;

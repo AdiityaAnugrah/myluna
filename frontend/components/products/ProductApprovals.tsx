@@ -150,7 +150,11 @@ export function ProductApprovals() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Badge variant={request.requestType === 'CREATE' ? 'info' : 'outline'}>
-                              {request.requestType === 'CREATE' ? 'PRODUK BARU' : 'UPDATE DATA'}
+                              {payload.__requestKind === 'PRICE_UPDATE'
+                                ? 'UBAH HARGA'
+                                : request.requestType === 'CREATE'
+                                  ? 'PRODUK BARU'
+                                  : 'UPDATE DATA'}
                             </Badge>
                           </div>
                         </TableCell>

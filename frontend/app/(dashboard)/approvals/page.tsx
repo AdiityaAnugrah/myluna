@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, CheckCircle, XCircle, Eye, Package, Tag, Users, ShoppingBag, FileX, ToggleLeft, ClipboardList, AlertCircle, Wallet, Copy, Search, Filter } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle, Eye, Package, Tag, Users, ShoppingBag, FileX, ToggleLeft, ClipboardList, AlertCircle, Wallet, Copy, Search, Filter, BadgeDollarSign } from 'lucide-react';
 import { useState } from 'react';
 import {
   Dialog,
@@ -122,6 +122,15 @@ function getRequestMeta(req: ChangeRequest): RequestMeta {
     };
   }
   if (req.entityType === 'PRODUCT' && req.requestType === 'UPDATE') {
+    if (payload.__requestKind === 'PRICE_UPDATE') {
+      return {
+        label: 'Pengajuan Perubahan Harga',
+        description: 'Pengguna mengajukan perubahan harga produk. Harga baru diterapkan setelah Admin menyetujui.',
+        sub: payload.name || payload.sku,
+        icon: BadgeDollarSign,
+        badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+      };
+    }
     return {
       label: 'Ubah Data Produk',
       description: 'Pengguna mengajukan perubahan pada data produk yang sudah ada (nama, harga, stok, dll).',

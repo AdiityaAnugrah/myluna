@@ -17,9 +17,10 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
-import { Plus, Search, Pencil, Trash2, AlertTriangle, ArrowLeftRight, Package, Download } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, AlertTriangle, ArrowLeftRight, Package, Download, BadgeDollarSign } from 'lucide-react';
 import Link from 'next/link';
 import { ProductRequestDialog } from '@/components/products/ProductRequestDialog';
+import { PriceChangeRequestDialog } from '@/components/products/PriceChangeRequestDialog';
 import { Product } from '@/types';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { BulkActionBar } from '@/components/ui/bulk-action-bar';
@@ -75,6 +76,7 @@ export default function ProductsPage() {
   const router = useRouter();
 
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
+  const [priceDialogOpen, setPriceDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Bulk selection state
@@ -101,6 +103,11 @@ export default function ProductsPage() {
   const handleRequestStatusChange = (product: Product) => {
     setSelectedProduct(product);
     setRequestDialogOpen(true);
+  };
+
+  const handleRequestPriceChange = (product: Product) => {
+    setSelectedProduct(product);
+    setPriceDialogOpen(true);
   };
 
   const handleExportToExcel = async () => {
@@ -387,15 +394,26 @@ export default function ProductsPage() {
                                         </Button>
                                     </>
                                 ) : (
-                                    <Button 
-                                        variant="outline" 
-                                        size="sm"
-                                        className="w-full h-7 text-[10px]"
-                                        onClick={() => handleRequestStatusChange(product)}
-                                    >
-                                        <ArrowLeftRight className="h-3 w-3 mr-1.5" />
-                                        Ajukan Perubahan
-                                    </Button>
+                                    <div className="grid grid-cols-2 gap-2 w-full">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 text-[10px]"
+                                            onClick={() => handleRequestPriceChange(product)}
+                                        >
+                                            <BadgeDollarSign className="h-3 w-3 mr-1.5" />
+                                            Ajukan Harga
+                                        </Button>
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm"
+                                            className="h-7 text-[10px]"
+                                            onClick={() => handleRequestStatusChange(product)}
+                                        >
+                                            <ArrowLeftRight className="h-3 w-3 mr-1.5" />
+                                            Status
+                                        </Button>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -528,6 +546,16 @@ export default function ProductsPage() {
                                 </Button>
                               </>
                             ) : (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRequestPriceChange(product)}
+                                  title="Ajukan Perubahan Harga"
+                                  aria-label="Ajukan perubahan harga produk"
+                                >
+                                  <BadgeDollarSign className="h-4 w-4 text-green-600" />
+                                </Button>
                                 <Button 
                                     variant="ghost" 
                                     size="sm"
@@ -537,6 +565,7 @@ export default function ProductsPage() {
                                 >
                                     <ArrowLeftRight className="h-4 w-4" />
                                 </Button>
+                              </>
                             )}
                           </div>
                         </TableCell>
@@ -567,6 +596,14 @@ export default function ProductsPage() {
           product={selectedProduct}
           open={requestDialogOpen}
           onOpenChange={setRequestDialogOpen}
+        />
+      )}
+
+      {selectedProduct && (
+        <PriceChangeRequestDialog
+          product={selectedProduct}
+          open={priceDialogOpen}
+          onOpenChange={setPriceDialogOpen}
         />
       )}
 

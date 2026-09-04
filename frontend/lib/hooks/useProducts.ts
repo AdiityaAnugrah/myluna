@@ -94,6 +94,33 @@ export function useUpdateProduct() {
   });
 }
 
+export function useRequestProductPriceChange() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: {
+        purchasePrice?: number;
+        sellingPrice?: number;
+        warrantyPrice?: number | null;
+        reason?: string;
+      };
+    }) => productApi.requestPriceChange(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['changeRequests'] });
+      toast.success('Pengajuan perubahan harga berhasil dikirim ke Admin');
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.message || 'Gagal mengajukan perubahan harga';
+      toast.error(message);
+    },
+  });
+}
+
 export function useDeleteProduct() {
   const queryClient = useQueryClient();
 

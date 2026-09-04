@@ -270,6 +270,90 @@ export const productController = {
     }
   },
 
+  async requestPriceChange(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { purchasePrice, sellingPrice, warrantyPrice, reason } = req.body;
+
+      const product = await Product.findByPk(id);
+      if (!product) {
+        throw new AppError('Product not found', 404);
+      }
+
+      const hasPurchasePrice = purchasePrice !== undefined && purchasePrice !== null && purchasePrice !== '';
+      const hasSellingPrice = sellingPrice !== undefined && sellingPrice !== null && sellingPrice !== '';
+      const hasWarrantyPrice = warrantyPrice !== undefined;
+
+      if (!hasPurchasePrice && !hasSellingPrice && !hasWarrantyPrice) {
+        throw new AppError('Minimal isi salah satu harga yang ingin diajukan', 400);
+      }
+
+      const nextPurchasePrice = hasPurchasePrice ? Number(purchasePrice) : Number(product.purchasePrice);
+      const nextSellingPrice = hasSellingPrice ? Number(sellingPrice) : Number(product.sellingPrice);
+      const nextWarrantyPrice = hasWarrantyPrice
+        ? (warrantyPrice === null || warrantyPrice === '' ? null : Number(warrantyPrice))
+        : product.warrantyPrice;
+
+      if (Number.isNaN(nextPurchasePrice) || nextPurchasePrice < 0) {
+        throw new AppError('Harga beli harus bernilai 0 atau lebih', 400);
+      }
+      if (Number.isNaN(nextSellingPrice) || nextSellingPrice < 0) {
+        throw new AppError('Harga jual harus bernilai 0 atau lebih', 400);
+      }
+      if (nextWarrantyPrice !== null && (Number.isNaN(Number(nextWarrantyPrice)) || Number(nextWarrantyPrice) < 0)) {
+        throw new AppError('Harga garansi harus bernilai 0 atau lebih', 400);
+      }
+
+      const currentWarrantyPrice = product.warrantyPrice === null || product.warrantyPrice === undefined
+        ? null
+        : Number(product.warrantyPrice);
+      if (
+        nextPurchasePrice === Number(product.purchasePrice) &&
+        nextSellingPrice === Number(product.sellingPrice) &&
+        (nextWarrantyPrice === null ? null : Number(nextWarrantyPrice)) === currentWarrantyPrice
+      ) {
+        throw new AppError('Harga baru sama dengan harga saat ini', 400);
+      }
+
+      const payload = {
+        __requestKind: 'PRICE_UPDATE',
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        reason: reason || '',
+        currentPrices: {
+          purchasePrice: product.purchasePrice,
+          sellingPrice: product.sellingPrice,
+          warrantyPrice: product.warrantyPrice,
+        },
+        purchasePrice: nextPurchasePrice,
+        sellingPrice: nextSellingPrice,
+        warrantyPrice: nextWarrantyPrice,
+      };
+
+      const changeRequest = await ChangeRequest.create({
+        entityType: EntityType.PRODUCT,
+        entityId: id,
+        requestType: RequestType.UPDATE,
+        status: RequestStatus.PENDING,
+        payload,
+        requestedBy: req.user!.id,
+      });
+
+      socketService.emitToAdmins('approval:pending', {
+        message: 'Pengajuan perubahan harga produk',
+        entityType: 'Product',
+        requestType: 'PRICE_UPDATE',
+        requesterName: (req as any).user.fullName || (req as any).user.username,
+        productName: product.name,
+      });
+
+      return successResponse(res, changeRequest, 'Pengajuan perubahan harga berhasil dikirim dan menunggu persetujuan Admin', 202);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   async update(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;

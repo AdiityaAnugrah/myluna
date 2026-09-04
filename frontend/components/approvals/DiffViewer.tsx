@@ -28,6 +28,9 @@ const fieldNameMap: Record<string, string> = {
   height: 'Tinggi',
   weight: 'Berat',
   variants: 'Varian',
+  warrantyPrice: 'Harga Garansi',
+  currentPrices: 'Harga Saat Ini',
+  reason: 'Alasan',
   
   // Category fields
   parentId: 'Kategori Induk',
@@ -173,8 +176,64 @@ export function DiffViewer({ oldData, newData: rawNewData, type }: DiffViewerPro
   }
 
   // UPDATE
+  if (newData?.__requestKind === 'PRICE_UPDATE') {
+    const currentPrices = newData.currentPrices || {};
+    const rows = [
+      ['Harga Beli', currentPrices.purchasePrice, newData.purchasePrice],
+      ['Harga Jual', currentPrices.sellingPrice, newData.sellingPrice],
+      ['Harga Garansi', currentPrices.warrantyPrice, newData.warrantyPrice],
+    ];
+
+    const formatCurrency = (value: any) => {
+      if (value === null || value === undefined || value === '') return '-';
+      return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+      }).format(Number(value) || 0);
+    };
+
+    return (
+      <Card className="border-emerald-200 bg-emerald-50/20">
+        <CardHeader className="py-3">
+          <CardTitle className="text-sm font-medium text-emerald-700">
+            💰 Pengajuan Perubahan Harga
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="py-3 space-y-4">
+          <div className="overflow-x-auto rounded-lg border bg-white">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/60">
+                <tr>
+                  <th className="px-3 py-2 text-left">Field</th>
+                  <th className="px-3 py-2 text-right">Harga Lama</th>
+                  <th className="px-3 py-2 text-right">Harga Baru</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(([label, before, after]) => (
+                  <tr key={String(label)} className="border-t">
+                    <td className="px-3 py-2 font-medium">{label}</td>
+                    <td className="px-3 py-2 text-right text-muted-foreground">{formatCurrency(before)}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-emerald-700">{formatCurrency(after)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {newData.reason && (
+            <div className="rounded-lg border bg-white p-3 text-sm">
+              <div className="font-semibold text-gray-700 mb-1">Alasan</div>
+              <div className="text-gray-900">{String(newData.reason)}</div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
   const entries = Object.entries(newData).filter(([key]) => 
-    !['id', 'deletedAt', 'createdBy', 'updatedBy', 'createdAt'].includes(key)
+    !['id', 'deletedAt', 'createdBy', 'updatedBy', 'createdAt', '__requestKind'].includes(key)
   );
 
   return (
