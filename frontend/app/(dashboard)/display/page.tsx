@@ -62,7 +62,7 @@ export default function DisplaySystemPage() {
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
   const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
   const isTcp = role === 'TCP';
-  const [activeTab, setActiveTab] = useState<DisplayTab>(isTcp ? 'returns' : 'products');
+  const [activeTab, setActiveTab] = useState<DisplayTab>(isTcp ? 'requests' : 'products');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [requestStatusFilter, setRequestStatusFilter] = useState('');
@@ -98,11 +98,11 @@ export default function DisplaySystemPage() {
   const readyToSellCount = summary.data?.data?.readyToSellProducts ?? productRows.filter((product) => product.isActive && Number(product.salesStock ?? 0) > 0).length;
   const activeDisplayCount = summary.data?.data?.activeSlots ?? productRows.filter((product) => (product.displayUsed ?? product.stock) > 0).length;
   const tabs: Array<{ key: DisplayTab; label: string; icon: typeof PackageOpen; count?: number; visible?: boolean }> = [
-    { key: 'products', label: 'Produk Display', icon: PackageOpen, count: productRows.length, visible: !isTcp },
-    { key: 'requests', label: isAdmin || isTcp ? 'Review Pengajuan' : 'Pengajuan Saya', icon: ClipboardList, count: pendingRequestCount, visible: true },
-    { key: 'returns', label: isTcp ? 'Tugas Retur Display' : 'Retur Display', icon: Truck, count: activeReturnCount, visible: true },
-    { key: 'letter', label: 'Surat Jalan', icon: FileText, count: returnRows.length, visible: true },
-    { key: 'history', label: 'Riwayat', icon: History, count: movementRows.length, visible: !isTcp || isAdmin },
+    { key: 'products', label: isAdmin ? 'Cek Produk' : 'Mulai dari Produk', icon: PackageOpen, count: productRows.length, visible: !isTcp },
+    { key: 'requests', label: isAdmin || isTcp ? 'Review Masuk' : 'Pengajuan Saya', icon: ClipboardList, count: pendingRequestCount, visible: true },
+    { key: 'returns', label: isTcp ? 'Retur & Kirim' : 'Retur Display', icon: Truck, count: activeReturnCount, visible: true },
+    { key: 'letter', label: 'Cetak Surat Jalan', icon: FileText, count: returnRows.length, visible: true },
+    { key: 'history', label: 'Riwayat Stok', icon: History, count: movementRows.length, visible: !isTcp || isAdmin },
   ];
 
   const applySearch = () => setSearch(searchInput.trim());
@@ -162,8 +162,8 @@ export default function DisplaySystemPage() {
   return <div className="space-y-6">
     <style jsx global>{`@page { size: A4; margin: 12mm; } @media print { body * { visibility: hidden; } #display-letter, #display-letter *, #display-request-preview, #display-request-preview * { visibility: visible; } #display-letter, #display-request-preview { position: absolute; left: 0; top: 0; width: 210mm !important; min-height: 297mm !important; height: auto !important; box-shadow: none !important; border: none !important; border-radius: 0 !important; overflow: visible !important; } #display-request-preview thead { display: table-header-group; } #display-request-preview tr, .display-request-row, .display-request-signature { break-inside: avoid; page-break-inside: avoid; } .display-request-signature { margin-top: 18mm !important; } .no-print { display: none !important; } }`}</style>
     <Breadcrumbs items={[{ label: 'Sistem Display' }]} />
-    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">Cek produk display, lalu ajukan produk yang perlu dipasang display. Jika produk sudah tidak dijual, lakukan Retur Display.</p></div><div className="flex flex-col gap-2 sm:flex-row no-print">{!isTcp && <Button onClick={() => { setDisplayFilter('all'); setActiveTab('products'); }}><ClipboardList className="mr-2 h-4 w-4" /> Cek Produk Display</Button>}<Button variant={isTcp ? 'default' : 'outline'} onClick={() => { setShowReturnForm(true); setActiveTab('returns'); }}><Truck className="mr-2 h-4 w-4" /> Retur Display</Button></div></div>
-    <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Semua Produk Master" value={summary.data?.data?.totalProducts ?? totalProductCount} note="Semua data produk aktif dan nonaktif" /><Summary title="Ready Stock" value={readyToSellCount} note="Produk aktif dengan stok jual tersedia" /><Summary title="Sedang Display" value={activeDisplayCount} note="Slot display sedang terisi" /><Summary title="Menunggu Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note="Pengajuan dari user" /></div>
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">{isTcp ? 'Fokus PUSAT: review permintaan display, proses retur, lalu cetak surat jalan.' : isAdmin ? 'Fokus Admin: pantau stok display, review pengajuan, dan selesaikan retur.' : 'Fokus User: cek produk, ajukan display yang kosong, dan pantau status pengajuan.'}</p></div><div className="flex flex-col gap-2 sm:flex-row no-print">{!isTcp && <Button onClick={() => { setDisplayFilter('all'); setActiveTab('products'); }}><PackageOpen className="mr-2 h-4 w-4" /> Mulai Cek Produk</Button>}<Button variant={isTcp ? 'default' : 'outline'} onClick={() => { setActiveTab(isTcp ? 'requests' : 'returns'); }}><ClipboardList className="mr-2 h-4 w-4" /> {isTcp ? 'Review Permintaan' : 'Lihat Retur'}</Button></div></div>
+    <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Produk Master" value={summary.data?.data?.totalProducts ?? totalProductCount} note="Semua produk yang bisa dicek" /><Summary title="Siap Dijual" value={readyToSellCount} note="Produk aktif dengan stok jual" /><Summary title="Sedang Display" value={activeDisplayCount} note="Slot display yang terisi" /><Summary title="Butuh Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note={isTcp || isAdmin ? 'Pengajuan menunggu keputusan' : 'Pengajuan saya yang menunggu'} /></div>
     <RoleGuide role={role} isAdmin={isAdmin} isTcp={isTcp} />
     <Card className="no-print"><CardContent className="pt-4"><div className="flex flex-wrap gap-2">{tabs.filter((tab) => tab.visible !== false).map((tab) => { const Icon = tab.icon; return <Button key={tab.key} type="button" variant={activeTab === tab.key ? 'default' : 'outline'} onClick={() => setActiveTab(tab.key)} className="gap-2"><Icon className="h-4 w-4" />{tab.label}{tab.count !== undefined && <Badge variant="secondary" className="ml-1">{tab.count}</Badge>}</Button>; })}</div></CardContent></Card>
     {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); }} ensureSlotThenRequest={ensureSlotThenRequest} startReturn={startReturn} displayFilter={displayFilter} setDisplayFilter={setDisplayFilter} />}
@@ -187,18 +187,28 @@ function Summary({ title, value, note }: { title: string; value: number; note: s
 
 function RoleGuide({ role, isAdmin, isTcp }: { role?: string; isAdmin: boolean; isTcp: boolean }) {
   const guide = isTcp
-    ? { title: 'Untuk PUSAT', desc: 'Buat Retur Display, cetak Surat Jalan, lalu tandai barang dikirim atau diterima.', tone: 'border-blue-200 bg-blue-50/60 text-blue-900' }
+    ? { title: 'Mode TCP / PUSAT', desc: 'Kerja utama: cek pengajuan masuk, proses pengiriman/retur, dan cetak surat jalan.', tone: 'border-blue-200 bg-blue-50/60 text-blue-900', steps: ['Review pengajuan display dari outlet/user', 'Proses retur atau pengiriman barang display', 'Cetak surat jalan dan update status barang'] }
     : isAdmin
-      ? { title: 'Untuk Admin', desc: 'Cukup review pengajuan display dari user, lalu setujui atau tolak.', tone: 'border-primary/20 bg-primary/5 text-primary' }
-      : { title: 'Untuk User', desc: 'Cek produk yang perlu display, lalu klik Ajukan Display.', tone: 'border-amber-200 bg-amber-50/70 text-amber-900' };
+      ? { title: 'Mode Admin / Super Admin', desc: 'Kerja utama: pantau display, review pengajuan, dan kontrol retur sampai selesai.', tone: 'border-primary/20 bg-primary/5 text-primary', steps: ['Cek kondisi produk display', 'Setujui atau tolak pengajuan', 'Pantau retur dan riwayat stok display'] }
+      : { title: 'Mode User / Outlet', desc: 'Kerja utama: pilih produk yang perlu dipasang display, kirim pengajuan, lalu pantau statusnya.', tone: 'border-amber-200 bg-amber-50/70 text-amber-900', steps: ['Buka tab Mulai dari Produk', 'Klik Ajukan Display atau centang beberapa produk', 'Kirim form dan tunggu review TCP/Admin'] };
   return (
     <Card className={cn('no-print border', guide.tone)}>
-      <CardContent className="flex flex-col gap-1 py-4 md:flex-row md:items-center md:justify-between">
-        <div>
+      <CardContent className="space-y-4 py-4">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
           <div className="font-semibold">{guide.title}</div>
           <div className="text-sm opacity-80">{guide.desc}</div>
         </div>
-        <Badge variant="outline" className="w-fit bg-white/70">{role || 'ROLE'}</Badge>
+          <Badge variant="outline" className="w-fit bg-white/70">{role || 'ROLE'}</Badge>
+        </div>
+        <div className="grid gap-2 md:grid-cols-3">
+          {guide.steps.map((step, index) => (
+            <div key={step} className="flex items-start gap-2 rounded-lg border bg-white/70 p-3 text-sm text-slate-800">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{index + 1}</div>
+              <div>{step}</div>
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );
@@ -252,11 +262,13 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
         <CardContent className="pt-4">
           <div className="flex flex-col gap-4">
             <div>
-              <h2 className="text-lg font-semibold">Cek Display</h2>
-              <p className="text-sm text-muted-foreground">Lihat semua produk master, produk ready stock, atau produk yang sedang display.</p>
+              <h2 className="text-lg font-semibold">Mulai dari Cek Produk</h2>
+              <p className="text-sm text-muted-foreground">Pilih filter, cari produk, lalu klik tombol aksi di kanan. Sistem otomatis membedakan produk yang kosong, sedang display, atau perlu retur.</p>
             </div>
-            <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-              <span className="font-medium">Alur:</span> User cek produk → Ajukan Display → Admin setujui.
+            <div className="grid gap-2 md:grid-cols-3">
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm"><span className="font-medium">Display Kosong:</span> klik Ajukan Display.</div>
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm"><span className="font-medium">Sudah Display:</span> klik Ajukan Ganti jika perlu diganti.</div>
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm"><span className="font-medium">Tidak Dijual Lagi:</span> kembalikan lewat Retur Display.</div>
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap gap-2">
@@ -352,7 +364,17 @@ function RequestsTab(props: any) {
 
   return (
     <div className="space-y-4 no-print">
-      {!isTcp && <div className="flex justify-end"><Button onClick={() => setShowForm(true)}>Buat Form Permintaan Display</Button></div>}
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="font-semibold">{isTcp ? 'Antrian kerja PUSAT' : isAdmin ? 'Antrian review Admin' : 'Pengajuan display outlet'}</div>
+            <div className="text-sm text-muted-foreground">
+              {isTcp ? 'Pengajuan pending bisa langsung disetujui/ditolak. Setelah disetujui, lanjutkan proses barang sesuai kebutuhan operasional.' : isAdmin ? 'Cek alasan pengajuan, varian produk, lalu tentukan setuju atau tolak.' : 'Buat form permintaan display dari produk yang kosong, lalu pantau statusnya di daftar bawah.'}
+            </div>
+          </div>
+          {!isTcp && <Button onClick={() => setShowForm(true)}><ClipboardList className="mr-2 h-4 w-4" />Buat Form Permintaan</Button>}
+        </CardContent>
+      </Card>
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
           <DialogHeader>
@@ -399,7 +421,7 @@ function RequestsTab(props: any) {
       </Dialog>
 
       <Card>
-        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><CardTitle>{isAdmin || isTcp ? 'Review Pengajuan Display' : 'Pengajuan Display Saya'}</CardTitle><select className="h-10 rounded-md border bg-background px-3 text-sm" value={requestStatusFilter || 'all'} onChange={(e) => setRequestStatusFilter(e.target.value === 'all' ? '' : e.target.value)}>{requestStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></CardHeader>
+        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><CardTitle>{isAdmin || isTcp ? 'Daftar Pengajuan yang Perlu Dicek' : 'Status Pengajuan Saya'}</CardTitle><select className="h-10 rounded-md border bg-background px-3 text-sm" value={requestStatusFilter || 'all'} onChange={(e) => setRequestStatusFilter(e.target.value === 'all' ? '' : e.target.value)}>{requestStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></CardHeader>
         <CardContent className="space-y-3">
           {requestRows.map((request: any) => <div key={request.id} className="rounded-lg border p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><div className="font-semibold">{request.product?.sourceProduct?.name || request.product?.name || '-'}</div><div className="text-xs text-muted-foreground">{request.product?.sourceProduct?.sku || request.product?.sku} • {request.requester?.fullName || request.requester?.username || '-'}</div><div className="mt-1 text-xs text-muted-foreground">{variantSummary(request.product, 'Varian: -')}</div><p className="mt-2 whitespace-pre-line text-sm">{request.reason}</p></div><div className="flex flex-wrap items-center gap-2">{statusBadge(request.type)}{statusBadge(request.status)}</div></div>{(isAdmin || isTcp) && request.status === 'PENDING' && <div className="mt-3 flex justify-end gap-2"><Button size="sm" variant="outline" className="text-green-700" onClick={() => reviewRequest.mutate({ id: request.id, action: 'approve' })}><CheckCircle2 className="mr-1 h-4 w-4" />Setujui</Button><Button size="sm" variant="outline" className="text-red-700" onClick={() => reviewRequest.mutate({ id: request.id, action: 'reject', rejectionReason: 'Pengajuan belum sesuai.' })}><XCircle className="mr-1 h-4 w-4" />Tolak</Button></div>}</div>)}
           {requestRows.length === 0 && <div className="py-8 text-center text-muted-foreground">Belum ada pengajuan display.</div>}
@@ -430,6 +452,17 @@ function ReturnsTab(props: any) {
   const selectedProduct = returnableRows.find((p: DisplayProduct) => p.id === returnForm.displayProductId);
   return (
     <div className="space-y-4 no-print">
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="font-semibold">{isTcp ? 'Retur & pengiriman display untuk PUSAT' : 'Retur Display'}</div>
+            <div className="text-sm text-muted-foreground">
+              {isTcp ? 'Buat surat jalan jika ada barang display yang harus dikirim/ditarik, lalu update status Dikirim atau Diterima.' : 'Gunakan menu ini saat barang display harus dikembalikan, terutama produk discontinued atau display rusak.'}
+            </div>
+          </div>
+          <Button onClick={() => setShowForm(true)}><Truck className="mr-2 h-4 w-4" />Buat Retur Display</Button>
+        </CardContent>
+      </Card>
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
           <DialogHeader><DialogTitle>Buat Retur Display + Surat Jalan</DialogTitle><DialogDescription>Isi data retur, lalu cek preview surat jalan sebelum disimpan.</DialogDescription></DialogHeader>
@@ -452,7 +485,7 @@ function ReturnsTab(props: any) {
       </Dialog>
 
       <Card>
-        <CardHeader><CardTitle>{isTcp ? 'Tugas Retur Display untuk PUSAT' : 'Daftar Retur Display'}</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{isTcp ? 'Daftar Tugas Retur / Pengiriman' : 'Daftar Retur Display'}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {returnRows.map((item: DisplayReturn) => <div key={item.id} className="rounded-lg border p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><div className="font-semibold">{item.letterNumber}</div><div className="text-xs text-muted-foreground">{shortDate(item.letterDate)} • Kepada {item.recipientName}</div><div className="mt-2 text-sm">{item.items?.map((row) => row.productNameSnapshot).join(', ') || '-'}</div></div><div>{statusBadge(item.status)}</div></div><div className="mt-3 flex flex-wrap justify-end gap-2"><Button size="sm" variant="outline" onClick={() => { setSelectedReturnId(item.id); setActiveTab('letter'); }}>Surat Jalan</Button>{(isTcp || isAdmin) && item.status === 'READY_TO_SEND' && <Button size="sm" onClick={() => updateReturnStatus.mutate({ id: item.id, status: 'SENT' })}>Tandai Dikirim</Button>}{(isTcp || isAdmin) && item.status === 'SENT' && <Button size="sm" onClick={() => updateReturnStatus.mutate({ id: item.id, status: 'RECEIVED' })}>Tandai Diterima</Button>}{isAdmin && item.status === 'RECEIVED' && <Button size="sm" onClick={() => updateReturnStatus.mutate({ id: item.id, status: 'COMPLETED' })}>Selesaikan</Button>}</div></div>)}
           {returnRows.length === 0 && <div className="py-8 text-center text-muted-foreground">Belum ada Retur Display.</div>}
