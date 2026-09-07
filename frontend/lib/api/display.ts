@@ -34,7 +34,7 @@ export const displayApi = {
 
   getRequests: async (params?: { status?: string }) =>
     (await apiClient.get<ApiResponse<DisplayStockRequest[]>>('/display/requests', { params })).data,
-  createRequest: async (data: { productId: string; type: 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT'; quantity: number; targetStock?: number; reason: string }) =>
+  createRequest: async (data: { productId?: string; type: 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT'; quantity: number; targetStock?: number; reason: string; destination?: string; requesterName?: string; requesterPosition?: string; notes?: string; items?: Array<{ productId: string; type?: 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT'; quantity?: number; targetStock?: number; reason?: string }> }) =>
     (await apiClient.post<ApiResponse<DisplayStockRequest>>('/display/requests', data)).data,
   reviewRequest: async (id: string, data: { action: 'approve' | 'reject'; rejectionReason?: string }) =>
     (await apiClient.post<ApiResponse<DisplayStockRequest>>(`/display/requests/${id}/review`, data)).data,

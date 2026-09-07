@@ -66,7 +66,7 @@ export function useAdjustDisplayStock() {
 
 export function useCreateDisplayRequest() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (data: { productId: string; type: 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT'; quantity: number; targetStock?: number; reason: string }) => displayApi.createRequest(data), onSuccess: () => { qc.invalidateQueries({ queryKey: ['display'] }); toast.success('Pengajuan display berhasil dikirim'); }, onError: (e) => toast.error(errorMessage(e, 'Gagal mengirim pengajuan display')) });
+  return useMutation({ mutationFn: (data: { productId?: string; type: 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT'; quantity: number; targetStock?: number; reason: string; destination?: string; requesterName?: string; requesterPosition?: string; notes?: string; items?: Array<{ productId: string; type?: 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT'; quantity?: number; targetStock?: number; reason?: string }> }) => displayApi.createRequest(data), onSuccess: () => { qc.invalidateQueries({ queryKey: ['display'] }); toast.success('Pengajuan display berhasil dikirim'); }, onError: (e) => toast.error(errorMessage(e, 'Gagal mengirim pengajuan display')) });
 }
 
 export function useReviewDisplayRequest() {

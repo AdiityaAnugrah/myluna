@@ -162,7 +162,7 @@ export const displayController = {
   async summary(req: Request, res: Response, next: NextFunction) {
     try {
       const requestWhere: any = { status: DisplayRequestStatus.PENDING };
-      if (!isAdminRole(req.user?.roleName)) requestWhere.requestedBy = req.user!.id;
+      if (!isAdminRole(req.user?.roleName) && !isTcpRole(req.user?.roleName)) requestWhere.requestedBy = req.user!.id;
       const returnWhere: any = {};
       if (isTcpRole(req.user?.roleName)) returnWhere.status = { [Op.in]: [DisplayReturnStatus.READY_TO_SEND, DisplayReturnStatus.SENT] };
       if (!isAdminRole(req.user?.roleName) && !isTcpRole(req.user?.roleName)) returnWhere.createdBy = req.user!.id;
@@ -332,28 +332,54 @@ export const displayController = {
   async createRequest(req: Request, res: Response, next: NextFunction) {
     const transaction = await sequelize.transaction();
     try {
-      const productId = req.body.productId;
-      if (!productId) throw new AppError('Produk wajib dipilih', 400);
-      const type = req.body.type as DisplayRequestType;
-      if (!Object.values(DisplayRequestType).includes(type)) throw new AppError('Tipe pengajuan display tidak valid', 400);
-      if (type === DisplayRequestType.STOCK_IN) {
-        const product = await Product.findByPk(productId, { transaction });
-        if (!product) throw new AppError('Produk asli tidak ditemukan', 404);
-        if (!product.isActive) throw new AppError('Produk ini sudah tidak dijual, tidak bisa diajukan display. Gunakan Retur Display untuk pengembalian barang.', 400);
+      const rawItems = Array.isArray(req.body.items) && req.body.items.length > 0
+        ? req.body.items
+        : [{ productId: req.body.productId, type: req.body.type, quantity: req.body.quantity, targetStock: req.body.targetStock, reason: req.body.reason }];
+      if (rawItems.length === 0) throw new AppError('Minimal 1 produk wajib dipilih', 400);
+      const requestNumber = `FPD/${new Date().toISOString().slice(0, 10).replace(/-/g, '')}/${Date.now().toString().slice(-6)}`;
+      const headerNotes = [
+        `No Form: ${requestNumber}`,
+        `Tujuan: ${String(req.body.destination || 'TCP / PUSAT').trim()}`,
+        `Pemohon: ${String(req.body.requesterName || (req.user as any)?.fullName || req.user?.username || '-').trim()}`,
+        req.body.requesterPosition ? `Jabatan: ${String(req.body.requesterPosition).trim()}` : '',
+        req.body.notes ? `Catatan: ${String(req.body.notes).trim()}` : '',
+      ].filter(Boolean).join('\n');
+      const createdRequests: DisplayStockRequest[] = [];
+
+      for (const item of rawItems) {
+        const productId = item.productId;
+        if (!productId) throw new AppError('Produk wajib dipilih', 400);
+        const type = (item.type || req.body.type || DisplayRequestType.STOCK_IN) as DisplayRequestType;
+        if (!Object.values(DisplayRequestType).includes(type)) throw new AppError('Tipe pengajuan display tidak valid', 400);
+        if (type === DisplayRequestType.STOCK_IN) {
+          const product = await Product.findByPk(productId, { transaction });
+          if (!product) throw new AppError('Produk asli tidak ditemukan', 404);
+          if (!product.isActive) throw new AppError('Produk ini sudah tidak dijual, tidak bisa diajukan display. Gunakan Retur Display untuk pengembalian barang.', 400);
+        }
+        const { slot } = await ensureDisplaySlot(productId, req.user!.id, transaction);
+        const pending = await DisplayStockRequest.findOne({ where: { productId: slot.id, status: DisplayRequestStatus.PENDING }, transaction });
+        if (pending) throw new AppError(`Produk ${slot.name} masih memiliki pengajuan display yang menunggu review`, 400);
+        if (type === DisplayRequestType.STOCK_IN && slot.stock >= slot.slotLimit) throw new AppError(`Slot display ${slot.name} sudah terisi`, 400);
+        if (type === DisplayRequestType.STOCK_OUT && slot.stock <= 0) throw new AppError(`Slot display ${slot.name} sudah kosong`, 400);
+        if (type === DisplayRequestType.ADJUSTMENT) {
+          const targetStock = parsePositiveInt(item.targetStock ?? req.body.targetStock ?? 0, 'Target slot');
+          if (targetStock > slot.slotLimit) throw new AppError('Target slot display maksimal 1', 400);
+        }
+        const itemReason = String(item.reason || req.body.reason || '').trim();
+        const request = await DisplayStockRequest.create({
+          productId: slot.id,
+          type,
+          quantity: parsePositiveInt(item.quantity ?? req.body.quantity ?? 1, 'Jumlah'),
+          targetStock: item.targetStock !== undefined && item.targetStock !== '' ? parsePositiveInt(item.targetStock, 'Target slot') : req.body.targetStock !== undefined && req.body.targetStock !== '' ? parsePositiveInt(req.body.targetStock, 'Target slot') : null,
+          reason: [headerNotes, itemReason ? `Alasan Item: ${itemReason}` : 'Alasan Item: Permintaan display dari form multi produk.'].filter(Boolean).join('\n'),
+          requestedBy: req.user!.id,
+        }, { transaction });
+        createdRequests.push(request);
       }
-      const { slot } = await ensureDisplaySlot(productId, req.user!.id, transaction);
-      const pending = await DisplayStockRequest.findOne({ where: { productId: slot.id, status: DisplayRequestStatus.PENDING }, transaction });
-      if (pending) throw new AppError('Produk ini masih memiliki pengajuan display yang menunggu review', 400);
-      if (type === DisplayRequestType.STOCK_IN && slot.stock >= slot.slotLimit) throw new AppError('Slot display produk ini sudah terisi', 400);
-      if (type === DisplayRequestType.STOCK_OUT && slot.stock <= 0) throw new AppError('Slot display produk ini sudah kosong', 400);
-      if (type === DisplayRequestType.ADJUSTMENT) {
-        const targetStock = parsePositiveInt(req.body.targetStock ?? 0, 'Target slot');
-        if (targetStock > slot.slotLimit) throw new AppError('Target slot display maksimal 1', 400);
-      }
-      const request = await DisplayStockRequest.create({ productId: slot.id, type, quantity: parsePositiveInt(req.body.quantity ?? 1, 'Jumlah'), targetStock: req.body.targetStock !== undefined && req.body.targetStock !== '' ? parsePositiveInt(req.body.targetStock, 'Target slot') : null, reason: String(req.body.reason || '').trim(), requestedBy: req.user!.id }, { transaction });
       await transaction.commit();
-      socketService.emitToAdmins('approval:pending', { message: 'Pengajuan display baru', entityType: 'DisplaySlot', requestType: type, requesterName: (req.user as any)?.fullName || req.user?.username });
-      return successResponse(res, request, 'Pengajuan display berhasil dikirim', 201);
+      socketService.emitToTCP('approval:pending', { message: 'Form Permintaan Display baru', entityType: 'DisplaySlot', requestNumber, totalItems: createdRequests.length, requesterName: (req.user as any)?.fullName || req.user?.username });
+      socketService.emitToAdmins('approval:pending', { message: 'Form Permintaan Display baru', entityType: 'DisplaySlot', requestNumber, totalItems: createdRequests.length, requesterName: (req.user as any)?.fullName || req.user?.username });
+      return successResponse(res, { requestNumber, requests: createdRequests }, 'Form permintaan display berhasil dikirim ke TCP/Pusat', 201);
     } catch (error) { await transaction.rollback(); return next(error); }
   },
 
@@ -362,7 +388,7 @@ export const displayController = {
       const { status = '' } = req.query;
       const where: any = {};
       if (status) where.status = status;
-      if (!isAdminRole(req.user?.roleName)) where.requestedBy = req.user!.id;
+      if (!isAdminRole(req.user?.roleName) && !isTcpRole(req.user?.roleName)) where.requestedBy = req.user!.id;
       const requests = await DisplayStockRequest.findAll({ where, include: [{ model: DisplayProduct, as: 'product', include: [{ model: Product, as: 'sourceProduct', include: [{ model: Category, as: 'category' }, { model: ProductVariant, as: 'variantItems' }] }] }, { model: User, as: 'requester', attributes: ['id', 'fullName', 'username'] }, { model: User, as: 'reviewer', attributes: ['id', 'fullName', 'username'] }], order: [['createdAt', 'DESC']] });
       return successResponse(res, requests, 'Pengajuan display berhasil diambil', 200);
     } catch (error) { return next(error); }
