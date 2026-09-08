@@ -85,7 +85,7 @@ export default function ProductsPage() {
   const bulkUpdateMutation = useBulkUpdateProducts();
 
   const products = data?.data?.products || [];
-  const pagination = data?.data?.pagination || { total: 0, page: 1, limit: 10, totalPages: 1 };
+  const pagination = data?.data?.pagination || { total: 0, page: 1, limit: 200, totalPages: 1 };
 
   const handleDelete = (id: string) => {
     setProductToDelete(id);
@@ -121,7 +121,8 @@ export default function ProductsPage() {
       Kategori: product.category?.name || '-',
       'Harga Jual (Tanpa Garansi)': formatCurrencyForExport(product.sellingPrice),
       'Harga Pakai Garansi': product.warrantyPrice ? formatCurrencyForExport(product.warrantyPrice) : '-',
-      Stok: product.stock,
+      Stok: getEffectiveStock(product),
+      Varian: getProductVariants(product).length,
       'Min Stok': product.minStock,
       Unit: product.unit,
       Status: product.isActive ? 'Aktif' : 'Nonaktif',
@@ -137,6 +138,7 @@ export default function ProductsPage() {
         { header: 'Harga Jual (Tanpa Garansi)', key: 'Harga Jual (Tanpa Garansi)', width: 15 },
         { header: 'Harga Pakai Garansi', key: 'Harga Pakai Garansi', width: 15 },
         { header: 'Stok', key: 'Stok', width: 10 },
+        { header: 'Varian', key: 'Varian', width: 10 },
         { header: 'Min Stok', key: 'Min Stok', width: 10 },
         { header: 'Unit', key: 'Unit', width: 10 },
         { header: 'Status', key: 'Status', width: 10 },
@@ -196,12 +198,17 @@ export default function ProductsPage() {
     }).format(typeof value === 'string' ? parseFloat(value) : value);
   };
 
-  /** Returns sum of variant stocks if product has variants, otherwise product.stock */
-  const getEffectiveStock = (product: Product): number => {
-    let vars = (product as any).variants;
+  const getProductVariants = (product: Product): any[] => {
+    let vars = (product as any).variants || (product as any).variantItems || [];
     if (typeof vars === 'string') {
       try { vars = JSON.parse(vars); } catch { vars = []; }
     }
+    return Array.isArray(vars) ? vars : [];
+  };
+
+  /** Returns sum of variant stocks if product has variants, otherwise product.stock */
+  const getEffectiveStock = (product: Product): number => {
+    const vars = getProductVariants(product);
     if (vars && Array.isArray(vars) && vars.length > 0) {
       return vars.reduce((s: number, v: any) => {
         return s + (typeof v === 'object' && v.stock !== undefined ? Number(v.stock) : 0);
@@ -337,6 +344,7 @@ export default function ProductsPage() {
                 products.map((product) => {
                     const effectiveStock = getEffectiveStock(product);
                     const isLowStock = effectiveStock <= Number(product.minStock);
+                    const variantCount = getProductVariants(product).length;
                     return (
                         <div key={product.id} className="rounded-lg border bg-card p-2.5 shadow-sm relative overflow-hidden">
                             <div className="flex justify-between items-start mb-1.5 gap-2">
@@ -352,6 +360,7 @@ export default function ProductsPage() {
                                         <div className="font-bold text-[12px] truncate">{product.name}</div>
                                         <div className="text-[10px] text-muted-foreground truncate">
                                             {product.category?.name || '-'}
+                                            {variantCount > 0 && ` · ${variantCount} varian`}
                                         </div>
                                     </div>
                                 </div>
@@ -466,6 +475,7 @@ export default function ProductsPage() {
                    products.map((product) => {
                     const effectiveStock = getEffectiveStock(product);
                     const isLowStock = effectiveStock <= Number(product.minStock);
+                    const variantCount = getProductVariants(product).length;
                     return (
                       <TableRow key={product.id}>
                         {isAdmin && (
@@ -492,12 +502,19 @@ export default function ProductsPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span className={isLowStock ? 'text-red-500 font-semibold' : ''}>
-                              {effectiveStock}
-                            </span>
-                            {isLowStock && (
-                              <AlertTriangle className="h-4 w-4 text-red-500" />
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className={isLowStock ? 'text-red-500 font-semibold' : ''}>
+                                {effectiveStock}
+                              </span>
+                              {isLowStock && (
+                                <AlertTriangle className="h-4 w-4 text-red-500" />
+                              )}
+                            </div>
+                            {variantCount > 0 && (
+                              <Badge variant="outline" className="w-fit text-[10px]">
+                                {variantCount} varian
+                              </Badge>
                             )}
                           </div>
                         </TableCell>

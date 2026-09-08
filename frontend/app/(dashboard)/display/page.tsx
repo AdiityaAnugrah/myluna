@@ -1,12 +1,13 @@
 
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ClipboardList, FileText, History, Loader2, PackageOpen, Printer, RefreshCcw, Search, Truck, XCircle } from 'lucide-react';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -70,9 +71,11 @@ export default function DisplaySystemPage() {
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [showReturnForm, setShowReturnForm] = useState(false);
   const [displayFilter, setDisplayFilter] = useState<DisplayFilter>('all');
+  const [productPage, setProductPage] = useState(1);
+  const [productLimit, setProductLimit] = useState(200);
 
   const summary = useDisplaySummary();
-  const products = useDisplayProducts({ page: 1, limit: 1000, search: search || undefined, scope: displayFilter });
+  const products = useDisplayProducts({ page: productPage, limit: productLimit, search: search || undefined, scope: displayFilter });
   const returnableProducts = useDisplayReturnableProducts();
   const requests = useDisplayRequests({ status: requestStatusFilter || undefined });
   const returns = useDisplayReturns();
@@ -83,6 +86,7 @@ export default function DisplaySystemPage() {
   const updateReturnStatus = useUpdateDisplayReturnStatus();
 
   const productRows = products.data?.data?.products ?? [];
+  const productPagination = products.data?.data?.pagination ?? { total: 0, page: productPage, limit: productLimit, totalPages: 1 };
   const returnableRows = returnableProducts.data?.data ?? [];
   const requestRows = requests.data?.data ?? [];
   const returnRows = returns.data?.data ?? [];
@@ -98,12 +102,16 @@ export default function DisplaySystemPage() {
   const readyToSellCount = summary.data?.data?.readyToSellProducts ?? productRows.filter((product) => product.isActive && Number(product.salesStock ?? 0) > 0).length;
   const activeDisplayCount = summary.data?.data?.activeSlots ?? productRows.filter((product) => (product.displayUsed ?? product.stock) > 0).length;
   const tabs: Array<{ key: DisplayTab; label: string; icon: typeof PackageOpen; count?: number; visible?: boolean }> = [
-    { key: 'products', label: isAdmin ? 'Cek Produk' : 'Mulai dari Produk', icon: PackageOpen, count: productRows.length, visible: !isTcp },
+    { key: 'products', label: isAdmin ? 'Cek Produk' : 'Mulai dari Produk', icon: PackageOpen, count: totalProductCount, visible: !isTcp },
     { key: 'requests', label: isAdmin || isTcp ? 'Review Masuk' : 'Pengajuan Saya', icon: ClipboardList, count: pendingRequestCount, visible: true },
     { key: 'returns', label: isTcp ? 'Retur & Kirim' : 'Retur Display', icon: Truck, count: activeReturnCount, visible: true },
     { key: 'letter', label: 'Cetak Surat Jalan', icon: FileText, count: returnRows.length, visible: true },
     { key: 'history', label: 'Riwayat Stok', icon: History, count: movementRows.length, visible: !isTcp || isAdmin },
   ];
+
+  useEffect(() => {
+    setProductPage(1);
+  }, [search, displayFilter]);
 
   const applySearch = () => setSearch(searchInput.trim());
   const submitRequest = () => {
@@ -166,7 +174,7 @@ export default function DisplaySystemPage() {
     <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Produk Master" value={summary.data?.data?.totalProducts ?? totalProductCount} note="Semua produk yang bisa dicek" /><Summary title="Siap Dijual" value={readyToSellCount} note="Produk aktif dengan stok jual" /><Summary title="Sedang Display" value={activeDisplayCount} note="Slot display yang terisi" /><Summary title="Butuh Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note={isTcp || isAdmin ? 'Pengajuan menunggu keputusan' : 'Pengajuan saya yang menunggu'} /></div>
     <RoleGuide role={role} isAdmin={isAdmin} isTcp={isTcp} />
     <Card className="no-print"><CardContent className="pt-4"><div className="flex flex-wrap gap-2">{tabs.filter((tab) => tab.visible !== false).map((tab) => { const Icon = tab.icon; return <Button key={tab.key} type="button" variant={activeTab === tab.key ? 'default' : 'outline'} onClick={() => setActiveTab(tab.key)} className="gap-2"><Icon className="h-4 w-4" />{tab.label}{tab.count !== undefined && <Badge variant="secondary" className="ml-1">{tab.count}</Badge>}</Button>; })}</div></CardContent></Card>
-    {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); }} ensureSlotThenRequest={ensureSlotThenRequest} startReturn={startReturn} displayFilter={displayFilter} setDisplayFilter={setDisplayFilter} />}
+    {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); setProductPage(1); }} ensureSlotThenRequest={ensureSlotThenRequest} startReturn={startReturn} displayFilter={displayFilter} setDisplayFilter={setDisplayFilter} pagination={productPagination} setPage={setProductPage} setLimit={setProductLimit} />}
     {activeTab === 'requests' && <RequestsTab isAdmin={isAdmin} isTcp={isTcp} showForm={showRequestForm} setShowForm={setShowRequestForm} productRows={productRows} requestForm={requestForm} setRequestForm={setRequestForm} selectedProductIds={selectedProductIds} setSelectedProductIds={setSelectedProductIds} submitRequest={submitRequest} createPending={createRequest.isPending} requestRows={requestRows} reviewRequest={reviewRequest} requestStatusFilter={requestStatusFilter} setRequestStatusFilter={setRequestStatusFilter} />}
     {activeTab === 'returns' && <ReturnsTab isAdmin={isAdmin} isTcp={isTcp} showForm={showReturnForm} setShowForm={setShowReturnForm} productRows={returnableRows} isLoadingProducts={returnableProducts.isLoading} returnRows={returnRows} returnForm={returnForm} setReturnForm={setReturnForm} submitReturn={submitReturn} createPending={createReturn.isPending} setSelectedReturnId={setSelectedReturnId} setActiveTab={setActiveTab} updateReturnStatus={updateReturnStatus} />}
     {activeTab === 'letter' && <div className="space-y-4"><div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between no-print"><div><h2 className="text-lg font-semibold">Surat Jalan Retur Display</h2><p className="text-sm text-muted-foreground">Pilih surat jalan lalu cetak untuk dibawa bersama barang.</p></div><div className="flex gap-2"><select className="h-10 rounded-md border bg-background px-3 text-sm" value={selectedReturn?.id || ''} onChange={(e) => setSelectedReturnId(e.target.value)}>{returnRows.map((item) => <option key={item.id} value={item.id}>{item.letterNumber} - {item.recipientName}</option>)}</select><Button onClick={() => window.print()} disabled={!selectedReturn}><Printer className="mr-2 h-4 w-4" />Cetak</Button></div></div>{selectedReturn ? <LetterTemplate displayReturn={selectedReturn} /> : <Card><CardContent className="py-10 text-center text-muted-foreground">Belum ada surat jalan. Buat Retur Display terlebih dahulu.</CardContent></Card>}</div>}
@@ -253,7 +261,7 @@ function variantSummary(product: DisplayProduct | any, emptyText = 'Varian: -') 
 }
 
 
-function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, applySearch, reset, ensureSlotThenRequest, startReturn, displayFilter, setDisplayFilter }: any) {
+function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, applySearch, reset, ensureSlotThenRequest, startReturn, displayFilter, setDisplayFilter, pagination, setPage, setLimit }: any) {
   const filteredRows = productRows;
 
   return (
@@ -342,6 +350,20 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
             </Table>
           )}
           {!isLoading && filteredRows.length === 0 && <div className="py-10 text-center text-muted-foreground">Tidak ada produk pada kategori ini.</div>}
+          {!isLoading && pagination.total > 0 && (
+            <Pagination
+              currentPage={pagination.page}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.total}
+              itemsPerPage={pagination.limit}
+              onPageChange={setPage}
+              onItemsPerPageChange={(newLimit) => {
+                setLimit(newLimit);
+                setPage(1);
+              }}
+              pageSizeOptions={[50, 100, 200, 500]}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

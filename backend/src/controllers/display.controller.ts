@@ -100,10 +100,32 @@ async function createDisplayMovement(params: {
   );
 }
 
+function getProductVariantItems(product: any) {
+  const raw = product?.variantItems || product?.variants || [];
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(raw) ? raw : [];
+}
+
+function getSalesStock(product: any) {
+  const variants = getProductVariantItems(product);
+  if (variants.length > 0) {
+    return variants.reduce((sum: number, variant: any) => sum + Number(variant?.stock || 0), 0);
+  }
+  return Number(product?.stock || 0);
+}
+
 function slotView(product: any) {
   const slot = product.displaySlot || null;
   const used = Number(slot?.stock ?? 0);
   const limit = Number(slot?.slotLimit ?? 1);
+  const salesStock = getSalesStock(product);
   const available = Math.max(limit - Math.min(Math.max(used, 0), limit), 0);
   return {
     id: slot?.id || null,
@@ -114,7 +136,7 @@ function slotView(product: any) {
     categoryId: product.categoryId,
     displayLocation: slot?.displayLocation || null,
     unit: product.unit,
-    salesStock: product.stock,
+    salesStock,
     stock: used,
     slotLimit: limit,
     displayUsed: used,
@@ -167,13 +189,18 @@ export const displayController = {
       if (isTcpRole(req.user?.roleName)) returnWhere.status = { [Op.in]: [DisplayReturnStatus.READY_TO_SEND, DisplayReturnStatus.SENT] };
       if (!isAdminRole(req.user?.roleName) && !isTcpRole(req.user?.roleName)) returnWhere.createdBy = req.user!.id;
 
-      const [totalProducts, readyToSellProducts, activeSlots, pendingRequests, activeReturns] = await Promise.all([
+      const [totalProducts, activeProducts, activeSlots, pendingRequests, activeReturns] = await Promise.all([
         Product.count(),
-        Product.count({ where: { isActive: true, stock: { [Op.gt]: 0 } } }),
+        Product.findAll({
+          where: { isActive: true },
+          attributes: ['id', 'stock'],
+          include: [{ model: ProductVariant, as: 'variantItems', separate: true, attributes: ['id', 'stock'] }],
+        }),
         DisplayProduct.count({ where: { isActive: true, stock: { [Op.gt]: 0 } } }),
         DisplayStockRequest.count({ where: requestWhere }),
         DisplayReturn.count({ where: returnWhere }),
       ]);
+      const readyToSellProducts = activeProducts.filter((product: any) => getSalesStock(product) > 0).length;
 
       return successResponse(res, { totalProducts, readyToSellProducts, activeSlots, pendingRequests, activeReturns, badgeCount: pendingRequests + activeReturns }, 'Ringkasan sistem display berhasil diambil', 200);
     } catch (error) { return next(error); }
@@ -197,22 +224,22 @@ export const displayController = {
     try {
       const { page = 1, limit = 20, search = '', categoryId = '', status = '', scope = 'all' } = req.query;
       const pageNumber = Math.max(Number(page) || 1, 1);
-      const limitNumber = Math.max(Number(limit) || 20, 1);
+      const limitNumber = Math.min(Math.max(Number(limit) || 20, 1), 500);
       const offset = (pageNumber - 1) * limitNumber;
       const where: any = {};
       if (categoryId) where.categoryId = categoryId;
       if (search) where[Op.or] = [{ sku: { [Op.like]: `%${search}%` } }, { name: { [Op.like]: `%${search}%` } }];
       if (scope === 'ready-to-sell') {
         where.isActive = true;
-        where.stock = { [Op.gt]: 0 };
       }
       const include: any[] = [
         { model: Category, as: 'category' },
-        { model: ProductVariant, as: 'variantItems' },
+        { model: ProductVariant, as: 'variantItems', separate: true, order: [['createdAt', 'ASC']] },
         { model: DisplayProduct, as: 'displaySlot', required: false },
       ];
       const allProducts = await Product.findAll({ where, include, order: [['updatedAt', 'DESC']] });
       let rows = allProducts.map((row: any) => slotView(row));
+      if (scope === 'ready-to-sell') rows = rows.filter((row) => Number(row.salesStock || 0) > 0);
       if (scope === 'has-display') rows = rows.filter((row) => row.displayUsed > 0);
       if (status) rows = rows.filter((row) => row.status === status);
       const total = rows.length;
@@ -240,7 +267,7 @@ export const displayController = {
           categoryId: product?.categoryId || null,
           displayLocation: slot.displayLocation,
           unit: product?.unit || slot.unit,
-          salesStock: product?.stock ?? 0,
+          salesStock: product ? getSalesStock(product) : 0,
           stock: Number(slot.stock || 0),
           slotLimit: Number(slot.slotLimit || 1),
           displayUsed: Number(slot.stock || 0),

@@ -64,6 +64,8 @@ export const productController = {
           {
             model: ProductVariant,
             as: 'variantItems',
+            separate: true,
+            order: [['createdAt', 'ASC']],
           },
           {
             model: Category,

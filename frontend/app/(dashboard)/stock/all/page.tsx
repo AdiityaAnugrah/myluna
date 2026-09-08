@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useProducts } from '@/lib/hooks/useProducts';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useCreateStockAdjustment, useCreateStockRequest } from '@/lib/hooks/useStock';
@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { Pagination } from '@/components/ui/pagination';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   Dialog,
@@ -43,7 +44,7 @@ import {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getEffectiveStock = (product: any): number => {
-  let vars = product.variants;
+  let vars = product.variantItems || product.variants;
   if (typeof vars === 'string') {
     try { vars = JSON.parse(vars); } catch { vars = []; }
   }
@@ -70,7 +71,10 @@ export default function TotalStockPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'DEV';
 
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(200);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -81,15 +85,19 @@ export default function TotalStockPage() {
   const [adjNotes, setAdjNotes] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  const { data, isLoading } = useProducts({ limit: 1000 });
+  const { data, isLoading } = useProducts({ page, limit, search: search || undefined });
 
   const adjustMutation = useCreateStockAdjustment();
   const requestMutation = useCreateStockRequest();
 
-  const products = (data?.data?.products || []).filter((p: any) => {
-    const q = search.toLowerCase();
-    return p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q));
-  });
+  const products = data?.data?.products || [];
+  const pagination = data?.data?.pagination || { total: 0, page, limit, totalPages: 1 };
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  const applySearch = () => setSearch(searchInput.trim());
 
   const openAdjustment = (product: any) => {
     setSelectedProduct(product);
@@ -190,12 +198,15 @@ export default function TotalStockPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Cari nama atau SKU produk..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') applySearch(); }}
             className="pl-9"
           />
         </div>
-        <span className="text-sm text-muted-foreground">{products.length} produk ditemukan</span>
+        <Button variant="outline" onClick={applySearch}>Cari</Button>
+        <Button variant="ghost" onClick={() => { setSearchInput(''); setSearch(''); setPage(1); }}>Reset</Button>
+        <span className="text-sm text-muted-foreground">Menampilkan {products.length} dari {pagination.total} produk</span>
       </div>
 
       {/* Table */}
@@ -325,6 +336,20 @@ export default function TotalStockPage() {
             )}
           </TableBody>
         </Table>
+        {pagination.total > 0 && (
+          <Pagination
+            currentPage={pagination.page}
+            totalPages={pagination.totalPages}
+            totalItems={pagination.total}
+            itemsPerPage={pagination.limit}
+            onPageChange={setPage}
+            onItemsPerPageChange={(newLimit) => {
+              setLimit(newLimit);
+              setPage(1);
+            }}
+            pageSizeOptions={[50, 100, 200, 500]}
+          />
+        )}
       </div>
 
       {/* Adjustment Dialog */}
