@@ -25,6 +25,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -230,6 +231,17 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
     ),
     [transactions, mode, pagination.openingBalance, pagination.openingMonthKey]
   );
+  const bookTotals = useMemo(() => {
+    const totalDebit = rows.reduce((sum, row) => sum + Number(row.debit || 0), 0);
+    const totalCredit = rows.reduce((sum, row) => sum + Number(row.credit || 0), 0);
+    const finalBalance = rows.length > 0 ? rows[rows.length - 1].balance : 0;
+
+    return {
+      totalDebit,
+      totalCredit,
+      finalBalance,
+    };
+  }, [rows]);
 
   useEffect(() => {
     setPage(1);
@@ -245,7 +257,6 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
   const summary = (data as any)?.data?.summary || {};
   const totalSales = Number(summary.omsetKeseluruhan || 0);
   const totalSettlementInvoice = Number(summary.totalGrossSettled || 0);
-  const totalPlatformFee = Number(summary.totalSelisih || 0);
   const finalReceivable = Number(summary.saldoAkhirAR || 0);
 
   if (!isAllowed) {
@@ -333,47 +344,47 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
         </AlertDescription>
       </Alert>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <TrendingUp className="h-9 w-9 rounded-xl bg-green-100 p-2 text-green-700 dark:bg-green-950/40 dark:text-green-300" />
-            <div>
-              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Penjualan' : 'Total Penjualan'}</p>
-              <p className="text-lg font-bold tabular-nums">{formatCurrency(totalSales)}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <TrendingDown className="h-9 w-9 rounded-xl bg-orange-100 p-2 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300" />
-            <div>
-              <p className="text-xs text-muted-foreground">{mode === 'sales' ? 'Total Pelunasan Invoice' : 'Biaya Platform'}</p>
-              <p className="text-lg font-bold tabular-nums">{formatCurrency(mode === 'sales' ? totalSettlementInvoice : totalPlatformFee)}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <Wallet className="h-9 w-9 rounded-xl bg-purple-100 p-2 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300" />
-            <div>
-              <p className="text-xs text-muted-foreground">Sisa Piutang</p>
-              <p className="text-lg font-bold tabular-nums">{formatCurrency(finalReceivable)}</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                {mode === 'sales' ? 'Dari Buku Penjualan' : 'Dari Buku Biaya'}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <Calendar className="h-9 w-9 rounded-xl bg-blue-100 p-2 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" />
-            <div>
-              <p className="text-xs text-muted-foreground">Periode</p>
-              <p className="text-sm font-semibold">{startDate} s/d {endDate}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {mode === 'sales' && (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Card>
+            <CardContent className="flex items-center gap-3 p-4">
+              <TrendingUp className="h-9 w-9 rounded-xl bg-green-100 p-2 text-green-700 dark:bg-green-950/40 dark:text-green-300" />
+              <div>
+                <p className="text-xs text-muted-foreground">Total Penjualan</p>
+                <p className="text-lg font-bold tabular-nums">{formatCurrency(totalSales)}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-3 p-4">
+              <TrendingDown className="h-9 w-9 rounded-xl bg-orange-100 p-2 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300" />
+              <div>
+                <p className="text-xs text-muted-foreground">Total Pelunasan Invoice</p>
+                <p className="text-lg font-bold tabular-nums">{formatCurrency(totalSettlementInvoice)}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-3 p-4">
+              <Wallet className="h-9 w-9 rounded-xl bg-purple-100 p-2 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300" />
+              <div>
+                <p className="text-xs text-muted-foreground">Sisa Piutang</p>
+                <p className="text-lg font-bold tabular-nums">{formatCurrency(finalReceivable)}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Dari Buku Penjualan</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-3 p-4">
+              <Calendar className="h-9 w-9 rounded-xl bg-blue-100 p-2 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" />
+              <div>
+                <p className="text-xs text-muted-foreground">Periode</p>
+                <p className="text-sm font-semibold">{startDate} s/d {endDate}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <Card className="overflow-hidden border-2">
         <CardHeader className="border-b bg-muted/30">
@@ -445,6 +456,36 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
                     </TableRow>
                   ))}
                 </TableBody>
+                {mode === 'cost' && (
+                  <TableFooter className="border-t-2 bg-primary/5">
+                    <TableRow className="hover:bg-primary/5">
+                      <TableCell colSpan={4} className="px-4 py-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-black uppercase tracking-wide text-foreground">
+                            Jumlah Buku Biaya
+                          </span>
+                          <span className="text-xs font-normal text-muted-foreground">
+                            Total dari {rows.length} baris pada periode {startDate} s/d {endDate}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-4 py-4 text-right text-base font-black tabular-nums text-green-700 dark:text-green-300">
+                        {formatCurrency(bookTotals.totalDebit)}
+                      </TableCell>
+                      <TableCell className="px-4 py-4 text-right text-base font-black tabular-nums text-orange-700 dark:text-orange-300">
+                        {formatCurrency(bookTotals.totalCredit)}
+                      </TableCell>
+                      <TableCell className={cn('px-4 py-4 text-right text-base font-black tabular-nums', bookTotals.finalBalance === 0 ? 'text-green-700 dark:text-green-300' : 'text-purple-700 dark:text-purple-300')}>
+                        {formatCurrency(bookTotals.finalBalance)}
+                      </TableCell>
+                      <TableCell className="px-4 py-4">
+                        <Badge variant="outline" className="border-primary/30 bg-background text-xs text-primary">
+                          Total Periode
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  </TableFooter>
+                )}
               </Table>
             </div>
           )}
