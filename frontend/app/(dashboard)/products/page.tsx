@@ -44,7 +44,7 @@ export default function ProductsPage() {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(200);
   const [parentCategoryId, setParentCategoryId] = useState<string>('all');
   const [subCategoryId, setSubCategoryId] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('active'); // 'active', 'inactive', 'all'
@@ -587,6 +587,7 @@ export default function ProductsPage() {
                  setLimit(newLimit);
                  setPage(1);
                }}
+               pageSizeOptions={[10, 20, 50, 100, 200]}
              />
            )}
         </div>

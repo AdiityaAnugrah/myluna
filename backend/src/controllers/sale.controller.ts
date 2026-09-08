@@ -333,6 +333,17 @@ export const saleController = {
         ? 0
         : Math.max(Number(count) - failedCount, 0);
 
+      const statusCountWhereBase: any = { ...where };
+      delete statusCountWhereBase.status;
+      const countStatus = async (statusValue: string) => {
+        if (forcedStatus && forcedStatus !== statusValue) return 0;
+        return Sale.count({ where: { ...statusCountWhereBase, status: statusValue } });
+      };
+      const [waitingApprovalCount, settledCount, totalAmount] = await Promise.all([
+        countStatus('WAITING_APPROVAL'),
+        countStatus('SETTLED'),
+        Sale.sum('totalAmount', { where }) as Promise<number | null>,
+      ]);
 
       const saleIds = rows.map(r => r.id);
       const pendingCancels = await ChangeRequest.findAll({
@@ -367,6 +378,9 @@ export const saleController = {
             cancelledCount,
             rejectedCount,
             cancelledOrRejectedCount: cancelledCount + rejectedCount,
+            waitingApprovalCount,
+            settledCount,
+            totalAmount: Number(totalAmount || 0),
           },
         },
         'Sales retrieved successfully',

@@ -23,6 +23,61 @@ function getFinanceBookMonthKey(value: Date | string) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function calculateFinanceBookTotals(transactions: any[], mode: string) {
+  let totalDebit = 0;
+  let totalCredit = 0;
+  let finalBalance = 0;
+  let activeMonthKey: string | null = null;
+  const normalizedMode = String(mode || '').toLowerCase();
+
+  for (const txn of transactions.filter(isFinanceBookTransaction)) {
+    const monthKey = getFinanceBookMonthKey(txn.date);
+    if (activeMonthKey !== monthKey) {
+      activeMonthKey = monthKey;
+      finalBalance = 0;
+    }
+
+    if (txn.type === 'carry_forward') {
+      finalBalance = Number(txn.debit || 0);
+      if (normalizedMode === 'sales') totalDebit += finalBalance;
+      continue;
+    }
+
+    if (txn.type === 'sale_settled' || txn.type === 'sale_pending') {
+      const gross = Number(txn.debit || 0);
+      const feePercentage = Number(txn.platformFeePercentage ?? 25);
+      const estimatedFee = gross * (feePercentage / 100);
+      finalBalance += gross;
+      if (normalizedMode === 'sales') totalDebit += gross;
+      if (normalizedMode === 'cost') totalCredit += estimatedFee;
+      continue;
+    }
+
+    if (txn.type === 'settlement') {
+      const actualNetAmount = Number(txn.netAmount ?? txn.credit ?? 0);
+      const platformFee = Number(txn.platformFee || 0);
+      const grossSettlement = actualNetAmount + platformFee;
+      const feePercentage = Number(txn.platformFeePercentage ?? 25);
+      const expectedPlatformFee = grossSettlement * (feePercentage / 100);
+      const expectedNetAmount = grossSettlement - expectedPlatformFee;
+      const adjustmentCredit = expectedNetAmount - actualNetAmount;
+
+      finalBalance -= grossSettlement;
+      if (normalizedMode === 'sales') totalCredit += grossSettlement;
+      if (normalizedMode === 'cost') {
+        totalDebit += actualNetAmount;
+        totalCredit += adjustmentCredit;
+      }
+    }
+  }
+
+  return {
+    totalDebit,
+    totalCredit,
+    finalBalance,
+  };
+}
+
 function calculateFinanceBookOpeningBalance(transactions: any[]) {
   let balance = 0;
   let activeMonthKey: string | null = null;
@@ -76,16 +131,6 @@ export const financialController = {
 
         start = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
         end = new Date(ey, em - 1, ed, 23, 59, 59, 999);
-
-        if (isBookRequest) {
-          const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-          if (diffDays > 93) {
-            return res.status(400).json({
-              success: false,
-              message: 'Range Buku Penjualan/Biaya maksimal 93 hari per request. Persempit tanggal atau export per kuartal.',
-            });
-          }
-        }
 
         // settlementDate is DATEONLY — compare with date strings, not Date objects
         whereClause.settlementDate = {
@@ -486,6 +531,9 @@ export const financialController = {
         ? transactions.filter(isFinanceBookTransaction)
         : transactions;
       const totalTransactions = responseTransactions.length;
+      const bookTotals = isBookRequest
+        ? calculateFinanceBookTotals(responseTransactions, String(bookMode || ''))
+        : { totalDebit: 0, totalCredit: 0, finalBalance: 0 };
       const pageOffset = (currentPage - 1) * perPage;
       const pageTransactions = responseTransactions.slice(pageOffset, pageOffset + perPage);
       const opening = isBookRequest
@@ -499,7 +547,7 @@ export const financialController = {
         res,
         {
           transactions: paginatedTransactions,
-          summary,
+          summary: isBookRequest ? { ...summary, bookTotals } : summary,
           ...(isBookRequest && {
             pagination: {
               total: totalTransactions,

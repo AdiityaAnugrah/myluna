@@ -407,9 +407,9 @@ export default function SalesPage() {
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Menunggu Proses</p>
               <p className="text-xl font-black text-yellow-600">
-                {sales.filter((s: any) => s.status === 'WAITING_APPROVAL').length}
+                {salesSummary.waitingApprovalCount ?? 0}
               </p>
-              <p className="text-[9px] text-muted-foreground">(halaman ini)</p>
+              <p className="text-[9px] text-muted-foreground">sesuai filter</p>
             </div>
           </div>
           <div className="bg-card border rounded-xl p-4 flex items-center gap-3">
@@ -417,17 +417,17 @@ export default function SalesPage() {
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Sudah Dilunasi</p>
               <p className="text-xl font-black text-green-600">
-                {sales.filter((s: any) => s.status === 'SETTLED').length}
+                {salesSummary.settledCount ?? 0}
               </p>
-              <p className="text-[9px] text-muted-foreground">(halaman ini)</p>
+              <p className="text-[9px] text-muted-foreground">sesuai filter</p>
             </div>
           </div>
           <div className="bg-card border rounded-xl p-4 flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-lg"><TrendingUp className="h-4 w-4 text-primary" /></div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Halaman Ini</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Sesuai Filter</p>
               <p className="text-xl font-black text-primary">
-                {formatCurrency(sales.reduce((s: number, sale: any) => s + parseFloat(sale.totalAmount || 0), 0))}
+                {formatCurrency(salesSummary.totalAmount ?? 0)}
               </p>
             </div>
           </div>

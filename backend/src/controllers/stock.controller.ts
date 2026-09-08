@@ -54,10 +54,36 @@ export const stockController = {
         order: [['createdAt', 'DESC']],
       });
 
+      const [stockInRaw, stockOutRaw] = await Promise.all([
+        StockMovement.sum('quantity', {
+          where: {
+            ...where,
+            [Op.or]: [
+              { type: MovementType.IN },
+              { type: MovementType.ADJUSTMENT, quantity: { [Op.gt]: 0 } },
+            ],
+          },
+        }),
+        StockMovement.sum('quantity', {
+          where: {
+            ...where,
+            [Op.or]: [
+              { type: MovementType.OUT },
+              { type: MovementType.ADJUSTMENT, quantity: { [Op.lt]: 0 } },
+            ],
+          },
+        }),
+      ]);
+
       return successResponse(
         res,
         {
           movements: rows,
+          summary: {
+            stockIn: Number(stockInRaw || 0),
+            stockOut: Math.abs(Number(stockOutRaw || 0)),
+            transactionCount: count,
+          },
           pagination: {
             total: count,
             page: Number(page),

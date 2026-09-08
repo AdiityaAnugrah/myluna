@@ -202,6 +202,9 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
   const [endDate, setEndDate] = useState(lastDay);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(100);
+  const hasCompleteDateRange = Boolean(startDate && endDate);
+  const hasNoDateRange = !startDate && !endDate;
+  const canLoadData = hasCompleteDateRange || hasNoDateRange;
 
   const isAllowed = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'DEV';
   const featureKey = mode === 'sales' ? 'finance-sales-book' : 'finance-cost-book';
@@ -211,8 +214,15 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
   const feature = features.find((item: any) => item.key === featureKey);
   const isFeatureAvailable = user?.role === 'DEV' || !featureControlReady || !!feature;
   const { data, isLoading } = useFinancialSummary(
-    startDate && endDate ? { startDate, endDate, page, limit, bookMode: mode } : undefined,
-    { enabled: isAllowed && isFeatureAvailable }
+    canLoadData
+      ? {
+          ...(hasCompleteDateRange ? { startDate, endDate } : {}),
+          page,
+          limit,
+          bookMode: mode,
+        }
+      : undefined,
+    { enabled: isAllowed && isFeatureAvailable && canLoadData }
   );
 
   const transactions: Transaction[] = (data as any)?.data?.transactions || [];
@@ -231,7 +241,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
     ),
     [transactions, mode, pagination.openingBalance, pagination.openingMonthKey]
   );
-  const bookTotals = useMemo(() => {
+  const pageBookTotals = useMemo(() => {
     const totalDebit = rows.reduce((sum, row) => sum + Number(row.debit || 0), 0);
     const totalCredit = rows.reduce((sum, row) => sum + Number(row.credit || 0), 0);
     const finalBalance = rows.length > 0 ? rows[rows.length - 1].balance : 0;
@@ -255,9 +265,11 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
   const Icon = mode === 'sales' ? BookOpenCheck : ReceiptText;
 
   const summary = (data as any)?.data?.summary || {};
+  const bookTotals = summary.bookTotals || pageBookTotals;
   const totalSales = Number(summary.omsetKeseluruhan || 0);
   const totalSettlementInvoice = Number(summary.totalGrossSettled || 0);
   const finalReceivable = Number(summary.saldoAkhirAR || 0);
+  const periodLabel = hasCompleteDateRange ? `${startDate} s/d ${endDate}` : 'Semua tanggal';
 
   if (!isAllowed) {
     return (
@@ -330,6 +342,22 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
               <Label className="text-xs">Tanggal Akhir</Label>
               <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                if (hasNoDateRange) {
+                  setStartDate(firstDay);
+                  setEndDate(lastDay);
+                } else {
+                  setStartDate('');
+                  setEndDate('');
+                }
+                setPage(1);
+              }}
+            >
+              {hasNoDateRange ? 'Bulan Ini' : 'Semua Data'}
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -379,7 +407,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
               <Calendar className="h-9 w-9 rounded-xl bg-blue-100 p-2 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" />
               <div>
                 <p className="text-xs text-muted-foreground">Periode</p>
-                <p className="text-sm font-semibold">{startDate} s/d {endDate}</p>
+                <p className="text-sm font-semibold">{periodLabel}</p>
               </div>
             </CardContent>
           </Card>
@@ -397,7 +425,7 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
               <p className="mt-1 text-xs text-muted-foreground">
                 {mode === 'sales'
                   ? 'D = nilai penjualan · K = nilai invoice yang sudah lunas · S = sisa piutang periode ini'
-                  : 'D = dana bersih masuk · K = biaya platform · S = sisa piutang periode ini'}
+                  : 'D = dana bersih masuk · K = biaya platform · S = sisa piutang periode ini. Jumlah bawah menghitung seluruh data sesuai filter, bukan hanya halaman ini.'}
               </p>
             </div>
             <Badge variant="outline" className="w-fit">
@@ -456,36 +484,34 @@ export function FinanceBookPage({ mode }: { mode: BookMode }) {
                     </TableRow>
                   ))}
                 </TableBody>
-                {mode === 'cost' && (
-                  <TableFooter className="border-t-2 bg-primary/5">
-                    <TableRow className="hover:bg-primary/5">
-                      <TableCell colSpan={4} className="px-4 py-4">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm font-black uppercase tracking-wide text-foreground">
-                            Jumlah Buku Biaya
-                          </span>
-                          <span className="text-xs font-normal text-muted-foreground">
-                            Total dari {rows.length} baris pada periode {startDate} s/d {endDate}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-4 text-right text-base font-black tabular-nums text-green-700 dark:text-green-300">
-                        {formatCurrency(bookTotals.totalDebit)}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 text-right text-base font-black tabular-nums text-orange-700 dark:text-orange-300">
-                        {formatCurrency(bookTotals.totalCredit)}
-                      </TableCell>
-                      <TableCell className={cn('px-4 py-4 text-right text-base font-black tabular-nums', bookTotals.finalBalance === 0 ? 'text-green-700 dark:text-green-300' : 'text-purple-700 dark:text-purple-300')}>
-                        {formatCurrency(bookTotals.finalBalance)}
-                      </TableCell>
-                      <TableCell className="px-4 py-4">
-                        <Badge variant="outline" className="border-primary/30 bg-background text-xs text-primary">
-                          Total Periode
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  </TableFooter>
-                )}
+                <TableFooter className="border-t-2 bg-primary/5">
+                  <TableRow className="hover:bg-primary/5">
+                    <TableCell colSpan={4} className="px-4 py-4">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-black uppercase tracking-wide text-foreground">
+                          Jumlah {pageTitle}
+                        </span>
+                        <span className="text-xs font-normal text-muted-foreground">
+                          Total seluruh {pagination.total} transaksi buku pada periode {periodLabel}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-4 py-4 text-right text-base font-black tabular-nums text-green-700 dark:text-green-300">
+                      {formatCurrency(bookTotals.totalDebit)}
+                    </TableCell>
+                    <TableCell className="px-4 py-4 text-right text-base font-black tabular-nums text-orange-700 dark:text-orange-300">
+                      {formatCurrency(bookTotals.totalCredit)}
+                    </TableCell>
+                    <TableCell className={cn('px-4 py-4 text-right text-base font-black tabular-nums', bookTotals.finalBalance === 0 ? 'text-green-700 dark:text-green-300' : 'text-purple-700 dark:text-purple-300')}>
+                      {formatCurrency(bookTotals.finalBalance)}
+                    </TableCell>
+                    <TableCell className="px-4 py-4">
+                      <Badge variant="outline" className="border-primary/30 bg-background text-xs text-primary">
+                        Total Periode
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                </TableFooter>
               </Table>
             </div>
           )}

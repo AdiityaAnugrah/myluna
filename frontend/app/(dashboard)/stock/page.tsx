@@ -69,6 +69,7 @@ export default function StockPage() {
 
   const movements = data?.data?.movements || [];
   const pagination = data?.data?.pagination;
+  const movementSummary = (data as any)?.data?.summary || {};
 
   // Helper: returns sum of variant stocks if product has variants, otherwise product.stock
   const getEffectiveStock = (product: any): number => {
@@ -367,9 +368,7 @@ export default function StockPage() {
             <div>
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Stok Masuk (Filter)</p>
               <p className="text-2xl font-black text-green-600 mt-1">
-                {movements
-                  .filter((m: any) => m.type === 'IN' || (m.type === 'ADJUSTMENT' && m.quantity > 0))
-                  .reduce((sum: number, m: any) => sum + m.quantity, 0)}
+                {movementSummary.stockIn || 0}
               </p>
             </div>
           </div>
@@ -383,9 +382,7 @@ export default function StockPage() {
             <div>
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Stok Keluar (Filter)</p>
               <p className="text-2xl font-black text-red-600 mt-1">
-                {Math.abs(movements
-                  .filter((m: any) => m.type === 'OUT' || (m.type === 'ADJUSTMENT' && m.quantity < 0))
-                  .reduce((sum: number, m: any) => sum + m.quantity, 0))}
+                {movementSummary.stockOut || 0}
               </p>
             </div>
           </div>
@@ -412,4 +409,3 @@ export default function StockPage() {
     </div>
   );
 }
-

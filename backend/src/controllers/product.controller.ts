@@ -58,6 +58,8 @@ export const productController = {
 
       const { count, rows } = await Product.findAndCountAll({
         where,
+        distinct: true,
+        col: 'id',
         include: [
           {
             model: ProductVariant,
