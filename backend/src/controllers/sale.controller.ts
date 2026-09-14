@@ -517,7 +517,10 @@ export const saleController = {
       }
 
       recentSalesData.forEach((record: any) => {
-        const dateStr = String(record.saleDate).slice(0, 10);
+        const saleDate = record.saleDate instanceof Date
+          ? record.saleDate
+          : new Date(record.saleDate);
+        const dateStr = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}-${String(saleDate.getDate()).padStart(2, '0')}`;
         if (trendMap.has(dateStr)) {
           trendMap.set(dateStr, trendMap.get(dateStr)! + parseFloat(record.totalAmount));
         }
