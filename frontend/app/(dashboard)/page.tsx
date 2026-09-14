@@ -70,6 +70,10 @@ export default function DashboardPage() {
   const router = useRouter();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [revenueMonth, setRevenueMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   const isUserRole = user?.role === 'USER';
   const isTcpRole = user?.role === 'TCP';
 
@@ -116,7 +120,7 @@ export default function DashboardPage() {
     data: salesStatsData,
     isLoading: statsLoading,
     refetch: refetchStats
-  } = useSalesStats();
+  } = useSalesStats(revenueMonth);
   
   const { 
     data: settlementStatsData,
@@ -151,16 +155,11 @@ export default function DashboardPage() {
     
     // Revenue Trend from backend
     const chartData = ((salesStatsData as any)?.data?.revenueTrend || []).map((t: any) => ({
-      name: format(new Date(t.date), 'dd MMM'),
+      name: format(new Date(`${t.date}T00:00:00`), 'dd'),
+      date: t.date,
       revenue: t.revenue
     }));
-    
-    // Calculate growth Based on actual chartData points if possible, or keep simple
-    const currentRevenue = chartData.slice(15, 30).reduce((sum: number, t: any) => sum + t.revenue, 0);
-    const previousRevenue = chartData.slice(0, 15).reduce((sum: number, t: any) => sum + t.revenue, 0);
-    const growth = previousRevenue > 0 
-      ? ((currentRevenue - previousRevenue) / previousRevenue * 100)
-      : 0;
+    const growth = Number((salesStatsData as any)?.data?.monthlyGrowth || 0);
 
     return {
       totalRevenue,
@@ -169,7 +168,7 @@ export default function DashboardPage() {
       chartData,
       recentTransactions: combinedTransactions
     };
-  }, [salesData, purchasesData]);
+  }, [salesData, purchasesData, salesStatsData]);
 
   // Manual refresh function
   const handleRefresh = async () => {
@@ -686,16 +685,27 @@ export default function DashboardPage() {
             <SkeletonChart />
           </div>
         ) : (
-          <Card className="lg:col-span-2 border-border/50 shadow-xl overflow-hidden animate-in [animation-delay:500ms]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                Tren Pendapatan
-              </CardTitle>
-              <CardDescription>Visualisasi pendapatan 30 hari terakhir.</CardDescription>
+          <Card className="lg:col-span-2 overflow-hidden border-border/60 shadow-sm animate-in [animation-delay:500ms]">
+            <CardHeader className="flex flex-col gap-4 border-b bg-muted/20 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                  Tren Pendapatan Bulanan
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  01–{(salesStatsData as any)?.data?.trendPeriod?.endDate?.slice(-2) || '31'} {new Date(`${revenueMonth}-01T00:00:00`).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <div className="text-xs text-muted-foreground">Total bulan ini</div>
+                  <div className="font-semibold text-success">{formatCurrency(Number((salesStatsData as any)?.data?.monthlyRevenue || 0))}</div>
+                </div>
+                <input type="month" value={revenueMonth} onChange={(event) => event.target.value && setRevenueMonth(event.target.value)} className="h-9 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20" aria-label="Pilih bulan tren pendapatan" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="h-[250px] md:h-[350px] w-full mt-4">
+              <div className="h-[240px] w-full pt-5 md:h-[300px]">
                 <DynamicResponsiveContainer width="100%" height="100%">
                   <DynamicAreaChart data={stats.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
@@ -704,9 +714,9 @@ export default function DashboardPage() {
                         <stop offset="95%" stopColor="var(--success)" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.5} />
-                    <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `Rp${value/1000}k`} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />
+                    <XAxis dataKey="name" fontSize={11} tickLine={false} axisLine={false} interval={4} tickMargin={8} />
+                    <YAxis width={52} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(value) => value >= 1000000 ? `${value / 1000000}jt` : `${value / 1000}rb`} />
                     <Tooltip 
                       contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)' }}
                       itemStyle={{ fontSize: '12px' }}

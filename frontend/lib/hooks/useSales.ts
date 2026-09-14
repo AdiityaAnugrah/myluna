@@ -31,10 +31,10 @@ export function useSale(id: string) {
   });
 }
 
-export function useSalesStats() {
+export function useSalesStats(month?: string) {
   return useQuery({
-    queryKey: ['sales', 'stats'],
-    queryFn: () => salesApi.getStats(),
+    queryKey: ['sales', 'stats', month],
+    queryFn: () => salesApi.getStats(month),
   });
 }
 

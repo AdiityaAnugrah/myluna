@@ -24,8 +24,8 @@ export const salesApi = {
     return response.data;
   },
 
-  getStats: async () => {
-    const response = await apiClient.get<ApiResponse<any>>('/sales/stats');
+  getStats: async (month?: string) => {
+    const response = await apiClient.get<ApiResponse<any>>('/sales/stats', { params: { month } });
     return response.data;
   },
 

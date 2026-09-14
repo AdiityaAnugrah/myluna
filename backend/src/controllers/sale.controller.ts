@@ -439,16 +439,22 @@ export const saleController = {
     }
   },
 
-  async getStats(_req: Request, res: Response, next: NextFunction) {
+  async getStats(req: Request, res: Response, next: NextFunction) {
     try {
       const today = new Date();
       today.setHours(23, 59, 59, 999); // End of today
-      
-      const thirtyDaysAgo = new Date(today);
-      thirtyDaysAgo.setDate(today.getDate() - 29); // Include today + 29 previous days = 30 days horizon
-      thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-      const [statusCounts, todayCount, omsetResult, recentSalesData] = await Promise.all([
+      const requestedMonth = String(req.query.month || '');
+      const validMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth)
+        ? requestedMonth
+        : `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+      const [year, month] = validMonth.split('-').map(Number);
+      const periodStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
+      const periodEnd = new Date(year, month, 0, 23, 59, 59, 999);
+      const previousStart = new Date(year, month - 2, 1, 0, 0, 0, 0);
+      const previousEnd = new Date(year, month - 1, 0, 23, 59, 59, 999);
+
+      const [statusCounts, todayCount, omsetResult, recentSalesData, previousMonthResult] = await Promise.all([
         Sale.findAll({
           attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
           where: { isInitialBalance: false },
@@ -472,16 +478,25 @@ export const saleController = {
           },
           raw: true,
         }),
-        // Sales for the last 30 days for Revenue Trend
+        // Sales for the selected calendar month
         Sale.findAll({
           attributes: ['saleDate', 'totalAmount'],
           where: {
             status: { [Op.notIn]: ['CANCELLED', 'REJECTED'] },
             isInitialBalance: false,
             saleDate: {
-              [Op.gte]: thirtyDaysAgo,
-              [Op.lte]: today,
+              [Op.gte]: periodStart,
+              [Op.lte]: periodEnd,
             },
+          },
+          raw: true,
+        }),
+        Sale.findAll({
+          attributes: [[sequelize.fn('SUM', sequelize.col('totalAmount')), 'total']],
+          where: {
+            status: { [Op.notIn]: ['CANCELLED', 'REJECTED'] },
+            isInitialBalance: false,
+            saleDate: { [Op.gte]: previousStart, [Op.lte]: previousEnd },
           },
           raw: true,
         }),
@@ -494,16 +509,15 @@ export const saleController = {
 
       const trendMap = new Map<string, number>();
       
-      for (let i = 29; i >= 0; i--) {
-        const d = new Date(today);
-        d.setDate(today.getDate() - i);
+      const daysInMonth = periodEnd.getDate();
+      for (let day = 1; day <= daysInMonth; day++) {
+        const d = new Date(year, month - 1, day);
         const dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
         trendMap.set(dateStr, 0);
       }
 
       recentSalesData.forEach((record: any) => {
-        const dateObj = new Date(record.saleDate);
-        const dateStr = dateObj.getFullYear() + '-' + String(dateObj.getMonth() + 1).padStart(2, '0') + '-' + String(dateObj.getDate()).padStart(2, '0');
+        const dateStr = String(record.saleDate).slice(0, 10);
         if (trendMap.has(dateStr)) {
           trendMap.set(dateStr, trendMap.get(dateStr)! + parseFloat(record.totalAmount));
         }
@@ -513,6 +527,11 @@ export const saleController = {
         date,
         revenue,
       }));
+      const monthlyRevenue = revenueTrend.reduce((sum, item) => sum + item.revenue, 0);
+      const previousMonthRevenue = Number((previousMonthResult as any)?.[0]?.total || 0);
+      const monthlyGrowth = previousMonthRevenue > 0
+        ? ((monthlyRevenue - previousMonthRevenue) / previousMonthRevenue) * 100
+        : 0;
 
       const stats: Record<string, any> = {
         PENDING: 0,
@@ -527,6 +546,14 @@ export const saleController = {
         totalSales: 0,
         omsetKeseluruhan,
         revenueTrend,
+        trendPeriod: {
+          month: validMonth,
+          startDate: `${validMonth}-01`,
+          endDate: `${validMonth}-${String(daysInMonth).padStart(2, '0')}`,
+        },
+        monthlyRevenue,
+        previousMonthRevenue,
+        monthlyGrowth,
       };
       statusCounts.forEach((record: any) => {
         if (Object.prototype.hasOwnProperty.call(stats, record.status)) {
