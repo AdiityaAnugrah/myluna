@@ -119,6 +119,7 @@ export default function DashboardPage() {
   const {
     data: salesStatsData,
     isLoading: statsLoading,
+    error: statsError,
     refetch: refetchStats
   } = useSalesStats(revenueMonth);
   
@@ -706,6 +707,18 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="h-[240px] w-full pt-5 md:h-[300px]">
+                {statsError ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 text-center">
+                    <div><p className="font-medium">Data pendapatan belum dapat dimuat</p><p className="mt-1 text-sm text-muted-foreground">Pastikan backend sudah menggunakan versi terbaru.</p></div>
+                    <Button size="sm" variant="outline" onClick={() => refetchStats()}><RefreshCw className="mr-2 h-4 w-4" />Coba Lagi</Button>
+                  </div>
+                ) : !stats.chartData.some((item: any) => Number(item.revenue) > 0) ? (
+                  <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 text-center">
+                    <BarChart3 className="mb-3 h-8 w-8 text-muted-foreground/50" />
+                    <p className="font-medium">Belum ada pendapatan</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Tidak ada penjualan aktif pada bulan yang dipilih.</p>
+                  </div>
+                ) : (
                 <DynamicResponsiveContainer width="100%" height="100%">
                   <DynamicAreaChart data={stats.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
@@ -724,6 +737,7 @@ export default function DashboardPage() {
                     <Area type="monotone" dataKey="revenue" name="Pendapatan" stroke="var(--success)" fillOpacity={1} fill="url(#colorRev)" strokeWidth={3} />
                   </DynamicAreaChart>
                 </DynamicResponsiveContainer>
+                )}
               </div>
             </CardContent>
           </Card>
