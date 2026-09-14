@@ -163,13 +163,12 @@ export default function DisplaySystemPage() {
     setActiveTab('returns');
   };
 
-  return <div className="space-y-6">
+  return <div className="space-y-5">
     <style jsx global>{`@page { size: A4; margin: 12mm; } @media print { body * { visibility: hidden; } #display-letter, #display-letter *, #display-request-preview, #display-request-preview * { visibility: visible; } #display-letter, #display-request-preview { position: absolute; left: 0; top: 0; width: 210mm !important; min-height: 297mm !important; height: auto !important; box-shadow: none !important; border: none !important; border-radius: 0 !important; overflow: visible !important; } #display-request-preview thead { display: table-header-group; } #display-request-preview tr, .display-request-row, .display-request-signature { break-inside: avoid; page-break-inside: avoid; } .display-request-signature { margin-top: 18mm !important; } .no-print { display: none !important; } }`}</style>
     <Breadcrumbs items={[{ label: 'Sistem Display' }]} />
-    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">{isAdmin ? 'Pantau barang display, proses pengajuan, dan selesaikan retur.' : 'Pilih produk, isi alasan singkat, lalu kirim pengajuan ke Admin.'}</p></div><div className="flex flex-col gap-2 sm:flex-row no-print"><Button onClick={() => { setDisplayFilter('all'); setActiveTab('products'); }}><PackageOpen className="mr-2 h-4 w-4" />Pilih Produk</Button><Button variant="outline" onClick={() => setActiveTab(isAdmin ? 'requests' : 'returns')}><ClipboardList className="mr-2 h-4 w-4" />{isAdmin ? 'Proses Pengajuan' : 'Lihat Retur'}</Button></div></div>
-    <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Produk Master" value={summary.data?.data?.totalProducts ?? totalProductCount} note="Semua produk yang bisa dicek" /><Summary title="Siap Dijual" value={readyToSellCount} note="Produk aktif dengan stok jual" /><Summary title="Sedang Display" value={activeDisplayCount} note="Slot display yang terisi" /><Summary title="Butuh Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note={isAdmin ? 'Pengajuan menunggu keputusan' : 'Pengajuan saya yang menunggu'} /></div>
-    <RoleGuide role={role} isAdmin={isAdmin} isTcp={false} />
-    <Card className="no-print"><CardContent className="pt-4"><div className="flex flex-wrap gap-2">{tabs.filter((tab) => tab.visible !== false).map((tab) => { const Icon = tab.icon; return <Button key={tab.key} type="button" variant={activeTab === tab.key ? 'default' : 'outline'} onClick={() => setActiveTab(tab.key)} className="gap-2"><Icon className="h-4 w-4" />{tab.label}{tab.count !== undefined && <Badge variant="secondary" className="ml-1">{tab.count}</Badge>}</Button>; })}</div></CardContent></Card>
+    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight">Sistem Display</h1><Badge variant="secondary">1 slot per produk</Badge></div><p className="mt-1 text-sm text-muted-foreground">{isAdmin ? 'Kelola pengajuan dan barang display dalam satu tempat.' : 'Pilih produk dan kirim pengajuan ke Admin.'}</p></div><div className="flex gap-2 no-print"><Badge variant="outline" className="h-9 px-3">{roleLabel(role)}</Badge>{isAdmin && pendingRequestCount > 0 && <Button onClick={() => setActiveTab('requests')}><ClipboardList className="mr-2 h-4 w-4" />Proses {pendingRequestCount} Pengajuan</Button>}</div></div>
+    <Card className="no-print"><CardContent className="grid grid-cols-2 gap-0 p-0 md:grid-cols-4"><Summary title="Produk" value={summary.data?.data?.totalProducts ?? totalProductCount} /><Summary title="Siap Dijual" value={readyToSellCount} /><Summary title="Sedang Display" value={activeDisplayCount} /><Summary title={isAdmin ? 'Perlu Diproses' : 'Menunggu'} value={summary.data?.data?.pendingRequests ?? pendingRequestCount} highlight={(summary.data?.data?.pendingRequests ?? pendingRequestCount) > 0} /></CardContent></Card>
+    <div className="no-print flex gap-1 overflow-x-auto rounded-xl border bg-muted/30 p-1">{tabs.filter((tab) => tab.visible !== false).map((tab) => { const Icon = tab.icon; return <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)} className={cn('flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors', activeTab === tab.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}><Icon className="h-4 w-4" />{tab.label}{tab.count !== undefined && tab.count > 0 && <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', activeTab === tab.key ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>{tab.count}</span>}</button>; })}</div>
     {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); setProductPage(1); }} ensureSlotThenRequest={ensureSlotThenRequest} startReturn={startReturn} displayFilter={displayFilter} setDisplayFilter={setDisplayFilter} pagination={productPagination} setPage={setProductPage} setLimit={setProductLimit} />}
     {activeTab === 'requests' && <RequestsTab isAdmin={isAdmin} showForm={showRequestForm} setShowForm={setShowRequestForm} productRows={productRows} requestForm={requestForm} setRequestForm={setRequestForm} selectedProductIds={selectedProductIds} setSelectedProductIds={setSelectedProductIds} submitRequest={submitRequest} createPending={createRequest.isPending} requestRows={requestRows} reviewRequest={reviewRequest} reviewRequestsBulk={reviewRequestsBulk} requestStatusFilter={requestStatusFilter} setRequestStatusFilter={setRequestStatusFilter} />}
     {activeTab === 'returns' && <ReturnsTab isAdmin={isAdmin} isTcp={false} showForm={showReturnForm} setShowForm={setShowReturnForm} productRows={returnableRows} isLoadingProducts={returnableProducts.isLoading} returnRows={returnRows} returnForm={returnForm} setReturnForm={setReturnForm} submitReturn={submitReturn} createPending={createReturn.isPending} setSelectedReturnId={setSelectedReturnId} setActiveTab={setActiveTab} updateReturnStatus={updateReturnStatus} />}
@@ -180,12 +179,12 @@ export default function DisplaySystemPage() {
 }
 
 
-function Summary({ title, value, note }: { title: string; value: number; note: string }) {
+function Summary({ title, value, highlight = false }: { title: string; value: number; highlight?: boolean }) {
   return (
-    <Card>
-      <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{title}</CardTitle></CardHeader>
-      <CardContent><div className="text-2xl font-bold">{value}</div><p className="text-xs text-muted-foreground">{note}</p></CardContent>
-    </Card>
+    <div className="border-r border-b p-4 last:border-r-0 md:border-b-0">
+      <div className="text-xs font-medium text-muted-foreground">{title}</div>
+      <div className={cn('mt-1 text-2xl font-semibold', highlight && 'text-amber-600')}>{value}</div>
+    </div>
   );
 }
 
@@ -263,22 +262,13 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
   return (
     <div className="space-y-4 no-print">
       <Card>
-        <CardContent className="pt-4">
-          <div className="flex flex-col gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">Mulai dari Cek Produk</h2>
-              <p className="text-sm text-muted-foreground">Pilih filter, cari produk, lalu klik tombol aksi di kanan. Sistem otomatis membedakan produk yang kosong, sedang display, atau perlu retur.</p>
-            </div>
-            <div className="grid gap-2 md:grid-cols-3">
-              <div className="rounded-lg border bg-muted/30 p-3 text-sm"><span className="font-medium">Display Kosong:</span> klik Ajukan Display.</div>
-              <div className="rounded-lg border bg-muted/30 p-3 text-sm"><span className="font-medium">Sudah Display:</span> klik Ajukan Ganti jika perlu diganti.</div>
-              <div className="rounded-lg border bg-muted/30 p-3 text-sm"><span className="font-medium">Tidak Dijual Lagi:</span> kembalikan lewat Retur Display.</div>
-            </div>
+        <CardContent className="p-3">
+          <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap gap-2">
                 {[
-                  { key: 'all', label: 'Semua Produk Master' },
-                  { key: 'ready-to-sell', label: 'Ready Stock' },
+                  { key: 'all', label: 'Semua Produk' },
+                  { key: 'ready-to-sell', label: 'Siap Dijual' },
                   { key: 'has-display', label: 'Sedang Display' },
                 ].map((item) => <Button key={item.key} type="button" size="sm" variant={displayFilter === item.key ? 'default' : 'outline'} onClick={() => setDisplayFilter(item.key as DisplayFilter)}>{item.label}</Button>)}
               </div>
@@ -406,12 +396,12 @@ function RequestsTab(props: any) {
         </CardContent>
       </Card>
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>{requestTitle}</DialogTitle>
             <DialogDescription>Isi alasan singkat, lalu kirim pengajuan ke Admin.</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(420px,0.9fr)] lg:items-start">
+          <div className="space-y-4">
             <div className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-1 md:col-span-2"><span className="text-sm font-medium">Alasan</span><Textarea value={requestForm.reason} onChange={(e) => setRequestForm((p: any) => ({ ...p, reason: e.target.value }))} placeholder="Contoh: produk ini perlu dipajang di area toko." /></label>
@@ -443,7 +433,6 @@ function RequestsTab(props: any) {
 
               <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Batal</Button><Button onClick={submitRequest} disabled={selectedProducts.length === 0 || !requestForm.reason.trim() || createPending}>{createPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Kirim {selectedProducts.length || ''} Produk ke Admin</Button></div>
             </div>
-            <DisplayRequestPreview form={requestForm} selectedProducts={selectedProducts} />
           </div>
         </DialogContent>
       </Dialog>
