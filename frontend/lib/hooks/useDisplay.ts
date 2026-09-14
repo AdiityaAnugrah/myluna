@@ -74,6 +74,11 @@ export function useReviewDisplayRequest() {
   return useMutation({ mutationFn: ({ id, action, rejectionReason }: { id: string; action: 'approve' | 'reject'; rejectionReason?: string }) => displayApi.reviewRequest(id, { action, rejectionReason }), onSuccess: () => { qc.invalidateQueries({ queryKey: ['display'] }); toast.success('Pengajuan display berhasil diproses'); }, onError: (e) => toast.error(errorMessage(e, 'Gagal memproses pengajuan display')) });
 }
 
+export function useReviewDisplayRequestsBulk() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: ({ requestNumber, action, rejectionReason }: { requestNumber: string; action: 'approve' | 'reject'; rejectionReason?: string }) => displayApi.reviewRequestsBulk(requestNumber, { action, rejectionReason }), onSuccess: () => { qc.invalidateQueries({ queryKey: ['display'] }); toast.success('Seluruh item pengajuan berhasil diproses'); }, onError: (e) => toast.error(errorMessage(e, 'Gagal memproses formulir pengajuan')) });
+}
+
 export function useCreateDisplayReturn() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: displayApi.createReturn, onSuccess: () => { qc.invalidateQueries({ queryKey: ['display'] }); toast.success('Retur Display dan Surat Jalan berhasil dibuat'); }, onError: (e) => toast.error(errorMessage(e, 'Gagal membuat Retur Display')) });

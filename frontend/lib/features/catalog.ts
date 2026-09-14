@@ -58,7 +58,7 @@ export const navigationGroups: NavigationGroup[] = [
     title: 'Inventaris',
     items: [
       { name: 'Data Master', href: '/products', icon: Package, featureKey: 'products' },
-      { name: 'Sistem Display', href: '/display', icon: PackageOpen, featureKey: 'display', notificationKey: 'displayRequests' },
+      { name: 'Sistem Display', href: '/display', icon: PackageOpen, featureKey: 'display', notificationKey: 'displayRequests', navRoles: ['USER', 'ADMIN', 'SUPER_ADMIN', 'DEV'] },
       { name: 'Kategori', href: '/categories', icon: FolderTree, featureKey: 'categories' },
       { name: 'Stok', href: '/stock', icon: BarChart3, featureKey: 'stock' },
     ],

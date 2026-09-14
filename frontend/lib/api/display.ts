@@ -38,6 +38,8 @@ export const displayApi = {
     (await apiClient.post<ApiResponse<DisplayStockRequest>>('/display/requests', data)).data,
   reviewRequest: async (id: string, data: { action: 'approve' | 'reject'; rejectionReason?: string }) =>
     (await apiClient.post<ApiResponse<DisplayStockRequest>>(`/display/requests/${id}/review`, data)).data,
+  reviewRequestsBulk: async (requestNumber: string, data: { action: 'approve' | 'reject'; rejectionReason?: string }) =>
+    (await apiClient.post<ApiResponse<{ requestNumber: string; processed: number }>>('/display/requests/review-bulk', { requestNumber, ...data })).data,
 
   getReturns: async (params?: { status?: string }) =>
     (await apiClient.get<ApiResponse<DisplayReturn[]>>('/display/returns', { params })).data,

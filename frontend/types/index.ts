@@ -862,6 +862,7 @@ export interface DisplayStockMovement {
 
 export interface DisplayStockRequest {
   id: string;
+  requestNumber?: string | null;
   productId: string;
   type: DisplayRequestType;
   quantity: number;

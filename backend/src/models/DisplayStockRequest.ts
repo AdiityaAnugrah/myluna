@@ -15,6 +15,7 @@ export enum DisplayRequestStatus {
 
 interface DisplayStockRequestAttributes {
   id: string;
+  requestNumber: string | null;
   productId: string;
   type: DisplayRequestType;
   quantity: number;
@@ -29,10 +30,11 @@ interface DisplayStockRequestAttributes {
   updatedAt: Date;
 }
 
-type DisplayStockRequestCreationAttributes = Optional<DisplayStockRequestAttributes, 'id' | 'targetStock' | 'status' | 'reviewedBy' | 'reviewedAt' | 'rejectionReason' | 'createdAt' | 'updatedAt'>;
+type DisplayStockRequestCreationAttributes = Optional<DisplayStockRequestAttributes, 'id' | 'requestNumber' | 'targetStock' | 'status' | 'reviewedBy' | 'reviewedAt' | 'rejectionReason' | 'createdAt' | 'updatedAt'>;
 
 class DisplayStockRequest extends Model<DisplayStockRequestAttributes, DisplayStockRequestCreationAttributes> implements DisplayStockRequestAttributes {
   declare id: string;
+  declare requestNumber: string | null;
   declare productId: string;
   declare type: DisplayRequestType;
   declare quantity: number;
@@ -50,6 +52,7 @@ class DisplayStockRequest extends Model<DisplayStockRequestAttributes, DisplaySt
 DisplayStockRequest.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    requestNumber: { type: DataTypes.STRING(50), allowNull: true },
     productId: { type: DataTypes.UUID, allowNull: false, references: { model: 'display_products', key: 'id' } },
     type: { type: DataTypes.ENUM(...Object.values(DisplayRequestType)), allowNull: false },
     quantity: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },

@@ -15,7 +15,7 @@ import { PreviewableImage } from '@/components/ui/previewable-image';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { useCreateDisplayRequest, useCreateDisplayReturn, useDisplayMovements, useDisplayProducts, useDisplayRequests, useDisplayReturnableProducts, useDisplayReturns, useDisplaySummary, useReviewDisplayRequest, useUpdateDisplayReturnStatus } from '@/lib/hooks/useDisplay';
+import { useCreateDisplayRequest, useCreateDisplayReturn, useDisplayMovements, useDisplayProducts, useDisplayRequests, useDisplayReturnableProducts, useDisplayReturns, useDisplaySummary, useReviewDisplayRequest, useReviewDisplayRequestsBulk, useUpdateDisplayReturnStatus } from '@/lib/hooks/useDisplay';
 import type { DisplayProduct, DisplayRequestStatus, DisplayReturn, DisplayReturnStatus } from '@/types';
 
 type DisplayTab = 'products' | 'requests' | 'returns' | 'letter' | 'history';
@@ -51,7 +51,6 @@ function shortDate(value?: string | null) {
 }
 
 function roleLabel(role?: string) {
-  if (role === 'TCP') return 'PUSAT - Eksekusi Pengiriman';
   if (role === 'USER') return 'USER - Pengajuan';
   if (role === 'ADMIN') return 'ADMIN - Review';
   if (role === 'DEV') return 'DEV - Kontrol Penuh';
@@ -62,8 +61,7 @@ export default function DisplaySystemPage() {
   const { user } = useAuth();
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
   const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
-  const isTcp = role === 'TCP';
-  const [activeTab, setActiveTab] = useState<DisplayTab>(isTcp ? 'requests' : 'products');
+  const [activeTab, setActiveTab] = useState<DisplayTab>('products');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [requestStatusFilter, setRequestStatusFilter] = useState('');
@@ -82,6 +80,7 @@ export default function DisplaySystemPage() {
   const movements = useDisplayMovements({ limit: 100 });
   const createRequest = useCreateDisplayRequest();
   const reviewRequest = useReviewDisplayRequest();
+  const reviewRequestsBulk = useReviewDisplayRequestsBulk();
   const createReturn = useCreateDisplayReturn();
   const updateReturnStatus = useUpdateDisplayReturnStatus();
 
@@ -92,7 +91,7 @@ export default function DisplaySystemPage() {
   const returnRows = returns.data?.data ?? [];
   const movementRows = movements.data?.data ?? [];
   const selectedReturn = useMemo(() => returnRows.find((item) => item.id === selectedReturnId) ?? returnRows[0], [returnRows, selectedReturnId]);
-  const [requestForm, setRequestForm] = useState({ productId: '', type: 'STOCK_IN', quantity: '1', targetStock: '1', reason: '', destination: 'TCP / PUSAT', requesterPosition: '', notes: '' });
+  const [requestForm, setRequestForm] = useState({ productId: '', type: 'STOCK_IN', reason: '', notes: '' });
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [returnForm, setReturnForm] = useState({ displayProductId: '', recipientName: '', recipientAddress: '', carriedBy: '', condition: 'Perlu dicek', reason: '', notes: '' });
 
@@ -102,11 +101,11 @@ export default function DisplaySystemPage() {
   const readyToSellCount = summary.data?.data?.readyToSellProducts ?? productRows.filter((product) => product.isActive && Number(product.salesStock ?? 0) > 0).length;
   const activeDisplayCount = summary.data?.data?.activeSlots ?? productRows.filter((product) => (product.displayUsed ?? product.stock) > 0).length;
   const tabs: Array<{ key: DisplayTab; label: string; icon: typeof PackageOpen; count?: number; visible?: boolean }> = [
-    { key: 'products', label: isAdmin ? 'Cek Produk' : 'Mulai dari Produk', icon: PackageOpen, count: totalProductCount, visible: !isTcp },
-    { key: 'requests', label: isAdmin || isTcp ? 'Review Masuk' : 'Pengajuan Saya', icon: ClipboardList, count: pendingRequestCount, visible: true },
-    { key: 'returns', label: isTcp ? 'Retur & Kirim' : 'Retur Display', icon: Truck, count: activeReturnCount, visible: true },
+    { key: 'products', label: isAdmin ? 'Cek Produk' : 'Pilih Produk', icon: PackageOpen, count: totalProductCount, visible: true },
+    { key: 'requests', label: isAdmin ? 'Perlu Diproses' : 'Pengajuan Saya', icon: ClipboardList, count: pendingRequestCount, visible: true },
+    { key: 'returns', label: 'Retur Display', icon: Truck, count: activeReturnCount, visible: true },
     { key: 'letter', label: 'Cetak Surat Jalan', icon: FileText, count: returnRows.length, visible: true },
-    { key: 'history', label: 'Riwayat Stok', icon: History, count: movementRows.length, visible: !isTcp || isAdmin },
+    { key: 'history', label: 'Riwayat', icon: History, count: movementRows.length, visible: true },
   ];
 
   useEffect(() => {
@@ -116,18 +115,17 @@ export default function DisplaySystemPage() {
   const applySearch = () => setSearch(searchInput.trim());
   const submitRequest = () => {
     const ids = selectedProductIds.length > 0 ? selectedProductIds : requestForm.productId ? [requestForm.productId] : [];
+    if (ids.length === 0) return;
     createRequest.mutate({
       productId: ids[0],
       type: requestForm.type as 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT',
-      quantity: Number(requestForm.quantity),
-      targetStock: Number(requestForm.targetStock),
+      quantity: 1,
       reason: requestForm.reason,
-      destination: requestForm.destination,
+      destination: 'Admin',
       requesterName: user?.fullName || user?.username || '',
-      requesterPosition: requestForm.requesterPosition,
       notes: requestForm.notes,
-      items: ids.map((productId) => ({ productId, type: requestForm.type as 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT', quantity: Number(requestForm.quantity), targetStock: Number(requestForm.targetStock), reason: requestForm.reason })),
-    }, { onSuccess: () => { setRequestForm({ productId: '', type: 'STOCK_IN', quantity: '1', targetStock: '1', reason: '', destination: 'TCP / PUSAT', requesterPosition: '', notes: '' }); setSelectedProductIds([]); setShowRequestForm(false); setActiveTab('requests'); } });
+      items: ids.map((productId) => ({ productId, type: requestForm.type as 'STOCK_IN' | 'STOCK_OUT', quantity: 1, reason: requestForm.reason })),
+    }, { onSuccess: () => { setRequestForm({ productId: '', type: 'STOCK_IN', reason: '', notes: '' }); setSelectedProductIds([]); setShowRequestForm(false); setActiveTab('requests'); } });
   };
   const submitReturn = () => {
     const product = returnableRows.find((row) => row.id === returnForm.displayProductId);
@@ -146,8 +144,6 @@ export default function DisplaySystemPage() {
       ...prev,
       productId: product.productId || '',
       type: used > 0 ? 'STOCK_OUT' : 'STOCK_IN',
-      quantity: '1',
-      targetStock: used > 0 ? '0' : '1',
       reason: used > 0
         ? 'Hasil cek: produk display perlu dikosongkan/diganti.'
         : 'Hasil cek: produk ini perlu dipasang display.',
@@ -170,16 +166,16 @@ export default function DisplaySystemPage() {
   return <div className="space-y-6">
     <style jsx global>{`@page { size: A4; margin: 12mm; } @media print { body * { visibility: hidden; } #display-letter, #display-letter *, #display-request-preview, #display-request-preview * { visibility: visible; } #display-letter, #display-request-preview { position: absolute; left: 0; top: 0; width: 210mm !important; min-height: 297mm !important; height: auto !important; box-shadow: none !important; border: none !important; border-radius: 0 !important; overflow: visible !important; } #display-request-preview thead { display: table-header-group; } #display-request-preview tr, .display-request-row, .display-request-signature { break-inside: avoid; page-break-inside: avoid; } .display-request-signature { margin-top: 18mm !important; } .no-print { display: none !important; } }`}</style>
     <Breadcrumbs items={[{ label: 'Sistem Display' }]} />
-    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">{isTcp ? 'Fokus PUSAT: review permintaan display, proses retur, lalu cetak surat jalan.' : isAdmin ? 'Fokus Admin: pantau stok display, review pengajuan, dan selesaikan retur.' : 'Fokus User: cek produk, ajukan display yang kosong, dan pantau status pengajuan.'}</p></div><div className="flex flex-col gap-2 sm:flex-row no-print">{!isTcp && <Button onClick={() => { setDisplayFilter('all'); setActiveTab('products'); }}><PackageOpen className="mr-2 h-4 w-4" /> Mulai Cek Produk</Button>}<Button variant={isTcp ? 'default' : 'outline'} onClick={() => { setActiveTab(isTcp ? 'requests' : 'returns'); }}><ClipboardList className="mr-2 h-4 w-4" /> {isTcp ? 'Review Permintaan' : 'Lihat Retur'}</Button></div></div>
-    <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Produk Master" value={summary.data?.data?.totalProducts ?? totalProductCount} note="Semua produk yang bisa dicek" /><Summary title="Siap Dijual" value={readyToSellCount} note="Produk aktif dengan stok jual" /><Summary title="Sedang Display" value={activeDisplayCount} note="Slot display yang terisi" /><Summary title="Butuh Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note={isTcp || isAdmin ? 'Pengajuan menunggu keputusan' : 'Pengajuan saya yang menunggu'} /></div>
-    <RoleGuide role={role} isAdmin={isAdmin} isTcp={isTcp} />
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-in"><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold tracking-tight text-gradient">Sistem Display</h1><Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">1 Slot per Produk</Badge><Badge variant="outline">{roleLabel(role)}</Badge></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">{isAdmin ? 'Pantau barang display, proses pengajuan, dan selesaikan retur.' : 'Pilih produk, isi alasan singkat, lalu kirim pengajuan ke Admin.'}</p></div><div className="flex flex-col gap-2 sm:flex-row no-print"><Button onClick={() => { setDisplayFilter('all'); setActiveTab('products'); }}><PackageOpen className="mr-2 h-4 w-4" />Pilih Produk</Button><Button variant="outline" onClick={() => setActiveTab(isAdmin ? 'requests' : 'returns')}><ClipboardList className="mr-2 h-4 w-4" />{isAdmin ? 'Proses Pengajuan' : 'Lihat Retur'}</Button></div></div>
+    <div className="grid gap-4 md:grid-cols-4 no-print"><Summary title="Produk Master" value={summary.data?.data?.totalProducts ?? totalProductCount} note="Semua produk yang bisa dicek" /><Summary title="Siap Dijual" value={readyToSellCount} note="Produk aktif dengan stok jual" /><Summary title="Sedang Display" value={activeDisplayCount} note="Slot display yang terisi" /><Summary title="Butuh Review" value={summary.data?.data?.pendingRequests ?? pendingRequestCount} note={isAdmin ? 'Pengajuan menunggu keputusan' : 'Pengajuan saya yang menunggu'} /></div>
+    <RoleGuide role={role} isAdmin={isAdmin} isTcp={false} />
     <Card className="no-print"><CardContent className="pt-4"><div className="flex flex-wrap gap-2">{tabs.filter((tab) => tab.visible !== false).map((tab) => { const Icon = tab.icon; return <Button key={tab.key} type="button" variant={activeTab === tab.key ? 'default' : 'outline'} onClick={() => setActiveTab(tab.key)} className="gap-2"><Icon className="h-4 w-4" />{tab.label}{tab.count !== undefined && <Badge variant="secondary" className="ml-1">{tab.count}</Badge>}</Button>; })}</div></CardContent></Card>
     {activeTab === 'products' && <ProductsTab productRows={productRows} isLoading={products.isLoading} searchInput={searchInput} setSearchInput={setSearchInput} applySearch={applySearch} reset={() => { setSearch(''); setSearchInput(''); setProductPage(1); }} ensureSlotThenRequest={ensureSlotThenRequest} startReturn={startReturn} displayFilter={displayFilter} setDisplayFilter={setDisplayFilter} pagination={productPagination} setPage={setProductPage} setLimit={setProductLimit} />}
-    {activeTab === 'requests' && <RequestsTab isAdmin={isAdmin} isTcp={isTcp} showForm={showRequestForm} setShowForm={setShowRequestForm} productRows={productRows} requestForm={requestForm} setRequestForm={setRequestForm} selectedProductIds={selectedProductIds} setSelectedProductIds={setSelectedProductIds} submitRequest={submitRequest} createPending={createRequest.isPending} requestRows={requestRows} reviewRequest={reviewRequest} requestStatusFilter={requestStatusFilter} setRequestStatusFilter={setRequestStatusFilter} />}
-    {activeTab === 'returns' && <ReturnsTab isAdmin={isAdmin} isTcp={isTcp} showForm={showReturnForm} setShowForm={setShowReturnForm} productRows={returnableRows} isLoadingProducts={returnableProducts.isLoading} returnRows={returnRows} returnForm={returnForm} setReturnForm={setReturnForm} submitReturn={submitReturn} createPending={createReturn.isPending} setSelectedReturnId={setSelectedReturnId} setActiveTab={setActiveTab} updateReturnStatus={updateReturnStatus} />}
+    {activeTab === 'requests' && <RequestsTab isAdmin={isAdmin} showForm={showRequestForm} setShowForm={setShowRequestForm} productRows={productRows} requestForm={requestForm} setRequestForm={setRequestForm} selectedProductIds={selectedProductIds} setSelectedProductIds={setSelectedProductIds} submitRequest={submitRequest} createPending={createRequest.isPending} requestRows={requestRows} reviewRequest={reviewRequest} reviewRequestsBulk={reviewRequestsBulk} requestStatusFilter={requestStatusFilter} setRequestStatusFilter={setRequestStatusFilter} />}
+    {activeTab === 'returns' && <ReturnsTab isAdmin={isAdmin} isTcp={false} showForm={showReturnForm} setShowForm={setShowReturnForm} productRows={returnableRows} isLoadingProducts={returnableProducts.isLoading} returnRows={returnRows} returnForm={returnForm} setReturnForm={setReturnForm} submitReturn={submitReturn} createPending={createReturn.isPending} setSelectedReturnId={setSelectedReturnId} setActiveTab={setActiveTab} updateReturnStatus={updateReturnStatus} />}
     {activeTab === 'letter' && <div className="space-y-4"><div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between no-print"><div><h2 className="text-lg font-semibold">Surat Jalan Retur Display</h2><p className="text-sm text-muted-foreground">Pilih surat jalan lalu cetak untuk dibawa bersama barang.</p></div><div className="flex gap-2"><select className="h-10 rounded-md border bg-background px-3 text-sm" value={selectedReturn?.id || ''} onChange={(e) => setSelectedReturnId(e.target.value)}>{returnRows.map((item) => <option key={item.id} value={item.id}>{item.letterNumber} - {item.recipientName}</option>)}</select><Button onClick={() => window.print()} disabled={!selectedReturn}><Printer className="mr-2 h-4 w-4" />Cetak</Button></div></div>{selectedReturn ? <LetterTemplate displayReturn={selectedReturn} /> : <Card><CardContent className="py-10 text-center text-muted-foreground">Belum ada surat jalan. Buat Retur Display terlebih dahulu.</CardContent></Card>}</div>}
     {activeTab === 'history' && <HistoryTab movementRows={movementRows} />}
-    {!isTcp && activeDisplayCount === 0 && activeTab === 'products' && <Card className="border-dashed no-print"><CardContent className="flex gap-3 py-5 text-sm text-muted-foreground"><AlertTriangle className="h-5 w-5 text-yellow-600" /><div><div className="font-medium text-foreground">Belum ada produk yang sedang display.</div><div>Cek produk yang perlu display, lalu klik tombol ajukan.</div></div></CardContent></Card>}
+    {activeDisplayCount === 0 && activeTab === 'products' && <Card className="border-dashed no-print"><CardContent className="flex gap-3 py-5 text-sm text-muted-foreground"><AlertTriangle className="h-5 w-5 text-yellow-600" /><div><div className="font-medium text-foreground">Belum ada produk yang sedang display.</div><div>Cek produk yang perlu display, lalu klik tombol ajukan.</div></div></CardContent></Card>}
   </div>;
 }
 
@@ -198,7 +194,7 @@ function RoleGuide({ role, isAdmin, isTcp }: { role?: string; isAdmin: boolean; 
     ? { title: 'Mode TCP / PUSAT', desc: 'Kerja utama: cek pengajuan masuk, proses pengiriman/retur, dan cetak surat jalan.', tone: 'border-blue-200 bg-blue-50/60 text-blue-900', steps: ['Review pengajuan display dari outlet/user', 'Proses retur atau pengiriman barang display', 'Cetak surat jalan dan update status barang'] }
     : isAdmin
       ? { title: 'Mode Admin / Super Admin', desc: 'Kerja utama: pantau display, review pengajuan, dan kontrol retur sampai selesai.', tone: 'border-primary/20 bg-primary/5 text-primary', steps: ['Cek kondisi produk display', 'Setujui atau tolak pengajuan', 'Pantau retur dan riwayat stok display'] }
-      : { title: 'Mode User / Outlet', desc: 'Kerja utama: pilih produk yang perlu dipasang display, kirim pengajuan, lalu pantau statusnya.', tone: 'border-amber-200 bg-amber-50/70 text-amber-900', steps: ['Buka tab Mulai dari Produk', 'Klik Ajukan Display atau centang beberapa produk', 'Kirim form dan tunggu review TCP/Admin'] };
+      : { title: 'Mode User / Outlet', desc: 'Pilih produk yang perlu dipasang display, kirim pengajuan singkat, lalu pantau statusnya.', tone: 'border-amber-200 bg-amber-50/70 text-amber-900', steps: ['Buka tab Pilih Produk', 'Klik Ajukan Display', 'Isi alasan dan tunggu keputusan Admin'] };
   return (
     <Card className={cn('no-print border', guide.tone)}>
       <CardContent className="space-y-4 py-4">
@@ -371,51 +367,61 @@ function ProductsTab({ productRows, isLoading, searchInput, setSearchInput, appl
 }
 
 function RequestsTab(props: any) {
-  const { isAdmin, isTcp, showForm, setShowForm, productRows, requestForm, setRequestForm, selectedProductIds, setSelectedProductIds, submitRequest, createPending, requestRows, reviewRequest, requestStatusFilter, setRequestStatusFilter } = props;
+  const { isAdmin, showForm, setShowForm, productRows, requestForm, setRequestForm, selectedProductIds, setSelectedProductIds, submitRequest, createPending, requestRows, reviewRequest, reviewRequestsBulk, requestStatusFilter, setRequestStatusFilter } = props;
+  const isTcp = false;
   const selectedProducts = productRows.filter((product: DisplayProduct) => product.productId && selectedProductIds.includes(product.productId));
-  const selectableProducts = productRows.filter((product: DisplayProduct) => product.productId && !product.isDiscontinued && (product.displayUsed ?? product.stock) <= 0);
+  const selectableProducts = requestForm.type === 'STOCK_OUT'
+    ? selectedProducts
+    : productRows.filter((product: DisplayProduct) => product.productId && !product.isDiscontinued && (product.displayUsed ?? product.stock) <= 0);
   const toggleProduct = (productId?: string | null) => {
     if (!productId) return;
     setSelectedProductIds((current: string[]) => current.includes(productId) ? current.filter((id) => id !== productId) : [...current, productId]);
-    setRequestForm((current: any) => ({ ...current, productId }));
   };
   const toggleAll = () => {
     const ids = selectableProducts.map((product: DisplayProduct) => product.productId!).filter(Boolean);
     setSelectedProductIds((current: string[]) => current.length === ids.length ? [] : ids);
   };
+  const selectedProduct = selectedProducts[0];
+  const requestTitle = requestForm.type === 'STOCK_OUT' ? 'Ajukan Penggantian Display' : 'Ajukan Display';
+  const [printGroupKey, setPrintGroupKey] = useState('');
+  const requestGroups = Object.values(requestRows.reduce((groups: Record<string, any>, request: any) => {
+    const key = request.requestNumber || `lama-${request.id}`;
+    if (!groups[key]) groups[key] = { key, requestNumber: request.requestNumber || 'Pengajuan lama', items: [], requester: request.requester, createdAt: request.createdAt };
+    groups[key].items.push(request);
+    return groups;
+  }, {})) as Array<any>;
+  const printGroup = requestGroups.find((group) => group.key === printGroupKey);
 
   return (
     <div className="space-y-4 no-print">
       <Card className="border-dashed">
         <CardContent className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="font-semibold">{isTcp ? 'Antrian kerja PUSAT' : isAdmin ? 'Antrian review Admin' : 'Pengajuan display outlet'}</div>
+            <div className="font-semibold">{isAdmin ? 'Pengajuan yang perlu diproses' : 'Pengajuan Display'}</div>
             <div className="text-sm text-muted-foreground">
-              {isTcp ? 'Pengajuan pending bisa langsung disetujui/ditolak. Setelah disetujui, lanjutkan proses barang sesuai kebutuhan operasional.' : isAdmin ? 'Cek alasan pengajuan, varian produk, lalu tentukan setuju atau tolak.' : 'Buat form permintaan display dari produk yang kosong, lalu pantau statusnya di daftar bawah.'}
+              {isAdmin ? 'Periksa produk dan alasan pengajuan, lalu setujui atau tolak.' : 'Pilih produk, isi alasan singkat, lalu kirim ke Admin.'}
             </div>
           </div>
-          {!isTcp && <Button onClick={() => setShowForm(true)}><ClipboardList className="mr-2 h-4 w-4" />Buat Form Permintaan</Button>}
+          {!isAdmin && <Button onClick={() => { setRequestForm((current: any) => ({ ...current, type: 'STOCK_IN' })); setSelectedProductIds([]); setShowForm(true); }}><ClipboardList className="mr-2 h-4 w-4" />Buat Pengajuan</Button>}
         </CardContent>
       </Card>
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
           <DialogHeader>
-            <DialogTitle>Form Permintaan Display ke TCP / PUSAT</DialogTitle>
-            <DialogDescription>Pilih beberapa produk dengan tanda centang. Satu form bisa berisi banyak produk dan akan terkirim sebagai satu pengajuan ke TCP/Pusat.</DialogDescription>
+            <DialogTitle>{requestTitle}</DialogTitle>
+            <DialogDescription>Isi alasan singkat, lalu kirim pengajuan ke Admin.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(420px,0.9fr)] lg:items-start">
             <div className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2">
-                <label className="space-y-1"><span className="text-sm font-medium">Tujuan</span><Input value={requestForm.destination} onChange={(e) => setRequestForm((p: any) => ({ ...p, destination: e.target.value }))} /></label>
-                <label className="space-y-1"><span className="text-sm font-medium">Jabatan Pemohon</span><Input value={requestForm.requesterPosition} onChange={(e) => setRequestForm((p: any) => ({ ...p, requesterPosition: e.target.value }))} placeholder="Contoh: Store Crew / Sales" /></label>
-                <label className="space-y-1 md:col-span-2"><span className="text-sm font-medium">Alasan Umum</span><Textarea value={requestForm.reason} onChange={(e) => setRequestForm((p: any) => ({ ...p, reason: e.target.value }))} placeholder="Contoh: produk ready stock perlu dipasang display di area toko." /></label>
-                <label className="space-y-1 md:col-span-2"><span className="text-sm font-medium">Catatan Tambahan</span><Textarea value={requestForm.notes} onChange={(e) => setRequestForm((p: any) => ({ ...p, notes: e.target.value }))} placeholder="Opsional: lokasi display, prioritas, atau arahan pengiriman." /></label>
+                <label className="space-y-1 md:col-span-2"><span className="text-sm font-medium">Alasan</span><Textarea value={requestForm.reason} onChange={(e) => setRequestForm((p: any) => ({ ...p, reason: e.target.value }))} placeholder="Contoh: produk ini perlu dipajang di area toko." /></label>
+                <label className="space-y-1 md:col-span-2"><span className="text-sm font-medium">Catatan tambahan</span><Textarea value={requestForm.notes} onChange={(e) => setRequestForm((p: any) => ({ ...p, notes: e.target.value }))} placeholder="Opsional" /></label>
               </div>
 
               <Card>
                 <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                  <CardTitle className="text-base">Pilih Produk Display</CardTitle>
-                  <Button type="button" size="sm" variant="outline" onClick={toggleAll}>{selectedProductIds.length === selectableProducts.length && selectableProducts.length > 0 ? 'Hapus Semua Centang' : 'Centang Semua'}</Button>
+                  <CardTitle className="text-base">Pilih Produk <Badge variant="secondary" className="ml-2">{selectedProducts.length} dipilih</Badge></CardTitle>
+                  {requestForm.type !== 'STOCK_OUT' && <Button type="button" size="sm" variant="outline" onClick={toggleAll}>{selectedProductIds.length === selectableProducts.length && selectableProducts.length > 0 ? 'Hapus Semua' : 'Pilih Semua'}</Button>}
                 </CardHeader>
                 <CardContent className="max-h-80 overflow-y-auto p-0">
                   <Table>
@@ -435,7 +441,7 @@ function RequestsTab(props: any) {
                 </CardContent>
               </Card>
 
-              <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Batal</Button><Button variant="outline" onClick={() => window.print()} disabled={selectedProductIds.length === 0}><Printer className="mr-2 h-4 w-4" />Cetak Preview</Button><Button onClick={submitRequest} disabled={selectedProductIds.length === 0 || !requestForm.reason || createPending}>{createPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Kirim Form ke TCP/Pusat</Button></div>
+              <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Batal</Button><Button onClick={submitRequest} disabled={selectedProducts.length === 0 || !requestForm.reason.trim() || createPending}>{createPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Kirim {selectedProducts.length || ''} Produk ke Admin</Button></div>
             </div>
             <DisplayRequestPreview form={requestForm} selectedProducts={selectedProducts} />
           </div>
@@ -443,6 +449,25 @@ function RequestsTab(props: any) {
       </Dialog>
 
       <Card>
+        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><CardTitle>{isAdmin ? 'Formulir yang Perlu Diproses' : 'Pengajuan Saya'}</CardTitle><select className="h-10 rounded-md border bg-background px-3 text-sm" value={requestStatusFilter || 'all'} onChange={(e) => setRequestStatusFilter(e.target.value === 'all' ? '' : e.target.value)}>{requestStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></CardHeader>
+        <CardContent className="space-y-3">
+          {requestGroups.map((group) => {
+            const pendingItems = group.items.filter((item: any) => item.status === 'PENDING');
+            const officialNumber = group.items[0]?.requestNumber;
+            return <div key={group.key} className="rounded-xl border bg-card p-4 shadow-sm">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div><div className="font-semibold">{group.requestNumber}</div><div className="text-xs text-muted-foreground">{group.requester?.fullName || group.requester?.username || '-'} · {shortDate(group.createdAt)} · {group.items.length} produk</div></div>
+                <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => { setPrintGroupKey(group.key); setTimeout(() => window.print(), 100); }}><Printer className="mr-1 h-4 w-4" />Cetak</Button>{isAdmin && pendingItems.length > 0 && officialNumber && <><Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => reviewRequestsBulk.mutate({ requestNumber: officialNumber, action: 'approve' })}><CheckCircle2 className="mr-1 h-4 w-4" />Setujui Semua</Button><Button size="sm" variant="outline" className="text-red-700" onClick={() => reviewRequestsBulk.mutate({ requestNumber: officialNumber, action: 'reject', rejectionReason: 'Pengajuan belum sesuai.' })}><XCircle className="mr-1 h-4 w-4" />Tolak Semua</Button></>}</div>
+              </div>
+              <div className="mt-3 divide-y rounded-lg border">{group.items.map((request: any) => <div key={request.id} className="flex flex-col gap-2 p-3 md:flex-row md:items-center md:justify-between"><div><div className="text-sm font-medium">{request.product?.sourceProduct?.name || request.product?.name || '-'}</div><div className="text-xs text-muted-foreground">{request.product?.sourceProduct?.sku || request.product?.sku} · {variantSummary(request.product, 'Tanpa varian')}</div></div><div className="flex gap-2">{statusBadge(request.type)}{statusBadge(request.status)}{isAdmin && !officialNumber && request.status === 'PENDING' && <Button size="sm" variant="outline" onClick={() => reviewRequest.mutate({ id: request.id, action: 'approve' })}>Setujui</Button>}</div></div>)}</div>
+            </div>;
+          })}
+          {requestGroups.length === 0 && <div className="py-8 text-center text-muted-foreground">Belum ada pengajuan display.</div>}
+        </CardContent>
+      </Card>
+      {printGroup && <div className="hidden print:block"><DisplayRequestPreview requestNumber={printGroup.requestNumber} form={{ reason: printGroup.items[0]?.reason || '' }} selectedProducts={printGroup.items.map((item: any) => item.product)} /></div>}
+
+      <Card className="hidden">
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><CardTitle>{isAdmin || isTcp ? 'Daftar Pengajuan yang Perlu Dicek' : 'Status Pengajuan Saya'}</CardTitle><select className="h-10 rounded-md border bg-background px-3 text-sm" value={requestStatusFilter || 'all'} onChange={(e) => setRequestStatusFilter(e.target.value === 'all' ? '' : e.target.value)}>{requestStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></CardHeader>
         <CardContent className="space-y-3">
           {requestRows.map((request: any) => <div key={request.id} className="rounded-lg border p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><div className="font-semibold">{request.product?.sourceProduct?.name || request.product?.name || '-'}</div><div className="text-xs text-muted-foreground">{request.product?.sourceProduct?.sku || request.product?.sku} • {request.requester?.fullName || request.requester?.username || '-'}</div><div className="mt-1 text-xs text-muted-foreground">{variantSummary(request.product, 'Varian: -')}</div><p className="mt-2 whitespace-pre-line text-sm">{request.reason}</p></div><div className="flex flex-wrap items-center gap-2">{statusBadge(request.type)}{statusBadge(request.status)}</div></div>{(isAdmin || isTcp) && request.status === 'PENDING' && <div className="mt-3 flex justify-end gap-2"><Button size="sm" variant="outline" className="text-green-700" onClick={() => reviewRequest.mutate({ id: request.id, action: 'approve' })}><CheckCircle2 className="mr-1 h-4 w-4" />Setujui</Button><Button size="sm" variant="outline" className="text-red-700" onClick={() => reviewRequest.mutate({ id: request.id, action: 'reject', rejectionReason: 'Pengajuan belum sesuai.' })}><XCircle className="mr-1 h-4 w-4" />Tolak</Button></div>}</div>)}
@@ -453,15 +478,15 @@ function RequestsTab(props: any) {
   );
 }
 
-function DisplayRequestPreview({ form, selectedProducts }: { form: any; selectedProducts: DisplayProduct[] }) {
+function DisplayRequestPreview({ form, selectedProducts, requestNumber }: { form: any; selectedProducts: DisplayProduct[]; requestNumber?: string }) {
   return (
     <div id="display-request-preview" className="mx-auto flex min-h-[297mm] w-full max-w-[210mm] flex-col rounded-xl border bg-white p-[12mm] text-black shadow-sm lg:sticky lg:top-0">
       <div className="mb-3 flex items-center justify-between no-print"><div className="text-sm font-semibold text-slate-700">Preview Form A4</div><Badge variant="outline" className="bg-slate-50 text-slate-700">{selectedProducts.length} Produk</Badge></div>
       <div className="grid grid-cols-2 gap-6 text-sm">
-        <div><div className="flex items-center gap-2"><div className="flex h-10 w-10 items-center justify-center rounded border-2 border-black font-bold">LN</div><div><div className="text-lg font-bold">LUNAREA</div><div className="text-xs">Furniture & Home Living</div></div></div><div className="mt-2 text-xs leading-relaxed">Form Permintaan Display<br />Dari outlet/user ke TCP/PUSAT</div></div>
-        <div><div className="font-semibold">Kepada:</div><div className="font-bold">{form.destination || 'TCP / PUSAT'}</div><div className="text-xs">Tanggal: {shortDate(new Date().toISOString())}</div></div>
+        <div><div className="flex items-center gap-2"><div className="flex h-10 w-10 items-center justify-center rounded border-2 border-black font-bold">LN</div><div><div className="text-lg font-bold">LUNAREA</div><div className="text-xs">Furniture & Home Living</div></div></div><div className="mt-2 text-xs leading-relaxed">Form Permintaan Display<br />Dari outlet/user ke Admin</div></div>
+        <div><div className="font-semibold">Kepada:</div><div className="font-bold">Admin</div><div className="text-xs">Tanggal: {shortDate(new Date().toISOString())}</div></div>
       </div>
-      <div className="my-4 text-center"><div className="text-lg font-bold underline">FORM PERMINTAAN DISPLAY</div><div className="text-xs">No. Form: Otomatis setelah dikirim</div></div>
+      <div className="my-4 text-center"><div className="text-lg font-bold underline">FORM PERMINTAAN DISPLAY</div><div className="text-xs">No. Form: {requestNumber || 'Otomatis setelah dikirim'}</div></div>
       <table className="w-full border-collapse text-[11px]"><thead><tr className="bg-slate-100"><th className="border border-black p-2 text-left">Cek</th><th className="border border-black p-2 text-left">Nama Produk</th><th className="border border-black p-2 text-left">SKU</th><th className="border border-black p-2 text-left">Varian</th><th className="border border-black p-2 text-left">Qty</th><th className="border border-black p-2 text-left">Keterangan</th></tr></thead><tbody>{selectedProducts.map((product, index) => <tr key={product.productId || index} className="display-request-row"><td className="border border-black p-2 text-center">v</td><td className="border border-black p-2">{product.name}</td><td className="border border-black p-2">{product.sku}</td><td className="border border-black p-2">{variantSummary(product).replace('Varian: ', '')}</td><td className="border border-black p-2">1</td><td className="border border-black p-2">{form.reason || '-'}</td></tr>)}{selectedProducts.length === 0 && <tr><td colSpan={6} className="border border-black p-4 text-center">Centang produk yang akan diminta display.</td></tr>}</tbody></table>
       {form.notes && <div className="mt-3 text-xs"><span className="font-semibold">Catatan:</span> {form.notes}</div>}
       <div className="display-request-signature mt-auto grid grid-cols-3 gap-5 pt-10 text-center text-xs"><div><div>Pemohon</div><div className="h-20" /><div className="border-t border-black pt-1">Nama & TTD</div><div className="mt-1">{form.requesterPosition || 'Jabatan'}</div></div><div><div>Mengetahui</div><div className="h-20" /><div className="border-t border-black pt-1">Admin / Supervisor</div></div><div><div>Diterima TCP/PUSAT</div><div className="h-20" /><div className="border-t border-black pt-1">Nama & TTD</div></div></div>

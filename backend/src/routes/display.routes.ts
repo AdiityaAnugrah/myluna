@@ -6,7 +6,7 @@ import { displayController } from '../controllers/display.controller';
 const router = Router();
 
 router.use(auth);
-router.use(rbac(['USER', 'ADMIN', 'SUPER_ADMIN', 'TCP']));
+router.use(rbac(['USER', 'ADMIN', 'SUPER_ADMIN']));
 
 router.get('/summary', displayController.summary);
 
@@ -28,11 +28,12 @@ router.get('/movements', displayController.getMovements);
 
 router.get('/requests', displayController.getRequests);
 router.post('/requests', rbac(['USER', 'ADMIN', 'SUPER_ADMIN']), displayController.createRequest);
-router.post('/requests/:id/review', rbac(['TCP', 'ADMIN', 'SUPER_ADMIN']), displayController.reviewRequest);
+router.post('/requests/review-bulk', rbac(['ADMIN', 'SUPER_ADMIN']), displayController.reviewRequestsBulk);
+router.post('/requests/:id/review', rbac(['ADMIN', 'SUPER_ADMIN']), displayController.reviewRequest);
 
 router.get('/returns', displayController.getReturns);
-router.post('/returns', rbac(['USER', 'TCP', 'ADMIN', 'SUPER_ADMIN']), displayController.createReturn);
+router.post('/returns', rbac(['USER', 'ADMIN', 'SUPER_ADMIN']), displayController.createReturn);
 router.get('/returns/:id', displayController.getReturnById);
-router.post('/returns/:id/status', rbac(['TCP', 'ADMIN', 'SUPER_ADMIN']), displayController.updateReturnStatus);
+router.post('/returns/:id/status', rbac(['ADMIN', 'SUPER_ADMIN']), displayController.updateReturnStatus);
 
 export default router;

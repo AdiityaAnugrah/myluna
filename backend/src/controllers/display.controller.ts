@@ -25,10 +25,6 @@ function isAdminRole(roleName?: string) {
   return roleName === 'ADMIN' || roleName === 'SUPER_ADMIN' || roleName === 'DEV';
 }
 
-function isTcpRole(roleName?: string) {
-  return roleName === 'TCP';
-}
-
 function parsePositiveInt(value: unknown, field: string) {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 0) throw new AppError(`${field} harus berupa angka 0 atau lebih`, 400);
@@ -184,10 +180,9 @@ export const displayController = {
   async summary(req: Request, res: Response, next: NextFunction) {
     try {
       const requestWhere: any = { status: DisplayRequestStatus.PENDING };
-      if (!isAdminRole(req.user?.roleName) && !isTcpRole(req.user?.roleName)) requestWhere.requestedBy = req.user!.id;
+      if (!isAdminRole(req.user?.roleName)) requestWhere.requestedBy = req.user!.id;
       const returnWhere: any = {};
-      if (isTcpRole(req.user?.roleName)) returnWhere.status = { [Op.in]: [DisplayReturnStatus.READY_TO_SEND, DisplayReturnStatus.SENT] };
-      if (!isAdminRole(req.user?.roleName) && !isTcpRole(req.user?.roleName)) returnWhere.createdBy = req.user!.id;
+      if (!isAdminRole(req.user?.roleName)) returnWhere.createdBy = req.user!.id;
 
       const [totalProducts, activeProducts, activeSlots, pendingRequests, activeReturns] = await Promise.all([
         Product.count(),
@@ -366,7 +361,7 @@ export const displayController = {
       const requestNumber = `FPD/${new Date().toISOString().slice(0, 10).replace(/-/g, '')}/${Date.now().toString().slice(-6)}`;
       const headerNotes = [
         `No Form: ${requestNumber}`,
-        `Tujuan: ${String(req.body.destination || 'TCP / PUSAT').trim()}`,
+        `Tujuan: ${String(req.body.destination || 'Admin').trim()}`,
         `Pemohon: ${String(req.body.requesterName || (req.user as any)?.fullName || req.user?.username || '-').trim()}`,
         req.body.requesterPosition ? `Jabatan: ${String(req.body.requesterPosition).trim()}` : '',
         req.body.notes ? `Catatan: ${String(req.body.notes).trim()}` : '',
@@ -394,6 +389,7 @@ export const displayController = {
         }
         const itemReason = String(item.reason || req.body.reason || '').trim();
         const request = await DisplayStockRequest.create({
+          requestNumber,
           productId: slot.id,
           type,
           quantity: parsePositiveInt(item.quantity ?? req.body.quantity ?? 1, 'Jumlah'),
@@ -404,9 +400,8 @@ export const displayController = {
         createdRequests.push(request);
       }
       await transaction.commit();
-      socketService.emitToTCP('approval:pending', { message: 'Form Permintaan Display baru', entityType: 'DisplaySlot', requestNumber, totalItems: createdRequests.length, requesterName: (req.user as any)?.fullName || req.user?.username });
       socketService.emitToAdmins('approval:pending', { message: 'Form Permintaan Display baru', entityType: 'DisplaySlot', requestNumber, totalItems: createdRequests.length, requesterName: (req.user as any)?.fullName || req.user?.username });
-      return successResponse(res, { requestNumber, requests: createdRequests }, 'Form permintaan display berhasil dikirim ke TCP/Pusat', 201);
+      return successResponse(res, { requestNumber, requests: createdRequests }, 'Pengajuan display berhasil dikirim ke Admin', 201);
     } catch (error) { await transaction.rollback(); return next(error); }
   },
 
@@ -415,7 +410,7 @@ export const displayController = {
       const { status = '' } = req.query;
       const where: any = {};
       if (status) where.status = status;
-      if (!isAdminRole(req.user?.roleName) && !isTcpRole(req.user?.roleName)) where.requestedBy = req.user!.id;
+      if (!isAdminRole(req.user?.roleName)) where.requestedBy = req.user!.id;
       const requests = await DisplayStockRequest.findAll({ where, include: [{ model: DisplayProduct, as: 'product', include: [{ model: Product, as: 'sourceProduct', include: [{ model: Category, as: 'category' }, { model: ProductVariant, as: 'variantItems' }] }] }, { model: User, as: 'requester', attributes: ['id', 'fullName', 'username'] }, { model: User, as: 'reviewer', attributes: ['id', 'fullName', 'username'] }], order: [['createdAt', 'DESC']] });
       return successResponse(res, requests, 'Pengajuan display berhasil diambil', 200);
     } catch (error) { return next(error); }
@@ -449,13 +444,52 @@ export const displayController = {
     } catch (error) { await transaction.rollback(); return next(error); }
   },
 
+  async reviewRequestsBulk(req: Request, res: Response, next: NextFunction) {
+    const transaction = await sequelize.transaction();
+    try {
+      const requestNumber = String(req.body.requestNumber || '').trim();
+      const action = String(req.body.action || '').toLowerCase();
+      if (!requestNumber) throw new AppError('Nomor formulir wajib diisi', 400);
+      if (!['approve', 'reject'].includes(action)) throw new AppError('Aksi review tidak valid', 400);
+
+      const requests = await DisplayStockRequest.findAll({
+        where: { requestNumber, status: DisplayRequestStatus.PENDING },
+        include: [{ model: DisplayProduct, as: 'product', include: [{ model: Product, as: 'sourceProduct' }] }],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (requests.length === 0) throw new AppError('Tidak ada item pending pada formulir ini', 404);
+
+      for (const request of requests) {
+        if (action === 'reject') {
+          await request.update({ status: DisplayRequestStatus.REJECTED, reviewedBy: req.user!.id, reviewedAt: new Date(), rejectionReason: req.body.rejectionReason || null }, { transaction });
+          continue;
+        }
+
+        const slot = (request as any).product as DisplayProduct;
+        if (request.type === DisplayRequestType.STOCK_IN && !(slot as any).sourceProduct?.isActive) throw new AppError(`Produk ${slot.name} sudah tidak aktif`, 400);
+        let movementType: DisplayMovementType = DisplayMovementType.IN;
+        let stockAfter = slot.stock;
+        if (request.type === DisplayRequestType.STOCK_IN) { movementType = DisplayMovementType.IN; stockAfter += request.quantity; }
+        if (request.type === DisplayRequestType.STOCK_OUT) { movementType = DisplayMovementType.OUT; stockAfter -= request.quantity; }
+        if (request.type === DisplayRequestType.ADJUSTMENT) { movementType = DisplayMovementType.ADJUSTMENT; stockAfter = request.targetStock ?? slot.stock; }
+        if (stockAfter < 0 || stockAfter > slot.slotLimit) throw new AppError(`Slot display ${slot.name} sudah berubah dan tidak dapat diproses`, 400);
+        await createDisplayMovement({ slot, type: movementType, quantity: request.quantity, stockAfter, reference: `DISPLAY_REQUEST:${request.id}`, notes: request.reason, userId: req.user!.id, transaction });
+        await slot.update({ stock: stockAfter, status: stockAfter > 0 ? 'DISPLAYED' as any : 'STORED' as any }, { transaction });
+        await request.update({ status: DisplayRequestStatus.APPROVED, reviewedBy: req.user!.id, reviewedAt: new Date(), rejectionReason: null }, { transaction });
+      }
+
+      await transaction.commit();
+      return successResponse(res, { requestNumber, processed: requests.length }, 'Seluruh item pengajuan berhasil diproses', 200);
+    } catch (error) { await transaction.rollback(); return next(error); }
+  },
+
   async getReturns(req: Request, res: Response, next: NextFunction) {
     try {
       const { status = '' } = req.query;
       const where: any = {};
       if (status) where.status = status;
-      if (isTcpRole(req.user?.roleName)) where.status = { [Op.in]: [DisplayReturnStatus.READY_TO_SEND, DisplayReturnStatus.SENT] };
-      if (!isAdminRole(req.user?.roleName) && !isTcpRole(req.user?.roleName)) where.createdBy = req.user!.id;
+      if (!isAdminRole(req.user?.roleName)) where.createdBy = req.user!.id;
       const rows = await DisplayReturn.findAll({ where, include: returnInclude as any, order: [['createdAt', 'DESC']] });
       return successResponse(res, rows, 'Retur Display berhasil diambil', 200);
     } catch (error) { return next(error); }
