@@ -230,6 +230,9 @@ export default function SalesPage() {
   const { data: platformsData } = usePlatforms();
   const { data: usersData } = useUsers({ page: 1, limit: 200 });
   const activePlatforms: { id: string; name: string }[] = (platformsData?.data || []).filter((p: any) => p.isActive);
+  const platformOptions = activePlatforms.some((p) => p.name === 'WEBSITE')
+    ? activePlatforms
+    : [{ id: 'website-system', name: 'WEBSITE' }, ...activePlatforms];
   const responsibleUsers = usersData?.data?.users || [];
 
   const { data, isLoading } = useSales(
@@ -434,6 +437,39 @@ export default function SalesPage() {
         </div>
       )}
 
+      <div className="rounded-xl border bg-gradient-to-r from-emerald-50 to-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-emerald-700">Dashboard Order Website</p>
+            <p className="text-xs text-muted-foreground">
+              Pantau order dari lunareafurniture.com dengan filter cepat platform WEBSITE.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={platformFilter === 'WEBSITE' && statusFilter === 'WAITING_APPROVAL' ? 'default' : 'outline'}
+              onClick={() => {
+                setPlatformFilter('WEBSITE');
+                setStatusFilter('WAITING_APPROVAL');
+                setCurrentPage(1);
+              }}
+            >
+              Website Menunggu Proses
+            </Button>
+            <Button
+              variant={platformFilter === 'WEBSITE' && !statusFilter ? 'default' : 'outline'}
+              onClick={() => {
+                setPlatformFilter('WEBSITE');
+                setStatusFilter('');
+                setCurrentPage(1);
+              }}
+            >
+              Semua Order Website
+            </Button>
+          </div>
+        </div>
+      </div>
+
       {/* Filter Bar */}
       <div className="bg-card border rounded-xl p-4 shadow-sm space-y-3 animate-in [animation-delay:100ms]">
         <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
@@ -478,7 +514,7 @@ export default function SalesPage() {
             <SelectTrigger><SelectValue placeholder="Semua Platform" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Platform</SelectItem>
-              {activePlatforms.map(p => (
+              {platformOptions.map(p => (
                 <SelectItem key={p.id} value={p.name}>
                   {p.name.replace(/_/g, ' ')}
                 </SelectItem>

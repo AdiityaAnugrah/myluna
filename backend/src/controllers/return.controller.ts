@@ -179,6 +179,52 @@ async function ensureLegacyFinalizationAllowed(returnId: string, transaction?: a
   return linkedTicket;
 }
 
+function returnStatusLabel(status: SaleReturnStatus) {
+  const map: Record<string, string> = {
+    PENDING_REVIEW: 'Menunggu Review Admin',
+    WAITING_ITEM_RETURN: 'Retur Disetujui - Menunggu Barang Dikirim Customer',
+    ITEM_RECEIVED: 'Barang Retur Sudah Diterima Gudang',
+    REJECTED: 'Retur Ditolak',
+    RESTOCKED: 'Retur Selesai - Barang Masuk Stok',
+    DAMAGED: 'Retur Selesai - Barang Tidak Layak',
+    RESENT: 'Barang Pengganti Diproses',
+    COMPLETED: 'Retur Selesai',
+  };
+  return map[status] || status;
+}
+
+async function notifyWebsiteReturnStatus(record: SaleReturn, note = '') {
+  const url = String(process.env.LUNA_WEB_RETURN_STATUS_URL || '');
+  const token = String(process.env.LUNA_WEB_ORDER_TOKEN || '');
+  if (!url || !token) return;
+
+  try {
+    const payloadRecord = record.sale
+      ? record
+      : await SaleReturn.findByPk(record.id, { include: [{ model: Sale, as: 'sale' }] });
+    const saleNumber = payloadRecord?.sale?.saleNumber;
+    if (!saleNumber || !saleNumber.toUpperCase().startsWith('L')) return;
+
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Luna-Webhook-Token': token,
+      },
+      body: JSON.stringify({
+        order_id: saleNumber,
+        return_number: payloadRecord?.returnNumber || record.returnNumber,
+        status: record.status,
+        status_label: returnStatusLabel(record.status),
+        note,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  } catch (error) {
+    console.error('Gagal mengirim status retur ke website Lunarea', error);
+  }
+}
+
 async function resolveReplacementStock(options: {
   productId: string;
   variantName?: string | null;
@@ -670,6 +716,12 @@ export const returnController = {
       }
 
       await transaction.commit();
+      await notifyWebsiteReturnStatus(
+        record,
+        normalizedAction === 'APPROVE'
+          ? 'Pengajuan retur disetujui. Silakan lanjutkan proses pengiriman barang retur sesuai arahan admin.'
+          : String(rejectionReason || 'Pengajuan retur ditolak.')
+      );
       socketService.broadcastDataRefresh('returns');
       socketService.broadcastDataRefresh('return-tickets');
 
@@ -728,6 +780,7 @@ export const returnController = {
       );
 
       await transaction.commit();
+      await notifyWebsiteReturnStatus(record, 'Barang retur sudah diterima gudang dan sedang masuk tahap pemeriksaan.');
       socketService.broadcastDataRefresh('returns');
 
       return successResponse(res, record, 'Retur berhasil ditandai barang sudah diterima', 200);
@@ -779,6 +832,10 @@ export const returnController = {
       );
 
       await transaction.commit();
+      await notifyWebsiteReturnStatus(
+        record,
+        String(req.body.inspectionNotes || record.inspectionNotes || 'Barang retur sudah selesai diperiksa.')
+      );
       socketService.broadcastDataRefresh('returns');
 
       return successResponse(res, record, 'Hasil inspeksi retur berhasil disimpan', 200);
@@ -891,6 +948,7 @@ export const returnController = {
       );
 
       await transaction.commit();
+      await notifyWebsiteReturnStatus(record, 'Retur selesai. Barang sudah diterima kembali oleh gudang.');
       socketService.broadcastDataRefresh('returns');
       socketService.broadcastDataRefresh('stock');
 
@@ -1010,6 +1068,7 @@ export const returnController = {
       );
 
       await transaction.commit();
+      await notifyWebsiteReturnStatus(record, 'Retur selesai dan barang ditandai hangus/tidak masuk stok jual.');
       socketService.broadcastDataRefresh('returns');
       socketService.broadcastDataRefresh('expense');
       socketService.broadcastDataRefresh('finance');
@@ -1164,6 +1223,7 @@ export const returnController = {
       );
 
       await transaction.commit();
+      await notifyWebsiteReturnStatus(record, 'Retur selesai. Barang sudah direvisi dan dikembalikan ke stok.');
       socketService.broadcastDataRefresh('returns');
       socketService.broadcastDataRefresh('stock');
       socketService.broadcastDataRefresh('expense');
@@ -1269,6 +1329,7 @@ export const returnController = {
       );
 
       await transaction.commit();
+      await notifyWebsiteReturnStatus(record, 'Retur selesai dan barang dinyatakan tidak layak pakai.');
       socketService.broadcastDataRefresh('returns');
       socketService.broadcastDataRefresh('expense');
       socketService.broadcastDataRefresh('finance');
@@ -1412,6 +1473,7 @@ export const returnController = {
       );
 
       await transaction.commit();
+      await notifyWebsiteReturnStatus(record, 'Barang pengganti sudah diproses untuk pengiriman ulang.');
       socketService.broadcastDataRefresh('returns');
       socketService.broadcastDataRefresh('stock');
       socketService.broadcastDataRefresh('expense');

@@ -9,6 +9,7 @@ import {
   SaleReturnItem,
   ReturnSourceType,
   SaleReturnStatus,
+  AuditAction,
   StockMovement,
   MovementType,
   User,
@@ -17,6 +18,7 @@ import { sequelize } from '../config/database';
 import { successResponse } from '../utils/response';
 import { AppError } from '../utils/errors';
 import { socketService } from '../services/socket.service';
+import { auditService } from '../services/audit.service';
 
 function cleanText(value: unknown) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -93,6 +95,20 @@ async function resolveCreatedBy() {
 
 async function findProductForWebsiteItem(item: any, baseName: string, transaction: any) {
   const websiteId = cleanText(item?.id);
+  const rawMap = String(process.env.LUNA_WEB_PRODUCT_MAP || '');
+  if (websiteId && rawMap) {
+    try {
+      const parsedMap = JSON.parse(rawMap) as Record<string, string>;
+      const mappedProductId = parsedMap[websiteId] || parsedMap[baseName];
+      if (mappedProductId) {
+        const mappedProduct = await Product.findByPk(mappedProductId, { transaction });
+        if (mappedProduct) return mappedProduct;
+      }
+    } catch (_) {
+      // lanjutkan pencarian normal jika format env mapping belum valid
+    }
+  }
+
   const where: any = {
     [Op.or]: [
       ...(websiteId ? [{ sku: websiteId }, { id: websiteId }] : []),
@@ -514,6 +530,30 @@ export const webOrderIntegrationController = {
           { transaction }
         );
       }
+
+      await auditService.log(
+        {
+          userId: createdBy,
+          action: AuditAction.CREATE,
+          entity: 'SaleReturn',
+          entityId: createdReturn.id,
+          before: null,
+          after: {
+            source: 'lunareafurniture.com',
+            returnNumber: createdReturn.returnNumber,
+            saleNumber: sale.saleNumber,
+            status: createdReturn.status,
+            items: resolvedItems.map((item) => ({
+              saleItemId: item.saleItem.id,
+              qtyRequested: item.qtyRequested,
+              note: item.note,
+            })),
+          },
+          ip: req.ip || req.socket.remoteAddress || '',
+          userAgent: req.headers['user-agent'] || '',
+        },
+        transaction
+      );
 
       await transaction.commit();
 
