@@ -115,6 +115,26 @@ export const webOrderIntegrationController = {
         return successResponse(res, { skipped: true, reason: 'Status belum dibayar' }, 'Order belum masuk proses', 200);
       }
 
+      const dryRun = String(req.headers['x-luna-dry-run'] || body.dry_run || '').toLowerCase() === 'true';
+      if (dryRun) {
+        await transaction.rollback();
+        return successResponse(
+          res,
+          {
+            dryRun: true,
+            saleNumber: orderId,
+            status: 'WAITING_APPROVAL',
+            platform: 'WEBSITE',
+            customerName: cleanText(body.nama_pen) || null,
+            customerPhone: cleanText(body.hp_pen) || null,
+            shippingAddress: cleanText(normalizeAddress(body.alamat_pen)),
+            itemCount: Array.isArray(body.items) ? body.items.filter(isOperationalItem).length : 0,
+          },
+          'Dry run berhasil, data tidak disimpan',
+          200
+        );
+      }
+
       const existingSale = await Sale.findOne({ where: { saleNumber: orderId }, transaction });
       if (existingSale) {
         await transaction.commit();
