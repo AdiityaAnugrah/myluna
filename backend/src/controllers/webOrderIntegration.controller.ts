@@ -5,6 +5,10 @@ import {
   ProductVariant,
   Sale,
   SaleItem,
+  SaleReturn,
+  SaleReturnItem,
+  ReturnSourceType,
+  SaleReturnStatus,
   StockMovement,
   MovementType,
   User,
@@ -25,6 +29,15 @@ function itemBaseName(name: string) {
 function itemVariantName(name: string) {
   const match = name.match(/\(([^()]*)\)\s*$/);
   return match ? cleanText(match[1]) : '';
+}
+
+function generateReturnNumber() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const random = Math.floor(1000 + Math.random() * 9000);
+  return `RTR-${y}${m}${d}-${random}`;
 }
 
 function isOperationalItem(item: any) {
@@ -88,6 +101,65 @@ async function findProductForWebsiteItem(item: any, baseName: string, transactio
   };
 
   return Product.findOne({ where, transaction });
+}
+
+async function getExistingReturnedQtyMap(saleId: string, transaction: any) {
+  const existingItems = await SaleReturnItem.findAll({
+    include: [
+      {
+        model: SaleReturn,
+        as: 'returnRecord',
+        required: true,
+        where: {
+          saleId,
+          status: {
+            [Op.ne]: SaleReturnStatus.REJECTED,
+          },
+        },
+        attributes: [],
+      },
+    ],
+    attributes: ['saleItemId', 'qtyRequested'],
+    transaction,
+  });
+
+  const qtyMap = new Map<string, number>();
+  for (const item of existingItems) {
+    qtyMap.set(item.saleItemId, (qtyMap.get(item.saleItemId) || 0) + Number(item.qtyRequested || 0));
+  }
+
+  return qtyMap;
+}
+
+async function resolveSaleItemForWebsiteReturn(sale: Sale, item: any, transaction: any) {
+  const requestedId = cleanText(item?.id);
+  const requestedName = cleanText(item?.name);
+  const requestedBaseName = itemBaseName(requestedName);
+
+  for (const saleItem of sale.items || []) {
+    const product = (saleItem as any).product as Product | undefined;
+    const saleItemName = cleanText(product?.name || saleItem.componentName || '');
+    const saleItemBaseName = itemBaseName(saleItemName);
+
+    if (
+      (requestedId && product && (requestedId === product.id || requestedId === product.sku)) ||
+      (requestedName && requestedName === saleItemName) ||
+      (requestedBaseName && requestedBaseName === saleItemBaseName)
+    ) {
+      if (saleItem.productId) {
+        return saleItem;
+      }
+
+      const matchedProduct = await findProductForWebsiteItem(item, requestedBaseName || saleItemBaseName, transaction);
+      if (matchedProduct) {
+        await saleItem.update({ productId: matchedProduct.id, itemType: 'PRODUCT' }, { transaction });
+        saleItem.productId = matchedProduct.id;
+        return saleItem;
+      }
+    }
+  }
+
+  return null;
 }
 
 export const webOrderIntegrationController = {
@@ -292,6 +364,167 @@ export const webOrderIntegrationController = {
       socketService.broadcastDataRefresh('sales');
 
       return successResponse(res, sale, 'Order website Lunarea berhasil masuk sistem', 201);
+    } catch (error) {
+      await transaction.rollback();
+      return next(error);
+    }
+  },
+
+  async importLunareaReturn(req: Request, res: Response, next: NextFunction) {
+    const token = String(req.headers['x-luna-webhook-token'] || req.headers['x-webhook-token'] || '');
+    const expectedToken = String(process.env.LUNA_WEB_ORDER_TOKEN || '');
+
+    if (!expectedToken || token !== expectedToken) {
+      return res.status(401).json({ success: false, message: 'Invalid webhook token' });
+    }
+
+    const transaction = await sequelize.transaction();
+
+    try {
+      const body = req.body || {};
+      const orderId = cleanText(body.order_id);
+      const reason = cleanText(body.reason);
+      const solution = cleanText(body.solution);
+      const items = Array.isArray(body.items) ? body.items : [];
+      const dryRun = String(req.headers['x-luna-dry-run'] || body.dry_run || '').toLowerCase() === 'true';
+
+      if (!orderId || !orderId.toUpperCase().startsWith('L')) {
+        throw new AppError('Order Lunarea tidak valid', 400);
+      }
+      if (reason.length < 5) {
+        throw new AppError('Alasan retur wajib diisi minimal 5 karakter', 400);
+      }
+      if (!items.length) {
+        throw new AppError('Minimal 1 item retur wajib dipilih', 400);
+      }
+
+      const sale = await Sale.findOne({
+        where: { saleNumber: orderId },
+        include: [
+          {
+            model: SaleItem,
+            as: 'items',
+            include: [{ model: Product, as: 'product' }],
+          },
+        ],
+        transaction,
+      });
+
+      if (!sale) {
+        throw new AppError('Order website belum ditemukan di Luna Sistem', 404);
+      }
+
+      const activeReturn = await SaleReturn.findOne({
+        where: {
+          saleId: sale.id,
+          status: {
+            [Op.notIn]: [SaleReturnStatus.REJECTED, SaleReturnStatus.COMPLETED],
+          },
+        },
+        transaction,
+      });
+      if (activeReturn) {
+        await transaction.commit();
+        return successResponse(res, activeReturn, 'Pengajuan retur order ini sudah masuk sistem', 200);
+      }
+
+      const returnedQtyMap = await getExistingReturnedQtyMap(sale.id, transaction);
+      const resolvedItems: Array<{
+        saleItem: SaleItem;
+        qtyRequested: number;
+        note: string;
+      }> = [];
+
+      for (const item of items) {
+        const qtyRequested = Number(item.qty_requested || item.qtyRequested || item.quantity || 0);
+        if (!Number.isInteger(qtyRequested) || qtyRequested <= 0) {
+          throw new AppError('Qty retur harus bilangan bulat lebih dari 0', 400);
+        }
+
+        const saleItem = await resolveSaleItemForWebsiteReturn(sale, item, transaction);
+        if (!saleItem || !saleItem.productId) {
+          throw new AppError(`Item retur belum cocok dengan master produk: ${cleanText(item.name || item.id)}`, 400);
+        }
+
+        const existingReturnedQty = returnedQtyMap.get(saleItem.id) || 0;
+        if (existingReturnedQty + qtyRequested > saleItem.quantity) {
+          throw new AppError(`Qty retur ${cleanText(item.name || item.id)} melebihi qty pembelian`, 400);
+        }
+
+        resolvedItems.push({
+          saleItem,
+          qtyRequested,
+          note: cleanText(item.note),
+        });
+      }
+
+      if (dryRun) {
+        await transaction.rollback();
+        return successResponse(
+          res,
+          {
+            dryRun: true,
+            saleNumber: sale.saleNumber,
+            status: SaleReturnStatus.PENDING_REVIEW,
+            itemCount: resolvedItems.length,
+            reason,
+            solution: solution || null,
+          },
+          'Dry run retur berhasil, data tidak disimpan',
+          200
+        );
+      }
+
+      const createdBy = await resolveCreatedBy();
+      const evidencePhotos = Array.isArray(body.evidence_photos)
+        ? body.evidence_photos.map(cleanText).filter(Boolean).slice(0, 5)
+        : [];
+      const fullReason = [
+        reason,
+        solution ? `Solusi diminta customer: ${solution}` : '',
+        cleanText(body.customer_email) ? `Email customer: ${cleanText(body.customer_email)}` : '',
+        cleanText(body.customer_phone) ? `HP customer: ${cleanText(body.customer_phone)}` : '',
+      ].filter(Boolean).join('\n');
+
+      const createdReturn = await SaleReturn.create(
+        {
+          returnNumber: generateReturnNumber(),
+          saleId: sale.id,
+          requestedBy: createdBy,
+          sourceType: ReturnSourceType.DIRECT,
+          status: SaleReturnStatus.PENDING_REVIEW,
+          reason: fullReason,
+          requestDate: new Date(),
+          evidencePhotos,
+        },
+        { transaction }
+      );
+
+      for (const item of resolvedItems) {
+        await SaleReturnItem.create(
+          {
+            returnId: createdReturn.id,
+            saleItemId: item.saleItem.id,
+            productId: item.saleItem.productId!,
+            variantName: item.saleItem.variantName || null,
+            qtySold: item.saleItem.quantity,
+            qtyRequested: item.qtyRequested,
+            itemNotes: item.note || null,
+          },
+          { transaction }
+        );
+      }
+
+      await transaction.commit();
+
+      socketService.emitToAdmins('notification:new', {
+        message: 'Retur website Lunarea masuk',
+        description: `Retur untuk order ${sale.saleNumber} menunggu review admin`,
+        type: 'INFO',
+      });
+      socketService.broadcastDataRefresh('returns');
+
+      return successResponse(res, createdReturn, 'Retur website Lunarea berhasil masuk sistem', 201);
     } catch (error) {
       await transaction.rollback();
       return next(error);

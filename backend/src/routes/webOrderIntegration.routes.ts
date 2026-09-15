@@ -4,5 +4,6 @@ import { webOrderIntegrationController } from '../controllers/webOrderIntegratio
 const router = Router();
 
 router.post('/lunarea-web-order', webOrderIntegrationController.importLunareaOrder);
+router.post('/lunarea-web-return', webOrderIntegrationController.importLunareaReturn);
 
 export default router;
