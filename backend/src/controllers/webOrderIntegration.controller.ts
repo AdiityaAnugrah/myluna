@@ -1,0 +1,280 @@
+import { Request, Response, NextFunction } from 'express';
+import { Op } from 'sequelize';
+import {
+  Product,
+  ProductVariant,
+  Sale,
+  SaleItem,
+  StockMovement,
+  MovementType,
+  User,
+} from '../models';
+import { sequelize } from '../config/database';
+import { successResponse } from '../utils/response';
+import { AppError } from '../utils/errors';
+import { socketService } from '../services/socket.service';
+
+function cleanText(value: unknown) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function itemBaseName(name: string) {
+  return cleanText(name.replace(/\s*\([^)]*\)\s*$/, ''));
+}
+
+function itemVariantName(name: string) {
+  const match = name.match(/\(([^()]*)\)\s*$/);
+  return match ? cleanText(match[1]) : '';
+}
+
+function isOperationalItem(item: any) {
+  const name = cleanText(item?.name).toLowerCase();
+  const id = cleanText(item?.id).toLowerCase();
+  return ![
+    'biaya admin',
+    'biaya ongkir',
+    'voucher',
+    'flash sale',
+    'potongan preorder',
+  ].some((keyword) => name.includes(keyword) || id.includes(keyword));
+}
+
+function normalizeAddress(raw: unknown) {
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return Object.values(parsed).filter(Boolean).join(', ');
+      }
+    } catch (_) {
+      return raw;
+    }
+    return raw;
+  }
+
+  if (raw && typeof raw === 'object') {
+    return Object.values(raw as Record<string, unknown>).filter(Boolean).join(', ');
+  }
+
+  return '';
+}
+
+async function resolveCreatedBy() {
+  const configuredUserId = process.env.WEBSITE_ORDER_USER_ID;
+  if (configuredUserId) {
+    const user = await User.findByPk(configuredUserId);
+    if (user) return user.id;
+  }
+
+  const user = await User.findOne({
+    where: { isActive: true },
+    order: [['createdAt', 'ASC']],
+  });
+
+  if (!user) {
+    throw new AppError('User integrasi website belum tersedia', 500);
+  }
+
+  return user.id;
+}
+
+async function findProductForWebsiteItem(item: any, baseName: string, transaction: any) {
+  const websiteId = cleanText(item?.id);
+  const where: any = {
+    [Op.or]: [
+      ...(websiteId ? [{ sku: websiteId }, { id: websiteId }] : []),
+      ...(baseName ? [{ name: baseName }] : []),
+    ],
+  };
+
+  return Product.findOne({ where, transaction });
+}
+
+export const webOrderIntegrationController = {
+  async importLunareaOrder(req: Request, res: Response, next: NextFunction) {
+    const token = String(req.headers['x-luna-webhook-token'] || req.headers['x-webhook-token'] || '');
+    const expectedToken = String(process.env.LUNA_WEB_ORDER_TOKEN || '');
+
+    if (!expectedToken || token !== expectedToken) {
+      return res.status(401).json({ success: false, message: 'Invalid webhook token' });
+    }
+
+    const transaction = await sequelize.transaction();
+
+    try {
+      const body = req.body || {};
+      const orderId = cleanText(body.order_id);
+      const status = cleanText(body.status);
+
+      if (!orderId || !orderId.toUpperCase().startsWith('L')) {
+        throw new AppError('Order Lunarea tidak valid', 400);
+      }
+
+      if (status !== 'Proses') {
+        await transaction.rollback();
+        return successResponse(res, { skipped: true, reason: 'Status belum dibayar' }, 'Order belum masuk proses', 200);
+      }
+
+      const existingSale = await Sale.findOne({ where: { saleNumber: orderId }, transaction });
+      if (existingSale) {
+        await transaction.commit();
+        return successResponse(res, existingSale, 'Order website sudah pernah masuk sistem', 200);
+      }
+
+      const createdBy = await resolveCreatedBy();
+      const items = Array.isArray(body.items) ? body.items.filter(isOperationalItem) : [];
+      if (items.length === 0) {
+        throw new AppError('Item order kosong', 400);
+      }
+
+      const saleDate = body.transaction_time ? new Date(String(body.transaction_time)) : new Date();
+      const shippingAddress = cleanText(normalizeAddress(body.alamat_pen));
+      const shippingService = cleanText(body.kurir) || 'Website Lunarea';
+      const dataMid = body.data_mid || {};
+      const grossAmount = Number(dataMid.gross_amount || body.total || 0);
+
+      const mappedItems: Array<{
+        itemType: 'PRODUCT' | 'COMPONENT';
+        productId: string | null;
+        componentName: string | null;
+        componentNotes: string | null;
+        variantName: string | null;
+        quantity: number;
+        price: number;
+        discount: number;
+        subtotal: number;
+      }> = [];
+
+      let calculatedTotal = 0;
+      const stockRequired = new Map<string, number>();
+
+      for (const item of items) {
+        const name = cleanText(item.name);
+        const baseName = itemBaseName(name);
+        const variantName = itemVariantName(name);
+        const quantity = Math.max(1, Number(item.quantity || 1));
+        const price = Number(item.price ?? item.value ?? 0);
+        const discount = Number(item.discount || 0);
+        const subtotal = quantity * price - discount;
+        calculatedTotal += subtotal;
+
+        const product = await findProductForWebsiteItem(item, baseName, transaction);
+        if (product) {
+          const finalVariant = variantName || null;
+          const key = `${product.id}|${finalVariant || ''}`;
+          stockRequired.set(key, (stockRequired.get(key) || 0) + quantity);
+          mappedItems.push({
+            itemType: 'PRODUCT',
+            productId: product.id,
+            componentName: null,
+            componentNotes: null,
+            variantName: finalVariant,
+            quantity,
+            price,
+            discount,
+            subtotal,
+          });
+        } else {
+          mappedItems.push({
+            itemType: 'COMPONENT',
+            productId: null,
+            componentName: name || baseName || cleanText(item.id) || 'Produk Website',
+            componentNotes: `Item website belum cocok dengan master produk. ID website: ${cleanText(item.id) || '-'}`,
+            variantName: null,
+            quantity,
+            price,
+            discount,
+            subtotal,
+          });
+        }
+      }
+
+      for (const [key, totalQty] of stockRequired) {
+        const [productId, variantName] = key.split('|');
+        const product = await Product.findByPk(productId, { transaction });
+        if (!product) continue;
+
+        if (variantName) {
+          const variant = await ProductVariant.findOne({ where: { productId, value: variantName }, transaction });
+          if (variant && variant.stock < totalQty) {
+            throw new AppError(`Stok varian ${product.name} (${variantName}) tidak cukup`, 400);
+          }
+        } else if (product.stock < totalQty) {
+          throw new AppError(`Stok ${product.name} tidak cukup`, 400);
+        }
+      }
+
+      const sale = await Sale.create(
+        {
+          saleNumber: orderId,
+          saleDate,
+          customerName: cleanText(body.nama_pen) || null,
+          customerPhone: cleanText(body.hp_pen) || null,
+          totalAmount: grossAmount || calculatedTotal,
+          paymentMethod: 'TRANSFER' as any,
+          platform: 'WEBSITE' as any,
+          saleType: 'PRODUCT' as any,
+          status: 'WAITING_APPROVAL' as any,
+          notes: `Order otomatis dari lunareafurniture.com${body.note ? ` | Catatan: ${cleanText(body.note)}` : ''}`,
+          shippingService,
+          shippingAddress,
+          shippingAddressDetail: shippingAddress || null,
+          createdBy,
+        },
+        { transaction }
+      );
+
+      for (const item of mappedItems) {
+        await SaleItem.create({ saleId: sale.id, ...item }, { transaction });
+
+        if (item.itemType !== 'PRODUCT' || !item.productId) continue;
+
+        const product = await Product.findByPk(item.productId, { transaction });
+        if (!product) continue;
+
+        const stockBefore = product.stock;
+        await product.update({ stock: stockBefore - item.quantity }, { transaction });
+
+        if (item.variantName) {
+          const variant = await ProductVariant.findOne({
+            where: { productId: item.productId, value: item.variantName },
+            transaction,
+          });
+          if (variant) {
+            await variant.update({ stock: variant.stock - item.quantity }, { transaction });
+          }
+        }
+
+        await StockMovement.create(
+          {
+            productId: item.productId,
+            type: MovementType.OUT,
+            quantity: item.quantity,
+            stockBefore,
+            stockAfter: stockBefore - item.quantity,
+            reference: `WEB:${orderId}`,
+            notes: `Order website Lunarea${item.variantName ? ` (Varian: ${item.variantName})` : ''}`,
+            createdBy,
+          },
+          { transaction }
+        );
+      }
+
+      await transaction.commit();
+
+      socketService.emitToAdmins('approval:pending', {
+        message: 'Order website Lunarea masuk',
+        saleId: sale.id,
+        saleNumber: sale.saleNumber,
+        customerName: sale.customerName,
+        totalAmount: `Rp ${Number(sale.totalAmount || 0).toLocaleString('id-ID')}`,
+      });
+      socketService.broadcastDataRefresh('sales');
+
+      return successResponse(res, sale, 'Order website Lunarea berhasil masuk sistem', 201);
+    } catch (error) {
+      await transaction.rollback();
+      return next(error);
+    }
+  },
+};
