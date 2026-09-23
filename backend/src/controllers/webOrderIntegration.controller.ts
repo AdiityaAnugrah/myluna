@@ -193,9 +193,17 @@ export const webOrderIntegrationController = {
       const body = req.body || {};
       const orderId = cleanText(body.order_id);
       const status = cleanText(body.status);
+      const customerId = cleanText(body.customer_id);
+      const customerEmail = cleanText(body.customer_email || body.email_cus);
+      const customerName = cleanText(body.customer_name || body.nama_pen);
+      const customerPhone = cleanText(body.customer_phone || body.hp_pen);
+      const isGuestOrder = String(body.is_guest || '').toLowerCase() === 'true';
 
       if (!orderId || !orderId.toUpperCase().startsWith('L')) {
         throw new AppError('Order Lunarea tidak valid', 400);
+      }
+      if (isGuestOrder || (!customerId && !customerEmail)) {
+        throw new AppError('Order website wajib berasal dari akun customer', 400);
       }
 
       if (status !== 'Proses') {
@@ -213,8 +221,10 @@ export const webOrderIntegrationController = {
             saleNumber: orderId,
             status: 'WAITING_APPROVAL',
             platform: 'WEBSITE',
-            customerName: cleanText(body.nama_pen) || null,
-            customerPhone: cleanText(body.hp_pen) || null,
+            customerId: customerId || customerEmail || null,
+            customerEmail: customerEmail || null,
+            customerName: customerName || null,
+            customerPhone: customerPhone || null,
             shippingAddress: cleanText(normalizeAddress(body.alamat_pen)),
             itemCount: Array.isArray(body.items) ? body.items.filter(isOperationalItem).length : 0,
           },
@@ -316,14 +326,14 @@ export const webOrderIntegrationController = {
         {
           saleNumber: orderId,
           saleDate,
-          customerName: cleanText(body.nama_pen) || null,
-          customerPhone: cleanText(body.hp_pen) || null,
+          customerName: customerName || null,
+          customerPhone: customerPhone || null,
           totalAmount: grossAmount || calculatedTotal,
           paymentMethod: 'TRANSFER' as any,
           platform: 'WEBSITE' as any,
           saleType: 'PRODUCT' as any,
           status: 'WAITING_APPROVAL' as any,
-          notes: `Order otomatis dari lunareafurniture.com${body.note ? ` | Catatan: ${cleanText(body.note)}` : ''}`,
+          notes: `Order otomatis dari lunareafurniture.com | Akun website: ${customerEmail || customerId || '-'}${body.note ? ` | Catatan: ${cleanText(body.note)}` : ''}`,
           shippingService,
           shippingAddress,
           shippingAddressDetail: shippingAddress || null,
@@ -399,13 +409,19 @@ export const webOrderIntegrationController = {
     try {
       const body = req.body || {};
       const orderId = cleanText(body.order_id);
+      const customerId = cleanText(body.customer_id);
+      const customerEmail = cleanText(body.customer_email);
       const reason = cleanText(body.reason);
       const solution = cleanText(body.solution);
       const items = Array.isArray(body.items) ? body.items : [];
       const dryRun = String(req.headers['x-luna-dry-run'] || body.dry_run || '').toLowerCase() === 'true';
+      const isGuestReturn = String(body.is_guest || '').toLowerCase() === 'true';
 
       if (!orderId || !orderId.toUpperCase().startsWith('L')) {
         throw new AppError('Order Lunarea tidak valid', 400);
+      }
+      if (isGuestReturn || (!customerId && !customerEmail)) {
+        throw new AppError('Retur website wajib berasal dari akun customer', 400);
       }
       if (reason.length < 5) {
         throw new AppError('Alasan retur wajib diisi minimal 5 karakter', 400);
@@ -498,7 +514,8 @@ export const webOrderIntegrationController = {
       const fullReason = [
         reason,
         solution ? `Solusi diminta customer: ${solution}` : '',
-        cleanText(body.customer_email) ? `Email customer: ${cleanText(body.customer_email)}` : '',
+        customerEmail ? `Email customer: ${customerEmail}` : '',
+        customerId ? `ID akun website: ${customerId}` : '',
         cleanText(body.customer_phone) ? `HP customer: ${cleanText(body.customer_phone)}` : '',
       ].filter(Boolean).join('\n');
 
