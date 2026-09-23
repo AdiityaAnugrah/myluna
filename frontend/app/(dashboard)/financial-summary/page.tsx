@@ -149,13 +149,46 @@ export default function FinancialSummaryPage() {
 
   // Chart data (group by date)
   const chartData = useMemo(() => {
-    const dataMap: Record<string, { date: string; revenue: number }> = {};
-    sales.forEach((s: any) => {
-      const date = s.saleDate.split('T')[0];
-      if (!dataMap[date]) dataMap[date] = { date, revenue: 0 };
-      dataMap[date].revenue += parseFloat(s.totalAmount);
-    });
-    return Object.values(dataMap).sort((a, b) => a.date.localeCompare(b.date));
+    const dataMap: Record<string, {
+      date: string;
+      revenue: number;
+      totalUnits: number;
+      products: Record<string, { name: string; quantity: number }>;
+    }> = {};
+
+    sales
+      .filter((s: any) => !['CANCELLED', 'REJECTED'].includes(s.status))
+      .forEach((s: any) => {
+        const date = s.saleDate.split('T')[0];
+        if (!dataMap[date]) {
+          dataMap[date] = { date, revenue: 0, totalUnits: 0, products: {} };
+        }
+
+        dataMap[date].revenue += parseFloat(s.totalAmount || '0');
+
+        (s.items || []).forEach((item: any) => {
+          const quantity = Number(item.quantity || 0);
+          const productName = item.product?.name
+            || item.productName
+            || item.componentName
+            || item.variantName
+            || 'Produk tanpa nama';
+          const productKey = String(item.productId || item.componentName || productName);
+
+          dataMap[date].totalUnits += quantity;
+          if (!dataMap[date].products[productKey]) {
+            dataMap[date].products[productKey] = { name: productName, quantity: 0 };
+          }
+          dataMap[date].products[productKey].quantity += quantity;
+        });
+      });
+
+    return Object.values(dataMap)
+      .map((row) => ({
+        ...row,
+        productList: Object.values(row.products).sort((a, b) => b.quantity - a.quantity),
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
   }, [sales]);
 
   const formatCurrency = (value: number) => {
@@ -395,8 +428,47 @@ export default function FinancialSummaryPage() {
                     />
                     <YAxis tickFormatter={(val) => `Rp ${val / 1000000}jt`} />
                     <Tooltip
-                      formatter={(value: any) => formatCurrency(value)}
-                      labelFormatter={(label) => new Date(label).toLocaleDateString('id-ID', { dateStyle: 'long' })}
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+                        const row: any = payload[0]?.payload || {};
+                        const productList = row.productList || [];
+                        const visibleProducts = productList.slice(0, 5);
+                        const remainingProducts = Math.max(productList.length - visibleProducts.length, 0);
+
+                        return (
+                          <div className="min-w-[240px] rounded-lg border bg-background p-3 text-sm shadow-md">
+                            <p className="mb-2 font-semibold text-foreground">
+                              {new Date(String(label || row.date || "")).toLocaleDateString('id-ID', { dateStyle: 'long' })}
+                            </p>
+                            <div className="space-y-1 text-muted-foreground">
+                              <div className="flex justify-between gap-4">
+                                <span>Pendapatan</span>
+                                <span className="font-semibold text-foreground">{formatCurrency(row.revenue || 0)}</span>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <span>Total Unit</span>
+                                <span className="font-semibold text-foreground">{row.totalUnits || 0} unit</span>
+                              </div>
+                            </div>
+                            {visibleProducts.length > 0 && (
+                              <div className="mt-3 border-t pt-2">
+                                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Produk</p>
+                                <div className="space-y-1">
+                                  {visibleProducts.map((product: any) => (
+                                    <div key={product.name} className="flex justify-between gap-3 text-xs">
+                                      <span className="max-w-[170px] truncate text-muted-foreground" title={product.name}>{product.name}</span>
+                                      <span className="font-medium text-foreground">{product.quantity} unit</span>
+                                    </div>
+                                  ))}
+                                  {remainingProducts > 0 && (
+                                    <p className="text-xs text-muted-foreground">+{remainingProducts} produk lainnya</p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }}
                     />
                     <Legend />
                     <Bar dataKey="revenue" name="Pendapatan" fill="#10b981" radius={[4, 4, 0, 0]} />
