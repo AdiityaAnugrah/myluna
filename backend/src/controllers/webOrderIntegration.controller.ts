@@ -197,6 +197,7 @@ export const webOrderIntegrationController = {
       const customerEmail = cleanText(body.customer_email || body.email_cus);
       const customerName = cleanText(body.customer_name || body.nama_pen);
       const customerPhone = cleanText(body.customer_phone || body.hp_pen);
+      const customerAuthProvider = cleanText(body.customer_auth_provider || 'email');
       const isGuestOrder = String(body.is_guest || '').toLowerCase() === 'true';
 
       if (!orderId || !orderId.toUpperCase().startsWith('L')) {
@@ -225,6 +226,7 @@ export const webOrderIntegrationController = {
             customerEmail: customerEmail || null,
             customerName: customerName || null,
             customerPhone: customerPhone || null,
+            customerAuthProvider: customerAuthProvider || 'email',
             shippingAddress: cleanText(normalizeAddress(body.alamat_pen)),
             itemCount: Array.isArray(body.items) ? body.items.filter(isOperationalItem).length : 0,
           },
@@ -333,7 +335,7 @@ export const webOrderIntegrationController = {
           platform: 'WEBSITE' as any,
           saleType: 'PRODUCT' as any,
           status: 'WAITING_APPROVAL' as any,
-          notes: `Order otomatis dari lunareafurniture.com | Akun website: ${customerEmail || customerId || '-'}${body.note ? ` | Catatan: ${cleanText(body.note)}` : ''}`,
+          notes: `Order otomatis dari lunareafurniture.com | Akun website: ${customerEmail || customerId || '-'} | Login: ${customerAuthProvider || 'email'}${body.note ? ` | Catatan: ${cleanText(body.note)}` : ''}`,
           shippingService,
           shippingAddress,
           shippingAddressDetail: shippingAddress || null,
@@ -411,6 +413,7 @@ export const webOrderIntegrationController = {
       const orderId = cleanText(body.order_id);
       const customerId = cleanText(body.customer_id);
       const customerEmail = cleanText(body.customer_email);
+      const customerAuthProvider = cleanText(body.customer_auth_provider || 'email');
       const reason = cleanText(body.reason);
       const solution = cleanText(body.solution);
       const items = Array.isArray(body.items) ? body.items : [];
@@ -517,6 +520,7 @@ export const webOrderIntegrationController = {
         customerEmail ? `Email customer: ${customerEmail}` : '',
         customerId ? `ID akun website: ${customerId}` : '',
         cleanText(body.customer_phone) ? `HP customer: ${cleanText(body.customer_phone)}` : '',
+        customerAuthProvider ? `Login customer: ${customerAuthProvider}` : '',
       ].filter(Boolean).join('\n');
 
       const createdReturn = await SaleReturn.create(
