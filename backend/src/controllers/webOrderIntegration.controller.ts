@@ -20,6 +20,7 @@ import { successResponse } from '../utils/response';
 import { AppError } from '../utils/errors';
 import { socketService } from '../services/socket.service';
 import { auditService } from '../services/audit.service';
+import { parseBoolean, postJsonToLunareaWebsite } from '../services/lunareaWebsiteHttp.service';
 
 function cleanText(value: unknown) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -251,11 +252,13 @@ export const webOrderIntegrationController = {
         process.env.LUNAREA_WEBSITE_PRODUCT_SYNC_URL ||
         'https://lunareafurniture.com/integrations/luna-product-sync'
       );
-      const createMissing = String(body.create_missing || '').toLowerCase() === 'true' || body.create_missing === true;
-      const dryRun = String(body.dry_run || '').toLowerCase() === 'true' || body.dry_run === true;
+      const websiteHost = cleanText(body.website_host || process.env.LUNAREA_WEBSITE_PRODUCT_SYNC_HOST);
+      const insecureTls = parseBoolean(body.insecure_tls) || parseBoolean(process.env.LUNAREA_WEBSITE_PRODUCT_SYNC_INSECURE_TLS);
+      const createMissing = parseBoolean(body.create_missing);
+      const dryRun = parseBoolean(body.dry_run);
       const productIds = Array.isArray(body.product_ids) ? body.product_ids.map(cleanText).filter(Boolean) : [];
       const limit = Math.min(Math.max(Number(body.limit || 500), 1), 5000);
-      const includeInactive = String(body.include_inactive || '').toLowerCase() === 'true' || body.include_inactive === true;
+      const includeInactive = parseBoolean(body.include_inactive);
 
       const where: any = {};
       if (productIds.length > 0) {
@@ -297,16 +300,13 @@ export const webOrderIntegrationController = {
         products: await Promise.all(products.map(buildWebsiteProductPayload)),
       };
 
-      const response = await fetch(websiteUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Luna-Webhook-Token': expectedToken,
-        },
-        body: JSON.stringify(payload),
+      const response = await postJsonToLunareaWebsite(websiteUrl, payload, {
+        token: expectedToken,
+        hostHeader: websiteHost || undefined,
+        insecureTls,
       });
 
-      const text = await response.text();
+      const text = response.text;
       let websiteResult: any = text;
       try {
         websiteResult = JSON.parse(text);

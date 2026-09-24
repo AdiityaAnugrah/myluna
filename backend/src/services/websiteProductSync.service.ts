@@ -1,5 +1,6 @@
 import { Op } from 'sequelize';
 import { Product, ProductVariant, Category } from '../models';
+import { parseBoolean, postJsonToLunareaWebsite } from './lunareaWebsiteHttp.service';
 
 type SyncTimer = ReturnType<typeof setTimeout>;
 
@@ -28,6 +29,10 @@ function getSyncUrl() {
     process.env.LUNAREA_WEBSITE_PRODUCT_SYNC_URL ||
     'https://lunareafurniture.com/integrations/luna-product-sync'
   );
+}
+
+function getSyncHostHeader() {
+  return cleanText(process.env.LUNAREA_WEBSITE_PRODUCT_SYNC_HOST);
 }
 
 async function buildWebsiteProductPayload(product: Product) {
@@ -134,25 +139,30 @@ class WebsiteProductSyncService {
       return { skipped: true, reason: 'product_not_found' };
     }
 
-    const response = await fetch(getSyncUrl(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Luna-Webhook-Token': token,
-      },
-      body: JSON.stringify({
+    const response = await postJsonToLunareaWebsite(getSyncUrl(), {
         source: 'luna-system-auto',
         create_missing: false,
         products: [await buildWebsiteProductPayload(product)],
-      }),
-    });
+      },
+      {
+        token,
+        hostHeader: getSyncHostHeader() || undefined,
+        insecureTls: parseBoolean(process.env.LUNAREA_WEBSITE_PRODUCT_SYNC_INSECURE_TLS),
+      }
+    );
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Website response ${response.status}: ${text.slice(0, 500)}`);
+    let responseJson: any = null;
+    try {
+      responseJson = JSON.parse(response.text);
+    } catch (_) {
+      responseJson = null;
     }
 
-    return response.json().catch(() => ({ success: true }));
+    if (!response.ok) {
+      throw new Error(`Website response ${response.status}: ${response.text.slice(0, 500)}`);
+    }
+
+    return responseJson || { success: true };
   }
 
   async syncMany(productIds: string[]) {
@@ -178,25 +188,30 @@ class WebsiteProductSyncService {
     });
 
     const token = String(process.env.LUNA_WEB_ORDER_TOKEN || '');
-    const response = await fetch(getSyncUrl(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Luna-Webhook-Token': token,
-      },
-      body: JSON.stringify({
+    const response = await postJsonToLunareaWebsite(getSyncUrl(), {
         source: 'luna-system-auto-batch',
         create_missing: false,
         products: await Promise.all(products.map(buildWebsiteProductPayload)),
-      }),
-    });
+      },
+      {
+        token,
+        hostHeader: getSyncHostHeader() || undefined,
+        insecureTls: parseBoolean(process.env.LUNAREA_WEBSITE_PRODUCT_SYNC_INSECURE_TLS),
+      }
+    );
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Website response ${response.status}: ${text.slice(0, 500)}`);
+    let responseJson: any = null;
+    try {
+      responseJson = JSON.parse(response.text);
+    } catch (_) {
+      responseJson = null;
     }
 
-    return response.json().catch(() => ({ success: true }));
+    if (!response.ok) {
+      throw new Error(`Website response ${response.status}: ${response.text.slice(0, 500)}`);
+    }
+
+    return responseJson || { success: true };
   }
 }
 
