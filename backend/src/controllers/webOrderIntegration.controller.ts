@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 import {
   Product,
   ProductVariant,
+  Category,
   Sale,
   SaleItem,
   SaleReturn,
@@ -72,6 +73,62 @@ function normalizeAddress(raw: unknown) {
   }
 
   return '';
+}
+
+function numberValue(value: unknown, fallback = 0) {
+  const number = Number(value ?? fallback);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function cleanSlug(value: unknown, fallback: string) {
+  const raw = cleanText(value || fallback).toLowerCase();
+  return raw
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+async function buildWebsiteProductPayload(product: Product) {
+  const json: any = product.toJSON();
+  const category = json.category || null;
+  const parentCategory = category?.parent || null;
+  const variantItems = Array.isArray(json.variantItems) ? json.variantItems : [];
+  const marketplaceLinks = json.marketplaceLinks || {};
+
+  return {
+    id: product.id,
+    sku: product.sku,
+    website_id: marketplaceLinks.websiteId || marketplaceLinks.website_id || product.sku,
+    name: product.name,
+    slug: product.slug || cleanSlug(product.slug, product.name),
+    description: product.description || '',
+    category: parentCategory?.name || category?.name || '',
+    subCategory: parentCategory?.name ? category?.name || '' : '',
+    sellingPrice: numberValue(product.sellingPrice),
+    purchasePrice: numberValue(product.purchasePrice),
+    warrantyPrice: product.warrantyPrice === null || product.warrantyPrice === undefined ? null : numberValue(product.warrantyPrice),
+    stock: numberValue(product.stock),
+    minStock: numberValue(product.minStock),
+    unit: product.unit,
+    length: product.length === null || product.length === undefined ? null : numberValue(product.length),
+    width: product.width === null || product.width === undefined ? null : numberValue(product.width),
+    height: product.height === null || product.height === undefined ? null : numberValue(product.height),
+    weight: product.weight === null || product.weight === undefined ? null : numberValue(product.weight),
+    imageUrl: product.imageUrl || '',
+    isActive: product.isActive,
+    variants: variantItems.map((variant: any) => ({
+      id: variant.id,
+      name: cleanText(variant.name || variant.value),
+      value: cleanText(variant.value || variant.name),
+      priceAdjustment: numberValue(variant.priceAdjustment),
+      stock: numberValue(variant.stock),
+    })),
+    marketplaceLinks,
+    shopee: marketplaceLinks.shopee || '',
+    tokped: marketplaceLinks.tokped || '',
+    tiktok: marketplaceLinks.tiktok || '',
+    youtube: marketplaceLinks.youtube || '',
+    updatedAt: product.updatedAt,
+  };
 }
 
 async function resolveCreatedBy() {
@@ -179,6 +236,110 @@ async function resolveSaleItemForWebsiteReturn(sale: Sale, item: any, transactio
 }
 
 export const webOrderIntegrationController = {
+  async syncProductsToLunareaWebsite(req: Request, res: Response, next: NextFunction) {
+    const token = String(req.headers['x-luna-webhook-token'] || req.headers['x-webhook-token'] || '');
+    const expectedToken = String(process.env.LUNA_WEB_ORDER_TOKEN || '');
+
+    if (!expectedToken || token !== expectedToken) {
+      return res.status(401).json({ success: false, message: 'Invalid webhook token' });
+    }
+
+    try {
+      const body = req.body || {};
+      const websiteUrl = String(
+        body.website_url ||
+        process.env.LUNAREA_WEBSITE_PRODUCT_SYNC_URL ||
+        'https://lunareafurniture.com/integrations/luna-product-sync'
+      );
+      const createMissing = String(body.create_missing || '').toLowerCase() === 'true' || body.create_missing === true;
+      const dryRun = String(body.dry_run || '').toLowerCase() === 'true' || body.dry_run === true;
+      const productIds = Array.isArray(body.product_ids) ? body.product_ids.map(cleanText).filter(Boolean) : [];
+      const limit = Math.min(Math.max(Number(body.limit || 500), 1), 5000);
+      const includeInactive = String(body.include_inactive || '').toLowerCase() === 'true' || body.include_inactive === true;
+
+      const where: any = {};
+      if (productIds.length > 0) {
+        where.id = { [Op.in]: productIds };
+      } else if (!includeInactive) {
+        where.isActive = true;
+      }
+
+      const products = await Product.findAll({
+        where,
+        include: [
+          {
+            model: ProductVariant,
+            as: 'variantItems',
+            separate: true,
+            order: [['createdAt', 'ASC']],
+          },
+          {
+            model: Category,
+            as: 'category',
+            attributes: ['id', 'name', 'parentId'],
+            include: [
+              {
+                model: Category,
+                as: 'parent',
+                attributes: ['id', 'name'],
+              },
+            ],
+          },
+        ],
+        limit,
+        order: [['updatedAt', 'DESC']],
+      });
+
+      const payload = {
+        source: 'luna-system',
+        dry_run: dryRun,
+        create_missing: createMissing,
+        products: await Promise.all(products.map(buildWebsiteProductPayload)),
+      };
+
+      const response = await fetch(websiteUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Luna-Webhook-Token': expectedToken,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await response.text();
+      let websiteResult: any = text;
+      try {
+        websiteResult = JSON.parse(text);
+      } catch (_) {
+        // keep raw text for diagnostics
+      }
+
+      if (!response.ok) {
+        return res.status(response.status).json({
+          success: false,
+          message: 'Sync produk ke website gagal',
+          website_status: response.status,
+          website_result: websiteResult,
+        });
+      }
+
+      return successResponse(
+        res,
+        {
+          sent: products.length,
+          websiteUrl,
+          createMissing,
+          dryRun,
+          websiteResult,
+        },
+        'Sync produk ke website Lunarea berhasil',
+        200
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   async importLunareaOrder(req: Request, res: Response, next: NextFunction) {
     const token = String(req.headers['x-luna-webhook-token'] || req.headers['x-webhook-token'] || '');
     const expectedToken = String(process.env.LUNA_WEB_ORDER_TOKEN || '');
