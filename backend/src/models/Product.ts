@@ -163,5 +163,13 @@ Product.init(
   }
 );
 
+Product.afterSave((product) => {
+  import('../services/websiteProductSync.service.js')
+    .then(({ websiteProductSyncService }) => {
+      websiteProductSyncService.queueProductSync(product.id);
+    })
+    .catch(() => {});
+});
+
 export default Product;
 

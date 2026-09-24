@@ -74,4 +74,20 @@ ProductVariant.init(
   }
 );
 
+ProductVariant.afterSave((variant) => {
+  import('../services/websiteProductSync.service.js')
+    .then(({ websiteProductSyncService }) => {
+      websiteProductSyncService.queueProductSync(variant.productId);
+    })
+    .catch(() => {});
+});
+
+ProductVariant.afterDestroy((variant) => {
+  import('../services/websiteProductSync.service.js')
+    .then(({ websiteProductSyncService }) => {
+      websiteProductSyncService.queueProductSync(variant.productId);
+    })
+    .catch(() => {});
+});
+
 export default ProductVariant;
