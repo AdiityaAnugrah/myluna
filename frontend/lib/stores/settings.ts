@@ -26,7 +26,7 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
-      theme: 'system',
+      theme: 'light',
       fontSize: 'medium',
       primaryColor: 'umber',
       isSynced: false,
@@ -50,7 +50,7 @@ export const useSettingsStore = create<SettingsState>()(
           const { data } = await apiClient.get('/auth/me');
            if (data?.data?.settings) {
             set({ 
-                theme: data.data.settings.theme || 'system',
+                theme: data.data.settings.theme === 'dark' ? 'dark' : 'light',
                 fontSize: data.data.settings.fontSize || 'medium',
                 primaryColor: normalizePrimaryColor(data.data.settings.primaryColor),
                 isSynced: true

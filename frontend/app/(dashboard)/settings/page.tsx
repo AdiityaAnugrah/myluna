@@ -9,7 +9,7 @@ import { useSettingsStore } from '@/lib/stores/settings';
 import type { PrimaryColor } from '@/lib/stores/settings';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTheme } from 'next-themes';
-import { Moon, Sun, Laptop, Type, Info, Code, Cpu, ExternalLink, ShieldCheck, Heart, Palette, Printer } from 'lucide-react';
+import { Moon, Sun, Type, Info, Code, Cpu, ExternalLink, ShieldCheck, Heart, Palette, Printer } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -29,7 +29,7 @@ export default function SettingsPage() {
   const { setTheme: setNextTheme } = useTheme();
 
   const handleThemeChange = (value: string) => {
-    const newTheme = value as 'light' | 'dark' | 'system';
+    const newTheme = value as 'light' | 'dark';
     setStoreTheme(newTheme);
     setNextTheme(newTheme);
   };
@@ -132,7 +132,7 @@ export default function SettingsPage() {
               defaultValue={storeTheme} 
               value={storeTheme}
               onValueChange={handleThemeChange}
-              className="grid grid-cols-3 gap-4"
+              className="grid grid-cols-2 gap-4"
             >
               <div>
                 <RadioGroupItem value="light" id="theme-light" className="peer sr-only" />
@@ -152,16 +152,6 @@ export default function SettingsPage() {
                 >
                   <Moon className="mb-3 h-6 w-6" />
                   Gelap
-                </Label>
-              </div>
-              <div>
-                <RadioGroupItem value="system" id="theme-system" className="peer sr-only" />
-                <Label
-                  htmlFor="theme-system"
-                  className="flex flex-col items-center justify-between rounded-xl border-2 border-muted bg-card p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 [&:has([data-state=checked])]:border-primary cursor-pointer transition-all duration-200"
-                >
-                  <Laptop className="mb-3 h-6 w-6" />
-                  Sistem
                 </Label>
               </div>
             </RadioGroup>
