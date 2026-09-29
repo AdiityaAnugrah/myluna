@@ -6,6 +6,7 @@ import { useAuthStore } from '@/lib/stores/auth';
 import { useReturns } from '@/lib/hooks/useReturns';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { ComplaintReturnMenu } from '@/components/complaint-return-menu';
+import { isUserLikeRole } from '@/lib/utils/roles';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -65,8 +66,8 @@ function statusClass(status: SaleReturnStatus) {
 export default function ReturnsPage() {
   const user = useAuthStore((state) => state.user);
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
-  const canCreate = role === 'USER' || role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
-  const isUser = role === 'USER';
+  const canCreate = isUserLikeRole(role) || role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
+  const isUser = isUserLikeRole(role);
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');

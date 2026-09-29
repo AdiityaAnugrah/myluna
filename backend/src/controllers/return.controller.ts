@@ -33,6 +33,7 @@ import { AppError } from '../utils/errors';
 import { successResponse } from '../utils/response';
 import { getLocalDateString } from '../utils/dateGuard';
 import { returnEvidenceDir, returnReceivedDir } from '../middlewares/uploadReturn';
+import { isUserLikeRole } from '../utils/roles';
 
 const eligibleSaleStatuses = ['PROCESSED', 'SETTLED', 'COMPLETED'];
 const activeComplaintStatuses = [
@@ -276,7 +277,7 @@ export const returnController = {
         },
       };
 
-      if (req.user.roleName === 'USER') {
+      if (isUserLikeRole(req.user.roleName)) {
         where.requestedBy = req.user.id;
       }
 
@@ -323,7 +324,7 @@ export const returnController = {
         ],
       };
 
-      if (req.user.roleName === 'USER') {
+      if (isUserLikeRole(req.user.roleName)) {
         where.createdBy = req.user.id;
       }
 
@@ -369,7 +370,7 @@ export const returnController = {
       const { saleId, reason } = req.body;
       const items = parseItemsPayload(req.body.items);
       const requestDate =
-        req.user.roleName === 'USER'
+        isUserLikeRole(req.user.roleName)
           ? getLocalDateString(new Date())
           : String(req.body.requestDate || getLocalDateString(new Date()));
 
@@ -395,7 +396,7 @@ export const returnController = {
       ensureEligibleSaleStatus(String(sale.status));
       const convertedComplaint = await ensureNoActiveComplaint(sale.id, transaction);
 
-      if (req.user.roleName === 'USER' && sale.createdBy !== req.user.id) {
+      if (isUserLikeRole(req.user.roleName) && sale.createdBy !== req.user.id) {
         throw new AppError('Anda hanya dapat membuat retur untuk penjualan milik sendiri', 403);
       }
 
@@ -536,7 +537,7 @@ export const returnController = {
       const where: any = {};
 
       if (status) where.status = status;
-      if (req.user.roleName === 'USER') where.requestedBy = req.user.id;
+      if (isUserLikeRole(req.user.roleName)) where.requestedBy = req.user.id;
       if (search) {
         where[Op.or] = [
           { returnNumber: { [Op.like]: `%${String(search)}%` } },
@@ -629,7 +630,7 @@ export const returnController = {
       });
 
       if (!record) throw new AppError('Data retur tidak ditemukan', 404);
-      if (req.user.roleName === 'USER' && record.requestedBy !== req.user.id) {
+      if (isUserLikeRole(req.user.roleName) && record.requestedBy !== req.user.id) {
         throw new AppError('Anda tidak berhak melihat retur ini', 403);
       }
 

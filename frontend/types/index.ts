@@ -221,7 +221,7 @@ export interface ApiResponse<T> {
   data: T;
 }
 
-export type AppRole = 'USER' | 'TCP' | 'ADMIN' | 'SUPER_ADMIN' | 'DEV' | 'TESTING';
+export type AppRole = 'USER' | 'ADMIN_ORDER' | 'TCP' | 'ADMIN' | 'SUPER_ADMIN' | 'DEV' | 'TESTING';
 
 export interface FeatureFlag {
   id: string;

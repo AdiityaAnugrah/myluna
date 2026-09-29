@@ -36,6 +36,13 @@ module.exports = {
         createdAt: now,
         updatedAt: now,
       },
+      {
+        id: uuidv4(),
+        name: 'ADMIN_ORDER',
+        description: 'Admin Order with user access and full settlement visibility',
+        createdAt: now,
+        updatedAt: now,
+      },
     ].filter(role => !existingRoleNames.includes(role.name));
     
     if (rolesToInsert.length > 0) {

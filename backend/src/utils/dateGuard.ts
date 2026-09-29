@@ -1,4 +1,5 @@
 import { AppError } from './errors';
+import { isUserLikeRole } from './roles';
 
 export function getLocalDateString(date = new Date()) {
   const year = date.getFullYear();
@@ -8,10 +9,10 @@ export function getLocalDateString(date = new Date()) {
 }
 
 export function assertUserDateIsToday(roleName: string | undefined, value: unknown, label: string) {
-  if (roleName !== 'USER') return;
+  if (!isUserLikeRole(roleName)) return;
 
   const today = getLocalDateString();
   if (String(value) !== today) {
-    throw new AppError(`${label} untuk role USER hanya boleh hari ini`, 400);
+    throw new AppError(`${label} untuk role ini hanya boleh hari ini`, 400);
   }
 }

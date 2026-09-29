@@ -54,6 +54,7 @@ import { SkeletonCard, SkeletonChart, SkeletonTable, SkeletonActivity } from '@/
 import { ErrorState } from '@/components/ui/error-state';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatRoleLabel } from '@/lib/utils/roleLabel';
+import { isUserLikeRole } from '@/lib/utils/roles';
 
 const DynamicAreaChart = dynamic(
   () => import('recharts').then((mod) => mod.AreaChart),
@@ -74,7 +75,7 @@ export default function DashboardPage() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
-  const isUserRole = user?.role === 'USER';
+  const isUserRole = isUserLikeRole(user?.role);
   const isTcpRole = user?.role === 'TCP';
 
   useEffect(() => {

@@ -28,6 +28,7 @@ import { useReactToPrint } from 'react-to-print';
 import Barcode from 'react-barcode';
 import { toast } from 'sonner';
 import { Sale, SaleStatus } from '@/types';
+import { isUserLikeRole } from '@/lib/utils/roles';
 import { formatCurrency, getPdfUrl, getDaysSinceSale, isUrgentSale, getVariants, isToday } from '@/lib/utils/sales';
 
 function saleItemName(item: any) {
@@ -728,7 +729,7 @@ export default function SalesProcessPage() {
       </div>
 
       <Tabs defaultValue="active" className="w-full">
-        <TabsList className={cn("grid w-full mb-4", userRole === 'USER' ? "grid-cols-1" : "grid-cols-2")}>
+        <TabsList className={cn("grid w-full mb-4", isUserLikeRole(userRole) ? "grid-cols-1" : "grid-cols-2")}>
           <TabsTrigger value="active">Perlu Diproses</TabsTrigger>
           {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'TCP' || userRole === 'DEV') && (
             <TabsTrigger value="history">Riwayat</TabsTrigger>

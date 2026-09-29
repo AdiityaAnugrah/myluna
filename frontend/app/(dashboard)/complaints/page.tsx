@@ -49,6 +49,7 @@ import { cn } from '@/lib/utils';
 import { PreviewableImage } from '@/components/ui/previewable-image';
 import { ComplaintReturnMenu } from '@/components/complaint-return-menu';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
+import { isUserLikeRole } from '@/lib/utils/roles';
 import { notify } from '@/lib/notify';
 import { getComplaintStatusBadgeClass, getComplaintStatusLabel } from '@/lib/constants/workflowStatus';
 import { Complaint, ComplaintResolutionType, ComplaintStatus, ComplaintType, Sale } from '@/types';
@@ -177,7 +178,7 @@ function createSalesInfoPdf(params: {
 export default function ComplaintsPage() {
   const { user } = useAuthStore();
   const role = user?.role || '';
-  const isUser = role === 'USER';
+  const isUser = isUserLikeRole(role);
   const isTcp = role === 'TCP';
   const isAdmin = role === 'ADMIN';
   const isSuperAdmin = role === 'SUPER_ADMIN';

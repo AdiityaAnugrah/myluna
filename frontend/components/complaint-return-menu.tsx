@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { FileText, MessageSquareWarning } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { isUserLikeRole } from '@/lib/utils/roles';
 
 type ActiveMenu = 'complaints' | 'returns';
 type MenuRole = 'USER' | 'TCP' | 'ADMIN' | 'SUPER_ADMIN' | string | undefined;
 
 export function ComplaintReturnMenu({ active, role }: { active: ActiveMenu; role?: MenuRole }) {
-  const isUser = role === 'USER';
+  const isUser = isUserLikeRole(role);
   const isTcp = role === 'TCP';
   const menus = [
     {

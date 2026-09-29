@@ -30,6 +30,7 @@ import { auditService } from '../services/audit.service';
 import { socketService } from '../services/socket.service';
 import { AppError } from '../utils/errors';
 import { successResponse } from '../utils/response';
+import { isUserLikeRole } from '../utils/roles';
 
 function buildTicketRoom(ticketId: string) {
   return `return-ticket:${ticketId}`;
@@ -388,7 +389,7 @@ export const returnTicketController = {
         ];
       }
 
-      if (req.user.roleName === 'USER') where.createdBy = req.user.id;
+      if (isUserLikeRole(req.user.roleName)) where.createdBy = req.user.id;
 
       const { count, rows } = await ReturnTicket.findAndCountAll({
         where,
@@ -541,7 +542,7 @@ export const returnTicketController = {
         },
       };
 
-      if (req.user.roleName === 'USER') {
+      if (isUserLikeRole(req.user.roleName)) {
         where.createdBy = req.user.id;
       }
 

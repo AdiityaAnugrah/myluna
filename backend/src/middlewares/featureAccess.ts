@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { FeatureFlag } from '../models';
 import { ForbiddenError } from '../utils/errors';
+import { isAdminOrderRole } from '../utils/roles';
 
 interface FeatureAccessOptions {
   readFallbackFeatureKeys?: string[];
@@ -14,7 +15,8 @@ function isRoleAllowed(feature: FeatureFlag, role: string) {
     ? feature.allowedRoles.map((item) => String(item).toUpperCase())
     : [];
 
-  return feature.isEnabled && !feature.isDevelopment && allowedRoles.includes(role);
+  const effectiveRoleAllowed = allowedRoles.includes(role) || (isAdminOrderRole(role) && allowedRoles.includes('USER'));
+  return feature.isEnabled && !feature.isDevelopment && effectiveRoleAllowed;
 }
 
 export function featureAccess(featureKey: string, options: FeatureAccessOptions = {}) {

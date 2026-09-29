@@ -2,8 +2,9 @@ import { NextFunction, Request, Response } from 'express';
 import { FeatureFlag } from '../models';
 import { AppError } from '../utils/errors';
 import { successResponse } from '../utils/response';
+import { isAdminOrderRole } from '../utils/roles';
 
-const VALID_ROLES = ['USER', 'TCP', 'ADMIN', 'SUPER_ADMIN', 'DEV'] as const;
+const VALID_ROLES = ['USER', 'ADMIN_ORDER', 'TCP', 'ADMIN', 'SUPER_ADMIN', 'DEV'] as const;
 type ValidRole = (typeof VALID_ROLES)[number];
 
 function normalizeRoles(input: unknown): ValidRole[] {
@@ -35,7 +36,11 @@ export const featureController = {
         ? features
         : features.filter((feature) => {
             const allowedRoles = Array.isArray(feature.allowedRoles) ? feature.allowedRoles : [];
-            return feature.isEnabled && allowedRoles.map(String).map((item) => item.toUpperCase()).includes(role);
+            const normalizedRoles = allowedRoles.map(String).map((item) => item.toUpperCase());
+            return feature.isEnabled && (
+              normalizedRoles.includes(role) ||
+              (isAdminOrderRole(role) && normalizedRoles.includes('USER'))
+            );
           });
 
       return successResponse(res, visibleFeatures, 'Feature settings retrieved successfully', 200);

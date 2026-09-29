@@ -3,6 +3,7 @@ export function formatRoleLabel(role?: string | { name?: string | null } | null)
   const normalized = String(rawRole || '').toUpperCase();
   const labels: Record<string, string> = {
     USER: 'User',
+    ADMIN_ORDER: 'Admin Order',
     TCP: 'PUSAT',
     ADMIN: 'Admin',
     SUPER_ADMIN: 'Super Admin',

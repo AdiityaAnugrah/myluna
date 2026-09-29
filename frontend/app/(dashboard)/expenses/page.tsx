@@ -47,6 +47,7 @@ import {
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import { FormFieldError, FormValidationSummary, errorInputClass, errorSelectClass } from '@/components/forms/FormValidationFeedback';
 import { cn } from '@/lib/utils';
+import { isUserLikeRole } from '@/lib/utils/roles';
 import { toast } from 'sonner';
 
 const EXPENSE_CATEGORIES = [
@@ -60,7 +61,7 @@ const EXPENSE_CATEGORIES = [
 
 export default function ExpensesPage() {
   const { user } = useAuth();
-  const isUser = user?.role === 'USER';
+  const isUser = isUserLikeRole(user?.role);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<any>(null);

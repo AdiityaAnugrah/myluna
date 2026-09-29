@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ForbiddenError, UnauthorizedError } from '../utils/errors';
+import { rolesWithAdminOrder } from '../utils/roles';
 
 export function rbac(allowedRoles: string[]) {
   return (req: Request, _res: Response, next: NextFunction) => {
@@ -8,7 +9,7 @@ export function rbac(allowedRoles: string[]) {
     }
 
     const userRole = req.user.roleName.toUpperCase();
-    const requiredRoles = allowedRoles.map(r => r.toUpperCase());
+    const requiredRoles = rolesWithAdminOrder(allowedRoles).map(r => r.toUpperCase());
 
     // DEV berada di atas semua role, TESTING tetap bisa akses untuk simulasi end-to-end.
     if (userRole === 'DEV' || userRole === 'TESTING') {

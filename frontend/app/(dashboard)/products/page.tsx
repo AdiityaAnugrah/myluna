@@ -23,6 +23,7 @@ import { ProductRequestDialog } from '@/components/products/ProductRequestDialog
 import { PriceChangeRequestDialog } from '@/components/products/PriceChangeRequestDialog';
 import { Product } from '@/types';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { isUserLikeRole } from '@/lib/utils/roles';
 import { BulkActionBar } from '@/components/ui/bulk-action-bar';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -234,7 +235,7 @@ export default function ProductsPage() {
             <Download className="mr-2 h-4 w-4" />
             Export Excel
           </Button>
-          {(isAdmin || user?.role === 'USER') && (
+          {(isAdmin || isUserLikeRole(user?.role)) && (
             <Link href="/products/new">
               <Button className="tour-products-add">
                 <Plus className="mr-2 h-4 w-4" />

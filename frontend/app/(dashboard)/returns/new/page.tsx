@@ -15,12 +15,13 @@ import { Loader2, Search } from 'lucide-react';
 import { Sale } from '@/types';
 import { FormFieldError, FormValidationSummary, errorInputClass } from '@/components/forms/FormValidationFeedback';
 import { cn } from '@/lib/utils';
+import { isUserLikeRole } from '@/lib/utils/roles';
 
 export default function NewReturnPage() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
-  const canCreate = role === 'USER' || role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
+  const canCreate = isUserLikeRole(role) || role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
 
   const [saleQuery, setSaleQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');

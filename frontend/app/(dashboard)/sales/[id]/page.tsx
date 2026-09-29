@@ -22,6 +22,7 @@ import { format } from 'date-fns';
 import { use } from 'react';
 import { formatStatus } from '@/lib/utils/format';
 import { getPdfUrl } from '@/lib/utils/sales';
+import { isUserLikeRole } from '@/lib/utils/roles';
 
 function saleItemName(item: any) {
   return item?.itemType === 'COMPONENT' ? item.componentName || 'Komponen' : item?.product?.name || '-';
@@ -110,7 +111,7 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
         </div>
         <div className="flex items-center gap-4">
           {getStatusBadge(sale.status, sale.isCancelPending)}
-          {user?.role === 'USER' && !['CANCELLED', 'COMPLETED', 'SETTLED', 'PROCESSED', 'APPROVED'].includes(sale.status) && !sale.isCancelPending && (
+          {isUserLikeRole(user?.role) && !['CANCELLED', 'COMPLETED', 'SETTLED', 'PROCESSED', 'APPROVED'].includes(sale.status) && !sale.isCancelPending && (
             <Button
               variant="destructive"
               onClick={() => {

@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { PrinterSettings } from '@/components/settings/PrinterSettings';
+import { isUserLikeRole } from '@/lib/utils/roles';
 
 export default function SettingsPage() {
   const { 
@@ -25,7 +26,7 @@ export default function SettingsPage() {
     setPrimaryColor
   } = useSettingsStore();
   const { user } = useAuth();
-  const isUser = user?.role === 'USER';
+  const isUser = isUserLikeRole(user?.role);
   const { setTheme: setNextTheme } = useTheme();
 
   const handleThemeChange = (value: string) => {

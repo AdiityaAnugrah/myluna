@@ -32,6 +32,7 @@ import { auditService } from '../services/audit.service';
 import { socketService } from '../services/socket.service';
 import { complaintReceiptDir } from '../middlewares/uploadComplaint';
 import { getLocalDateString } from '../utils/dateGuard';
+import { isUserLikeRole } from '../utils/roles';
 
 const complaintPhotoDir = path.join(process.cwd(), 'uploads/complaints/photos');
 const complaintEligibleStatuses: SaleStatus[] = [
@@ -137,7 +138,7 @@ export const complaintController = {
         },
       };
 
-      if (req.user.roleName === 'USER') {
+      if (isUserLikeRole(req.user.roleName)) {
         where.createdBy = req.user.id;
       }
 
@@ -307,7 +308,7 @@ export const complaintController = {
       }
 
       const today = getLocalDateString(new Date());
-      if (req.user.roleName === 'USER') {
+      if (isUserLikeRole(req.user.roleName)) {
         complaintDate = today;
       } else {
         if (!complaintDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(complaintDate))) {
@@ -422,7 +423,7 @@ export const complaintController = {
         };
       }
 
-      if (req.user.roleName === 'USER') {
+      if (isUserLikeRole(req.user.roleName)) {
         where.createdBy = req.user.id;
       }
 
@@ -484,7 +485,7 @@ export const complaintController = {
         ],
       });
       if (!complaint) throw new AppError('Komplen tidak ditemukan', 404);
-      if (req.user.roleName === 'USER' && complaint.createdBy !== req.user.id) {
+      if (isUserLikeRole(req.user.roleName) && complaint.createdBy !== req.user.id) {
         throw new AppError('Anda tidak berwenang melihat komplen ini', 403);
       }
       return successResponse(res, complaint, 'Detail komplen berhasil diambil', 200);

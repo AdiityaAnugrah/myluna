@@ -14,11 +14,12 @@ import { useSystemSettings, useUpdateSystemSetting } from '@/lib/hooks/useSystem
 import type { AppRole, FeatureFlag } from '@/types';
 import { CalendarClock, Code2, ShieldCheck, SlidersHorizontal } from 'lucide-react';
 
-const ROLE_OPTIONS: AppRole[] = ['USER', 'TCP', 'ADMIN', 'SUPER_ADMIN', 'DEV'];
+const ROLE_OPTIONS: AppRole[] = ['USER', 'ADMIN_ORDER', 'TCP', 'ADMIN', 'SUPER_ADMIN', 'DEV'];
 
 function roleLabel(role: AppRole) {
   const labels: Record<AppRole, string> = {
     USER: 'User',
+    ADMIN_ORDER: 'Admin Order',
     TCP: 'PUSAT',
     ADMIN: 'Admin',
     SUPER_ADMIN: 'Super Admin',

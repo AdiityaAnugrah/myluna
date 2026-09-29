@@ -48,6 +48,7 @@ import { exportToExcel, formatCurrencyForExport, formatDateForExport } from '@/l
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { CancelSaleDialog } from '@/components/sales/CancelSaleDialog';
 import { cn } from '@/lib/utils';
+import { isUserLikeRole } from '@/lib/utils/roles';
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
@@ -665,7 +666,7 @@ export default function SalesPage() {
                     </Button>
                   </>
                 )}
-                {user?.role === 'USER' && !['CANCELLED', 'COMPLETED', 'SETTLED', 'PROCESSED', 'APPROVED'].includes(sale.status) && !sale.isCancelPending && (
+                {isUserLikeRole(user?.role) && !['CANCELLED', 'COMPLETED', 'SETTLED', 'PROCESSED', 'APPROVED'].includes(sale.status) && !sale.isCancelPending && (
                   <Button variant="destructive" size="sm" className="col-span-2 w-full h-7 text-xs" onClick={() => { setSaleToCancel(sale.id); setCancelDialogOpen(true); }}>
                     Ajukan Batal
                   </Button>
@@ -752,7 +753,7 @@ export default function SalesPage() {
                           </Button>
                         </>
                       )}
-                      {user?.role === 'USER' && !['CANCELLED', 'COMPLETED', 'SETTLED', 'PROCESSED', 'APPROVED'].includes(sale.status) && !sale.isCancelPending && (
+                      {isUserLikeRole(user?.role) && !['CANCELLED', 'COMPLETED', 'SETTLED', 'PROCESSED', 'APPROVED'].includes(sale.status) && !sale.isCancelPending && (
                         <Button variant="destructive" size="sm" className="h-8 px-2 text-xs" onClick={() => { setSaleToCancel(sale.id); setCancelDialogOpen(true); }}>
                           Ajukan Batal
                         </Button>

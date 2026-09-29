@@ -22,6 +22,7 @@ import {
 import { PreviewableImage } from '@/components/ui/previewable-image';
 import { Loader2 } from 'lucide-react';
 import { SaleReturnStatus } from '@/types';
+import { isUserLikeRole } from '@/lib/utils/roles';
 
 function statusLabel(status: SaleReturnStatus) {
   return getSaleReturnStatusLabel(status);
@@ -94,7 +95,7 @@ export default function ReturnDetailPage() {
   const user = useAuthStore((state) => state.user);
   const role = user?.isTestingMode ? 'SUPER_ADMIN' : user?.role;
   const canProcess = role === 'TCP' || role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'DEV';
-  const isUser = role === 'USER';
+  const isUser = isUserLikeRole(role);
 
   const returnQuery = useReturn(params.id);
   const reviewMutation = useReviewReturn();

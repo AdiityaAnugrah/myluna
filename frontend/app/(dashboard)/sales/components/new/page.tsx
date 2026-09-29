@@ -21,6 +21,7 @@ import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/
 import { RegionAddressFields, ShippingAddressValue } from '@/components/sales/RegionAddressFields';
 import { FormFieldError, FormValidationSummary, errorInputClass, errorSelectClass } from '@/components/forms/FormValidationFeedback';
 import { cn } from '@/lib/utils';
+import { isUserLikeRole } from '@/lib/utils/roles';
 
 interface ComponentItem {
   componentName: string;
@@ -37,7 +38,7 @@ function formatCurrency(value: number | string) {
 export default function NewComponentSalePage() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const isUser = user?.role === 'USER';
+  const isUser = isUserLikeRole(user?.role);
   const createSale = useCreateSale();
   const { data: platformsData } = usePlatforms({ enabled: user?.role !== 'TCP' });
   const { data: shippingServices } = useShippingServices({ enabled: user?.role !== 'TCP' });

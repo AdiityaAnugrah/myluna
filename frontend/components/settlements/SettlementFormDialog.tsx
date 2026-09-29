@@ -5,6 +5,7 @@ import { useCreateSettlement } from '@/lib/hooks/useSettlements';
 import { useAuthStore } from '@/lib/stores/auth';
 import { notify } from '@/lib/notify';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
+import { isUserLikeRole } from '@/lib/utils/roles';
 import {
   Dialog,
   DialogContent,
@@ -49,7 +50,7 @@ export function SettlementFormDialog({
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const createMutation = useCreateSettlement();
   const { user } = useAuthStore();
-  const isUser = user?.role === 'USER';
+  const isUser = isUserLikeRole(user?.role);
   const today = getTodayDateInputValue();
 
   // Format currency for display

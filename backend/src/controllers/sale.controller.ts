@@ -8,6 +8,7 @@ import { sequelize } from '../config/database';
 import { Op } from 'sequelize';
 import { assertUserDateIsToday } from '../utils/dateGuard';
 import { formatRegionLabel } from '../utils/regionLabel';
+import { isUserLikeRole } from '../utils/roles';
 
 const COMPONENT_SALE_TYPE = 'COMPONENT';
 const PRODUCT_SALE_TYPE = 'PRODUCT';
@@ -160,7 +161,7 @@ export const saleController = {
       const andConditions: any[] = [];
 
       // Data Isolation: If role is USER, only show their own sales
-      if ((req as any).user?.roleName === 'USER') {
+      if (isUserLikeRole((req as any).user?.roleName)) {
         where.createdBy = (req as any).user.id;
       }
 

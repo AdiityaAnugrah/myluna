@@ -5,6 +5,7 @@ import { Op } from 'sequelize';
 import { Request, Response, NextFunction } from 'express';
 import { auditService } from '../services/audit.service';
 import { socketService } from '../services/socket.service';
+import { isUserLikeRole } from '../utils/roles';
 
 export const productController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
@@ -194,14 +195,14 @@ export const productController = {
       }
 
       // Approval Workflow: If role is USER, create a change request
-      if (req.user?.roleName === 'USER') {
+      if (isUserLikeRole(req.user?.roleName)) {
         const changeRequest = await ChangeRequest.create({
           entityType: EntityType.PRODUCT,
           entityId: null,
           requestType: RequestType.CREATE,
           status: RequestStatus.PENDING,
           payload: req.body,
-          requestedBy: req.user.id
+          requestedBy: req.user!.id
         });
 
         // Notify admins
@@ -389,7 +390,7 @@ export const productController = {
       }
 
       // Check permissions for USER role
-      if (req.user?.roleName === 'USER') {
+      if (isUserLikeRole(req.user?.roleName)) {
         // 1. Restrict isActive change
         if (isActive !== undefined && isActive !== product.isActive) {
           throw new AppError('Anda tidak memiliki izin untuk mengubah status aktif/nonaktif produk', 403);
@@ -402,7 +403,7 @@ export const productController = {
           requestType: RequestType.UPDATE,
           status: RequestStatus.PENDING,
           payload: req.body,
-          requestedBy: req.user.id
+          requestedBy: req.user!.id
         });
 
         // Notify admins
@@ -515,7 +516,7 @@ export const productController = {
       }
 
       // Restrict delete for USER role
-      if (req.user?.roleName === 'USER') {
+      if (isUserLikeRole(req.user?.roleName)) {
         throw new AppError('Anda tidak memiliki izin untuk menghapus produk', 403);
       }
 

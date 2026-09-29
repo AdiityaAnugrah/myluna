@@ -8,6 +8,7 @@ import { useFeatures } from '@/lib/hooks/useFeatures';
 import { Badge } from '@/components/ui/badge';
 import { navigationGroups } from '@/lib/features/catalog';
 import { cn } from '@/lib/utils';
+import { isAdminOrderRole } from '@/lib/utils/roles';
 
 import { Logo } from '@/components/ui/logo';
 
@@ -34,12 +35,12 @@ export function Sidebar({ isMobile, onScanClick }: SidebarProps) {
       groupItems = group.items.filter((item) => {
         const feature = featureMap.get(item.featureKey);
         if (!feature) return false;
-        if (item.navRoles && !item.navRoles.includes(role as any)) return false;
+        if (item.navRoles && !item.navRoles.includes(role as any) && !(isAdminOrderRole(role) && item.navRoles.includes('USER'))) return false;
         return isDev || feature.isEnabled;
       });
     } else {
       // Fallback lama hanya dipakai saat API Feature Control belum terbaca.
-      if (role === 'USER') {
+      if (role === 'USER' || role === 'ADMIN_ORDER') {
         if (group.title === 'Ringkasan') groupItems = group.items.filter(item => item.href === '/');
         else if (group.title === 'Keuangan') groupItems = group.items.filter(item => item.href === '/settlements');
         else if (group.title === 'Sistem') groupItems = group.items.filter(item => item.href === '/settings');

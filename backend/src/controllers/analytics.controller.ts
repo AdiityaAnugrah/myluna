@@ -12,6 +12,7 @@ import {
 import { successResponse } from '../utils/response';
 import { createPlatformNameResolver } from '../utils/platformName';
 import { formatRegionLabel } from '../utils/regionLabel';
+import { isUserLikeRole } from '../utils/roles';
 
 type RegionLevel = 'province' | 'regency' | 'district' | 'village';
 
@@ -79,7 +80,7 @@ export const analyticsController = {
       const endDate = typeof req.query.endDate === 'string' ? req.query.endDate : undefined;
       const createdAt = buildCreatedAtFilter(startDate, endDate);
       const roleName = req.user?.roleName || '';
-      const isUserRole = roleName === 'USER';
+      const isUserRole = isUserLikeRole(roleName);
 
       const complaintWhere: any = {};
       const returnWhere: any = {};

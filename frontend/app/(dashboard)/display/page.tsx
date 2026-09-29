@@ -52,6 +52,7 @@ function shortDate(value?: string | null) {
 
 function roleLabel(role?: string) {
   if (role === 'USER') return 'USER - Pengajuan';
+  if (role === 'ADMIN_ORDER') return 'Admin Order - Pengajuan';
   if (role === 'ADMIN') return 'ADMIN - Review';
   if (role === 'DEV') return 'DEV - Kontrol Penuh';
   return 'SUPER ADMIN - Kontrol Penuh';

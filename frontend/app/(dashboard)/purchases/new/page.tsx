@@ -41,6 +41,7 @@ import { formatCurrency, getVariants } from '@/lib/utils/sales';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
 import { FormFieldError, FormValidationSummary, errorInputClass, errorSelectClass } from '@/components/forms/FormValidationFeedback';
 import { cn } from '@/lib/utils';
+import { isUserLikeRole } from '@/lib/utils/roles';
 
 interface PurchaseItem {
   productId: string;
@@ -60,7 +61,7 @@ export default function NewPurchasePage() {
 
   const suppliers = suppliersData?.data?.suppliers || [];
   const products = productsData?.data?.products || [];
-  const isUser = user?.role === 'USER';
+  const isUser = isUserLikeRole(user?.role);
 
   const [supplierId, setSupplierId] = useState('');
   const [purchaseDate, setPurchaseDate] = useState(() => getTodayDateInputValue());

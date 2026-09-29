@@ -6,6 +6,7 @@ import { Op } from 'sequelize';
 import { auditService } from '../services/audit.service';
 import { socketService } from '../services/socket.service';
 import { ChangeRequest, EntityType, RequestType, RequestStatus } from '../models';
+import { isUserLikeRole } from '../utils/roles';
 
 export const supplierController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
@@ -82,7 +83,7 @@ export const supplierController = {
       const userRole = (req as any).user?.roleName;
       const userId = (req as any).user?.id;
 
-      if (userRole === 'USER') {
+      if (isUserLikeRole(userRole)) {
           const changeRequest = await ChangeRequest.create({
               entityType: EntityType.SUPPLIER,
               entityId: null,
@@ -145,7 +146,7 @@ export const supplierController = {
       const userRole = (req as any).user?.roleName;
       const userId = (req as any).user?.id;
 
-      if (userRole === 'USER') {
+      if (isUserLikeRole(userRole)) {
           const changeRequest = await ChangeRequest.create({
               entityType: EntityType.SUPPLIER,
               entityId: id,
@@ -209,7 +210,7 @@ export const supplierController = {
       const userRole = (req as any).user?.roleName;
       const userId = (req as any).user?.id;
 
-      if (userRole === 'USER') {
+      if (isUserLikeRole(userRole)) {
           const changeRequest = await ChangeRequest.create({
               entityType: EntityType.SUPPLIER,
               entityId: id,

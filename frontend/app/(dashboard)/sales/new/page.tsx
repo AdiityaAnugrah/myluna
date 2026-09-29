@@ -44,6 +44,7 @@ import { BulkProductSelector } from '@/components/sales/BulkProductSelector';
 import { formatCurrency, getVariants } from '@/lib/utils/sales';
 import { cn } from '@/lib/utils';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
+import { isUserLikeRole } from '@/lib/utils/roles';
 import {
   RegionAddressFields,
   ShippingAddressValue,
@@ -83,7 +84,7 @@ export default function NewSalePage() {
   const { data: shippingServices, isLoading: shippingLoading } = useShippingServices({ enabled: user?.role !== 'TCP' });
 
   const products = productsData?.data?.products || [];
-  const isUser = user?.role === 'USER';
+  const isUser = isUserLikeRole(user?.role);
 
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [customerName, setCustomerName] = useState('');

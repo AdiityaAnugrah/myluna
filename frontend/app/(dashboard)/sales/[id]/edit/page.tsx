@@ -34,6 +34,7 @@ import { toast } from 'sonner';
 import { useConfirmPageLeave } from '@/lib/hooks/useConfirmPageLeave';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
+import { isUserLikeRole } from '@/lib/utils/roles';
 
 
 
@@ -57,7 +58,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
 
   const products = productsData?.data?.products || [];
   const sale = saleData?.data;
-  const isUser = user?.role === 'USER';
+  const isUser = isUserLikeRole(user?.role);
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');

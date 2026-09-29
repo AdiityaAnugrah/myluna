@@ -41,6 +41,7 @@ export const formatRole = (role: string) => {
     DEV: 'Developer',
     SUPER_ADMIN: 'Super Admin',
     ADMIN: 'Administrator',
+    ADMIN_ORDER: 'Admin Order',
     USER: 'Pengguna',
     CASHIER: 'Kasir',
     TCP: 'PUSAT',

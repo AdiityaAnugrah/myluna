@@ -8,6 +8,7 @@ import { auditService } from '../services/audit.service';
 import { AuditAction } from '../models/AuditLog';
 import { socketService } from '../services/socket.service';
 import { assertUserDateIsToday } from '../utils/dateGuard';
+import { isUserLikeRole } from '../utils/roles';
 
 export const otherIncomeController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
@@ -18,8 +19,8 @@ export const otherIncomeController = {
       const where: any = {};
 
       // USER role can only see their own records
-      if (req.user?.roleName === 'USER') {
-        where.createdBy = req.user.id;
+      if (isUserLikeRole(req.user?.roleName)) {
+        where.createdBy = req.user!.id;
       }
 
       if (startDate && endDate) {

@@ -1,7 +1,7 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../config/database';
 
-export type FeatureRole = 'USER' | 'TCP' | 'ADMIN' | 'SUPER_ADMIN' | 'DEV';
+export type FeatureRole = 'USER' | 'ADMIN_ORDER' | 'TCP' | 'ADMIN' | 'SUPER_ADMIN' | 'DEV';
 
 interface FeatureFlagAttributes {
   id: string;

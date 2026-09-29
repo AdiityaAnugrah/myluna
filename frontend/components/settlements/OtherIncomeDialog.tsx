@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { getTodayDateInputValue, getUserTodayDateInputProps } from '@/lib/utils/dateGuard';
+import { isUserLikeRole } from '@/lib/utils/roles';
 import { FormFieldError, FormValidationSummary, errorInputClass, errorSelectClass } from '@/components/forms/FormValidationFeedback';
 import { cn } from '@/lib/utils';
 
@@ -67,7 +68,7 @@ function useCreateOtherIncome() {
 
 export function OtherIncomeDialog({ open, onOpenChange, onSuccess }: OtherIncomeDialogProps) {
   const { user } = useAuthStore();
-  const isUser = user?.role === 'USER';
+  const isUser = isUserLikeRole(user?.role);
   const today = getTodayDateInputValue();
 
   const [transactionDate, setTransactionDate] = useState(today);
