@@ -57,6 +57,9 @@ import DisplayReturn, { DisplayReturnStatus } from './DisplayReturn';
 import DisplayReturnItem from './DisplayReturnItem';
 import FeatureFlag from './FeatureFlag';
 import SystemSetting from './SystemSetting';
+import InventoryLoan, { InventoryLoanDirection, InventoryLoanStatus } from './InventoryLoan';
+import InventoryLoanItem, { InventoryLoanItemCondition } from './InventoryLoanItem';
+import ProductLocationStock, { ProductStockLocation } from './ProductLocationStock';
 
 // Define associations
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
@@ -289,6 +292,18 @@ DisplayReturn.belongsTo(User, { foreignKey: 'sentBy', as: 'sender' });
 DisplayReturn.belongsTo(User, { foreignKey: 'receivedBy', as: 'receiver' });
 DisplayReturn.belongsTo(User, { foreignKey: 'completedBy', as: 'completer' });
 
+// Inventory loan / pinjam barang associations
+InventoryLoan.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+User.hasMany(InventoryLoan, { foreignKey: 'createdBy', as: 'createdInventoryLoans' });
+InventoryLoan.belongsTo(User, { foreignKey: 'returnedBy', as: 'returner' });
+User.hasMany(InventoryLoan, { foreignKey: 'returnedBy', as: 'returnedInventoryLoans' });
+InventoryLoan.hasMany(InventoryLoanItem, { foreignKey: 'loanId', as: 'items' });
+InventoryLoanItem.belongsTo(InventoryLoan, { foreignKey: 'loanId', as: 'loan' });
+InventoryLoanItem.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
+Product.hasMany(InventoryLoanItem, { foreignKey: 'productId', as: 'inventoryLoanItems' });
+Product.hasMany(ProductLocationStock, { foreignKey: 'productId', as: 'locationStocks' });
+ProductLocationStock.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
+
 export {
   Role,
   User,
@@ -368,4 +383,11 @@ export {
   DisplayReturnItem,
   FeatureFlag,
   SystemSetting,
+  InventoryLoan,
+  InventoryLoanDirection,
+  InventoryLoanStatus,
+  InventoryLoanItem,
+  InventoryLoanItemCondition,
+  ProductLocationStock,
+  ProductStockLocation,
 };

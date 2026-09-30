@@ -29,6 +29,7 @@ import displayRoutes from './display.routes';
 import featureRoutes from './feature.routes';
 import systemSettingRoutes from './systemSetting.routes';
 import webOrderIntegrationRoutes from './webOrderIntegration.routes';
+import inventoryLoanRoutes from './inventoryLoan.routes';
 import { auth } from '../middlewares/auth';
 import { featureAccess } from '../middlewares/featureAccess';
 
@@ -72,6 +73,7 @@ router.use('/regions', regionRoutes);
 router.use('/analytics', auth, featureAccess('analytics'), analyticsRoutes);
 router.use('/returns', auth, featureAccess('returns'), returnRoutes);
 router.use('/display', auth, featureAccess('display'), displayRoutes);
+router.use('/inventory-loans', auth, featureAccess('inventory-loans'), inventoryLoanRoutes);
 router.use('/features', featureRoutes);
 router.use('/system-settings', systemSettingRoutes);
 router.use('/integrations', webOrderIntegrationRoutes);

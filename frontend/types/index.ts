@@ -162,6 +162,56 @@ export interface StockMovement {
   product?: Product;
 }
 
+export type InventoryLoanDirection = 'TO_CENTER' | 'FROM_CENTER';
+export type InventoryLoanStatus = 'BORROWED' | 'RETURNED' | 'CANCELLED';
+export type InventoryLoanItemCondition = 'GOOD' | 'MINOR_DAMAGE' | 'DAMAGED' | 'OTHER';
+
+export interface InventoryLoanItem {
+  id: string;
+  loanId: string;
+  productId: string;
+  variantName: string | null;
+  quantity: number;
+  condition: InventoryLoanItemCondition;
+  notes: string | null;
+  product?: Product;
+}
+
+export interface InventoryLoan {
+  id: string;
+  loanNumber: string;
+  direction: InventoryLoanDirection;
+  loanDate: string;
+  borrowerName: string;
+  targetName: string;
+  notes: string | null;
+  submittedSignatureName: string | null;
+  submittedSignature?: string | null;
+  acknowledgedSignatureName: string | null;
+  acknowledgedSignature?: string | null;
+  receivedSignatureName: string | null;
+  receivedSignature?: string | null;
+  status: InventoryLoanStatus;
+  returnedAt: string | null;
+  returnedBy: string | null;
+  returnNotes: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  items?: InventoryLoanItem[];
+  creator?: User;
+  returner?: User;
+}
+
+export interface ProductLocationStock {
+  id: string;
+  productId: string;
+  variantName: string | null;
+  location: 'CENTER';
+  stock: number;
+  product?: Product;
+}
+
 export interface PaginationParams {
   page?: number;
   limit?: number;
@@ -178,6 +228,7 @@ export interface PaginatedResponse<T> {
     sales?: T[];
     users?: T[];
     movements?: T[];
+    loans?: T[];
     pagination: {
       total: number;
       page: number;

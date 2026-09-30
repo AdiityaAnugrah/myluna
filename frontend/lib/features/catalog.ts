@@ -10,6 +10,7 @@ import {
   FileText,
   FolderTree,
   History,
+  Handshake,
   Landmark,
   LayoutDashboard,
   MessageSquareWarning,
@@ -59,6 +60,7 @@ export const navigationGroups: NavigationGroup[] = [
     items: [
       { name: 'Data Master', href: '/products', icon: Package, featureKey: 'products' },
       { name: 'Sistem Display', href: '/display', icon: PackageOpen, featureKey: 'display', notificationKey: 'displayRequests', navRoles: ['USER', 'ADMIN', 'SUPER_ADMIN', 'DEV'] },
+      { name: 'Pinjam Barang', href: '/inventory-loans', icon: Handshake, featureKey: 'inventory-loans', navRoles: ['ADMIN_ORDER', 'TCP', 'ADMIN', 'SUPER_ADMIN', 'DEV'] },
       { name: 'Kategori', href: '/categories', icon: FolderTree, featureKey: 'categories' },
       { name: 'Stok', href: '/stock', icon: BarChart3, featureKey: 'stock' },
     ],
