@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent } from 'react';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronUp, Handshake, Loader2, Plus, Printer, RotateCcw, Save, Trash2, X } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, Handshake, Loader2, Plus, Printer, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -122,6 +122,7 @@ export default function InventoryLoansPage() {
   const { user } = useAuth();
   const canCreate = ['ADMIN_ORDER', 'ADMIN', 'SUPER_ADMIN', 'DEV'].includes(String(user?.role || '').toUpperCase());
   const [showForm, setShowForm] = useState(false);
+  const [formStep, setFormStep] = useState(1);
   const [showCenterPanel, setShowCenterPanel] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [directionFilter, setDirectionFilter] = useState('');
@@ -182,6 +183,7 @@ export default function InventoryLoansPage() {
       receivedSignature: '',
     });
     setItems([{ productId: '', variantName: '', quantity: 1, condition: 'GOOD', notes: '' }]);
+    setFormStep(1);
   };
 
   const directionLabel = (direction: string) => (direction === 'TO_CENTER' ? 'Stok kita → Pusat/TCP' : 'Pusat/TCP → Stok kita');
@@ -196,6 +198,19 @@ export default function InventoryLoansPage() {
 
   const selectedItemsReady = items.filter((item) => item.productId && Number(item.quantity) > 0).length;
   const previewItems = items.filter((item) => item.productId && Number(item.quantity) > 0);
+  const formSteps = [
+    { number: 1, title: 'Informasi', helper: 'Arah & tujuan' },
+    { number: 2, title: 'Barang', helper: 'Produk & kondisi' },
+    { number: 3, title: 'TTD', helper: 'Nama & tanda tangan' },
+    { number: 4, title: 'Preview', helper: 'Cek final' },
+  ];
+  const stepReady = {
+    1: Boolean(form.loanDate && form.borrowerName && form.targetName),
+    2: selectedItemsReady > 0,
+    3: true,
+    4: Boolean(form.loanDate && form.borrowerName && form.targetName && selectedItemsReady > 0),
+  } as Record<number, boolean>;
+  const canContinue = stepReady[formStep];
 
   const submit = async () => {
     const validItems = items
@@ -277,6 +292,30 @@ export default function InventoryLoansPage() {
 
       <div className="grid gap-0 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6 p-5 md:p-6">
+          <div className="grid gap-2 rounded-2xl border bg-slate-50 p-2 md:grid-cols-4">
+            {formSteps.map((step) => {
+              const active = formStep === step.number;
+              const done = step.number < formStep;
+              return (
+                <button
+                  key={step.number}
+                  type="button"
+                  onClick={() => setFormStep(step.number)}
+                  className={`flex min-h-16 items-center gap-3 rounded-xl px-3 py-2 text-left transition ${active ? 'bg-white shadow-sm ring-2 ring-orange-200' : 'hover:bg-white/70'}`}
+                >
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${done ? 'bg-emerald-600 text-white' : active ? 'bg-orange-600 text-white' : 'bg-white text-slate-500'}`}>
+                    {done ? <CheckCircle2 className="h-5 w-5" /> : step.number}
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-900">{step.title}</span>
+                    <span className="block text-xs text-muted-foreground">{step.helper}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {formStep === 1 && (
           <section className="rounded-2xl border bg-slate-50/70 p-4">
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-600 font-bold text-white">1</div>
@@ -306,7 +345,9 @@ export default function InventoryLoansPage() {
               <div className="space-y-2 md:col-span-2"><Label>Ditujukan Pada</Label><Input value={form.targetName} onChange={(e) => setForm({ ...form, targetName: e.target.value })} placeholder="Contoh: Divisi Online / Pusat" /></div>
             </div>
           </section>
+          )}
 
+          {formStep === 2 && (
           <section className="rounded-2xl border p-4">
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-3">
@@ -335,7 +376,9 @@ export default function InventoryLoansPage() {
               })}
             </div>
           </section>
+          )}
 
+          {formStep === 3 && (
           <section className="rounded-2xl border bg-slate-50/70 p-4">
             <div className="mb-4 flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-600 font-bold text-white">3</div><div><h3 className="font-semibold">Catatan & Tanda Tangan</h3><p className="text-sm text-muted-foreground">Nama dan TTD akan masuk ke form cetak.</p></div></div>
             <div className="grid gap-4 md:grid-cols-3">
@@ -350,6 +393,62 @@ export default function InventoryLoansPage() {
             </div>
             <div className="mt-4 space-y-2"><Label>Catatan umum</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Contoh: Diminta untuk diretur ke pusat" className="min-h-24" /></div>
           </section>
+          )}
+
+          {formStep === 4 && (
+          <section className="rounded-2xl border bg-slate-100 p-3 md:p-5">
+            <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Preview Akhir Seperti PDF</h3>
+                <p className="text-sm text-muted-foreground">Pastikan nama, arah, barang, jumlah, kondisi, dan tanda tangan sudah benar sebelum disimpan.</p>
+              </div>
+              <Badge className="w-fit bg-orange-600 text-white">DRAFT</Badge>
+            </div>
+            <div className="mx-auto max-w-4xl rounded-sm bg-white p-5 text-slate-950 shadow-xl ring-1 ring-slate-200 md:p-8">
+              <div className="border-b border-slate-900 pb-4 text-center">
+                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Lunarea Furniture</div>
+                <h2 className="mt-1 text-xl font-black uppercase tracking-wide md:text-2xl">Form Pinjaman Barang</h2>
+                <div className="mt-1 text-xs text-slate-500">Preview sebelum nomor form resmi dibuat</div>
+              </div>
+              <div className="mt-5 grid gap-2 text-sm md:grid-cols-2">
+                <div><span className="inline-block w-32 text-slate-500">No Form</span>: DRAFT</div>
+                <div><span className="inline-block w-32 text-slate-500">Tanggal</span>: {form.loanDate ? format(new Date(form.loanDate), 'dd MMMM yyyy') : '-'}</div>
+                <div><span className="inline-block w-32 text-slate-500">Nama Peminjam</span>: <strong>{form.borrowerName || '-'}</strong></div>
+                <div><span className="inline-block w-32 text-slate-500">Ditujukan Pada</span>: <strong>{form.targetName || '-'}</strong></div>
+                <div className="md:col-span-2"><span className="inline-block w-32 text-slate-500">Arah</span>: {directionLabel(form.direction)}</div>
+              </div>
+              <div className="mt-5 overflow-hidden rounded-lg border border-slate-900">
+                <table className="w-full border-collapse text-sm">
+                  <thead className="bg-slate-100">
+                    <tr><th className="border-b border-r border-slate-900 p-2 text-left">No</th><th className="border-b border-r border-slate-900 p-2 text-left">Nama Barang</th><th className="border-b border-r border-slate-900 p-2 text-center">Unit</th><th className="border-b border-slate-900 p-2 text-left">Kondisi saat dipinjam</th></tr>
+                  </thead>
+                  <tbody>
+                    {previewItems.length === 0 ? (
+                      <tr><td colSpan={4} className="p-4 text-center text-slate-500">Belum ada barang valid.</td></tr>
+                    ) : previewItems.map((item, index) => {
+                      const product = productMap.get(item.productId);
+                      return <tr key={`${item.productId}-${index}`}><td className="border-r border-t border-slate-300 p-2">{index + 1}</td><td className="border-r border-t border-slate-300 p-2"><strong>{product?.name || '-'}</strong>{item.variantName ? <span> ({item.variantName})</span> : null}{item.notes ? <div className="text-xs text-slate-500">Catatan: {item.notes}</div> : null}<div className="text-xs text-slate-500">{stockText(product, item.variantName)}</div></td><td className="border-r border-t border-slate-300 p-2 text-center font-semibold">{item.quantity}</td><td className="border-t border-slate-300 p-2">{conditionLabels[item.condition]}</td></tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-5 min-h-20 rounded-lg border border-slate-900 p-3 text-sm"><strong>Catatan:</strong><br />{form.notes || '-'}</div>
+              <div className="mt-8 grid grid-cols-3 gap-3 text-center text-xs md:gap-8">
+                {[
+                  ['Mengajukan', form.submittedSignatureName, form.submittedSignature],
+                  ['Mengetahui', form.acknowledgedSignatureName, form.acknowledgedSignature],
+                  ['Menerima', form.receivedSignatureName, form.receivedSignature],
+                ].map(([title, name, image]) => (
+                  <div key={title}>
+                    <div className="font-semibold">{title}</div>
+                    <div className="mt-2 flex h-20 items-center justify-center border-b border-slate-900">{image ? <img src={String(image)} alt={`TTD ${title}`} className="max-h-16 max-w-full object-contain" /> : <span className="text-slate-400">Belum TTD</span>}</div>
+                    <div className="mt-2 font-bold">{String(name || '................')}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+          )}
         </div>
 
         <aside className="border-t bg-slate-50/80 p-5 lg:border-l lg:border-t-0">
@@ -406,7 +505,17 @@ export default function InventoryLoansPage() {
             </div>
 
             <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900"><strong>Catatan stok:</strong><br />Saat disimpan, stok online dan stok pusat/TCP langsung berpindah sesuai arah pinjaman.</div>
-            <div className="space-y-2"><Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={submit} disabled={createLoan.isPending || selectedItemsReady === 0 || !form.borrowerName || !form.targetName}>{createLoan.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Saya sudah cek, Simpan Pinjaman</Button><Button variant="outline" className="w-full" onClick={resetForm}>Reset Form</Button></div>
+            <div className="space-y-2">
+              {formStep > 1 && <Button variant="outline" className="w-full" onClick={() => setFormStep((step) => Math.max(1, step - 1))}>Kembali ke langkah sebelumnya</Button>}
+              {formStep < 4 ? (
+                <Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={() => setFormStep((step) => Math.min(4, step + 1))} disabled={!canContinue}>
+                  Lanjut ke {formSteps[formStep]?.title || 'Preview'}
+                </Button>
+              ) : (
+                <Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={submit} disabled={createLoan.isPending || !stepReady[4]}>{createLoan.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Saya sudah cek, Simpan Pinjaman</Button>
+              )}
+              <Button variant="ghost" className="w-full" onClick={resetForm}>Reset Form</Button>
+            </div>
           </div>
         </aside>
       </div>
