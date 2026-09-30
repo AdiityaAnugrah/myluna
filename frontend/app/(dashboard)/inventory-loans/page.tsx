@@ -195,6 +195,7 @@ export default function InventoryLoansPage() {
   };
 
   const selectedItemsReady = items.filter((item) => item.productId && Number(item.quantity) > 0).length;
+  const previewItems = items.filter((item) => item.productId && Number(item.quantity) > 0);
 
   const submit = async () => {
     const validItems = items
@@ -353,9 +354,59 @@ export default function InventoryLoansPage() {
 
         <aside className="border-t bg-slate-50/80 p-5 lg:border-l lg:border-t-0">
           <div className="sticky top-4 space-y-4">
-            <div className="rounded-2xl border bg-white p-4 shadow-sm"><div className="text-sm font-semibold text-muted-foreground">Ringkasan Form</div><div className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-3"><span>Arah</span><strong className="text-right">{directionLabel(form.direction)}</strong></div><div className="flex justify-between"><span>Barang valid</span><strong>{selectedItemsReady}</strong></div><div className="flex justify-between"><span>Tanggal</span><strong>{form.loanDate}</strong></div></div></div>
+            <div className="rounded-2xl border bg-white p-4 shadow-sm">
+              <div className="text-sm font-semibold text-muted-foreground">Ringkasan Form</div>
+              <div className="mt-3 space-y-2 text-sm">
+                <div className="flex justify-between gap-3"><span>Arah</span><strong className="text-right">{directionLabel(form.direction)}</strong></div>
+                <div className="flex justify-between"><span>Barang valid</span><strong>{selectedItemsReady}</strong></div>
+                <div className="flex justify-between"><span>Tanggal</span><strong>{form.loanDate}</strong></div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">4</div>
+                <div>
+                  <div className="text-sm font-bold text-slate-900">Preview Akhir</div>
+                  <div className="text-xs text-muted-foreground">Cek ulang sebelum simpan</div>
+                </div>
+              </div>
+              <div className="space-y-3 text-sm">
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Peminjam</div>
+                  <div className="mt-1 font-semibold">{form.borrowerName || 'Belum diisi'}</div>
+                  <div className="text-xs text-muted-foreground">Tujuan: {form.targetName || 'Belum diisi'}</div>
+                </div>
+                <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                  {previewItems.length === 0 ? (
+                    <div className="rounded-xl border border-dashed p-3 text-center text-xs text-muted-foreground">Belum ada barang valid</div>
+                  ) : (
+                    previewItems.map((item, index) => {
+                      const product = productMap.get(item.productId);
+                      return (
+                        <div key={`${item.productId}-${index}`} className="rounded-xl border bg-white p-3">
+                          <div className="text-xs font-semibold text-orange-700">#{index + 1}</div>
+                          <div className="font-semibold">{product?.name || 'Produk belum dipilih'}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.variantName || 'Tanpa varian'} • {item.quantity} unit • {conditionLabels[item.condition]}
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">{stockText(product, item.variantName)}</div>
+                          {item.notes ? <div className="mt-1 text-xs text-slate-600">Catatan: {item.notes}</div> : null}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className={`rounded-lg border p-2 ${form.submittedSignature ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-muted-foreground'}`}>TTD<br />Mengajukan</div>
+                  <div className={`rounded-lg border p-2 ${form.acknowledgedSignature ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-muted-foreground'}`}>TTD<br />Mengetahui</div>
+                  <div className={`rounded-lg border p-2 ${form.receivedSignature ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-muted-foreground'}`}>TTD<br />Menerima</div>
+                </div>
+              </div>
+            </div>
+
             <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900"><strong>Catatan stok:</strong><br />Saat disimpan, stok online dan stok pusat/TCP langsung berpindah sesuai arah pinjaman.</div>
-            <div className="space-y-2"><Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={submit} disabled={createLoan.isPending || selectedItemsReady === 0 || !form.borrowerName || !form.targetName}>{createLoan.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Simpan Pinjaman</Button><Button variant="outline" className="w-full" onClick={resetForm}>Reset Form</Button></div>
+            <div className="space-y-2"><Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={submit} disabled={createLoan.isPending || selectedItemsReady === 0 || !form.borrowerName || !form.targetName}>{createLoan.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Saya sudah cek, Simpan Pinjaman</Button><Button variant="outline" className="w-full" onClick={resetForm}>Reset Form</Button></div>
           </div>
         </aside>
       </div>
