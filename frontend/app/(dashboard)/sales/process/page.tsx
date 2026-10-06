@@ -35,6 +35,41 @@ function saleItemName(item: any) {
     return item?.itemType === 'COMPONENT' ? item.componentName || 'Komponen' : item?.product?.name || '-';
 }
 
+function formatShippingServiceLabel(service?: string | null) {
+    return service ? service.replace(/_/g, ' ') : '-';
+}
+
+function isIndahCargoService(service?: string | null) {
+    const normalized = (service || '').toLowerCase().replace(/[_\-\s]+/g, ' ');
+    return normalized.includes('indah');
+}
+
+const ShippingServiceBadge = ({ service, compact = false, alignRight = false }: { service?: string | null; compact?: boolean; alignRight?: boolean }) => {
+    if (!service) {
+        return <span className="text-muted-foreground text-xs italic">Tidak ada</span>;
+    }
+
+    const isIndahCargo = isIndahCargoService(service);
+
+    return (
+        <Badge
+            variant="outline"
+            className={cn(
+                "w-fit border font-extrabold uppercase tracking-wide shadow-sm",
+                compact ? "h-5 px-1.5 text-[10px] leading-none" : "px-2 py-0.5 text-[11px]",
+                alignRight && "ml-auto justify-end",
+                isIndahCargo
+                    ? "border-yellow-500 bg-yellow-100 text-yellow-950 ring-1 ring-yellow-300"
+                    : "border-blue-200 bg-blue-50 text-blue-700"
+            )}
+            title={isIndahCargo ? 'Prioritas visual: Indah Kargo' : undefined}
+        >
+            {isIndahCargo && <span className="mr-1 h-1.5 w-1.5 rounded-full bg-yellow-500" aria-hidden="true" />}
+            {formatShippingServiceLabel(service)}
+        </Badge>
+    );
+};
+
 
 
 interface SalesTableProps {
@@ -109,13 +144,7 @@ const MobileSalesCard = ({ sale, userRole, onPrint, getStatusBadge, copiedInvoic
                 )}
                 <div className="flex justify-between text-[11px]">
                     <span className="text-muted-foreground">Ekspedisi:</span>
-                    {sale.shippingService ? (
-                        <span className="font-medium text-right bg-blue-50 text-blue-700 px-1 rounded text-[10px] py-0.5 leading-none">
-                            {sale.shippingService.replace(/_/g, ' ')}
-                        </span>
-                    ) : (
-                        <span className="text-muted-foreground text-[10px] italic">Tidak ada</span>
-                    )}
+                    <ShippingServiceBadge service={sale.shippingService} compact alignRight />
                 </div>
                  {sale.shippingDocument && (
                     <div className="flex justify-end mt-0.5">
@@ -351,11 +380,7 @@ const SalesTable = ({
                   </TableCell>
 
                   <TableCell>
-                    {sale.shippingService ? (
-                        <Badge variant="outline">{sale.shippingService.replace(/_/g, ' ')}</Badge>
-                    ) : (
-                        <span className="text-muted-foreground text-xs italic">Tidak ada</span>
-                    )}
+                    <ShippingServiceBadge service={sale.shippingService} />
                     {sale.shippingDocument && (
                          <div className="mt-1">
                             <a
@@ -814,6 +839,7 @@ export default function SalesProcessPage() {
         <div className="absolute top-0 left-0 w-0 h-0 overflow-hidden opacity-0 pointer-events-none">
             <div ref={printRef} style={{ fontFamily: '"Arial", sans-serif', color: '#111', background: '#fff', padding: '0' }}>
                 {printSale && (() => {
+                    const isIndahCargoPrint = isIndahCargoService(printSale.shippingService);
                     // Receipt content
                     const renderReceipt = () => (
                     <div style={{ padding: '20px 25px', border: '2px solid #000', pageBreakInside: 'avoid', background: '#fff' }}>
@@ -853,7 +879,18 @@ export default function SalesProcessPage() {
                             </div>
                             <div style={{ textAlign: 'right' }}>
                                 <div style={{ fontSize: '9px', color: '#555', fontWeight: '800', textTransform: 'uppercase', marginBottom: '2px' }}>EKSPEDISI / KURIR</div>
-                                <div style={{ fontSize: '15px', fontWeight: '900' }}>{printSale.shippingService?.replace(/_/g, ' ') || '-'}</div>
+                                <div style={{
+                                    display: 'inline-block',
+                                    fontSize: '15px',
+                                    fontWeight: '900',
+                                    padding: isIndahCargoPrint ? '4px 8px' : 0,
+                                    border: isIndahCargoPrint ? '2px solid #111' : 'none',
+                                    background: isIndahCargoPrint ? '#ffff00' : 'transparent',
+                                    color: '#111',
+                                    textTransform: 'uppercase'
+                                }}>
+                                    {formatShippingServiceLabel(printSale.shippingService)}
+                                </div>
                             </div>
                         </div>
 
