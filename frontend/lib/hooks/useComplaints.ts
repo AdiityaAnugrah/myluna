@@ -26,6 +26,7 @@ export function useComplaints(params?: {
   status?: string;
   search?: string;
   scope?: 'active' | 'history';
+  sort?: 'urgent' | 'newest' | 'oldest' | 'deadline';
 }, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['complaints', params],

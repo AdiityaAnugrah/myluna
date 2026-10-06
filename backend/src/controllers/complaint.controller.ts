@@ -74,6 +74,44 @@ const complaintActiveStatuses: ComplaintStatus[] = [
   ComplaintStatus.FOLLOW_UP_REQUIRED,
 ];
 
+function getComplaintListOrder(sort: string): any[] {
+  const deadlineExpr =
+    "LEAST(COALESCE(`Complaint`.`tcpDeadlineAt`, '9999-12-31 23:59:59'), COALESCE(`Complaint`.`deliveryConfirmDeadlineAt`, '9999-12-31 23:59:59'), COALESCE(`Complaint`.`customerCheckDeadlineAt`, '9999-12-31 23:59:59'))";
+
+  if (sort === 'oldest') {
+    return [['createdAt', 'ASC']];
+  }
+
+  if (sort === 'newest') {
+    return [['createdAt', 'DESC']];
+  }
+
+  if (sort === 'deadline') {
+    return [
+      [sequelize.literal(deadlineExpr), 'ASC'],
+      ['createdAt', 'DESC'],
+    ];
+  }
+
+  return [
+    [
+      sequelize.literal(`
+        CASE
+          WHEN \`Complaint\`.\`status\` = '${ComplaintStatus.FOLLOW_UP_REQUIRED}' THEN 0
+          WHEN ${deadlineExpr} < NOW() THEN 1
+          WHEN \`Complaint\`.\`status\` = '${ComplaintStatus.PENDING_TCP_REVIEW}' THEN 2
+          WHEN \`Complaint\`.\`status\` IN ('${ComplaintStatus.WAITING_USER_CONFIRMATION}', '${ComplaintStatus.WAITING_USER_DELIVERY_CONFIRMATION}', '${ComplaintStatus.MONITORING_CUSTOMER_CONFIRMATION}') THEN 3
+          WHEN \`Complaint\`.\`status\` IN ('${ComplaintStatus.ACCEPTED_BY_TCP}', '${ComplaintStatus.REPLACEMENT_SHIPPED}') THEN 4
+          ELSE 5
+        END
+      `),
+      'ASC',
+    ],
+    [sequelize.literal(deadlineExpr), 'ASC'],
+    ['createdAt', 'ASC'],
+  ];
+}
+
 function addCalendarDays(start: Date, days: number) {
   const result = new Date(start);
   result.setDate(result.getDate() + days);
@@ -404,7 +442,7 @@ export const complaintController = {
         throw new AppError('Authentication required', 401);
       }
 
-      const { page = 1, limit = 10, status = '', search = '', scope = '' } = req.query;
+      const { page = 1, limit = 10, status = '', search = '', scope = '', sort = 'urgent' } = req.query;
       const offset = (Number(page) - 1) * Number(limit);
 
       const where: any = {};
@@ -446,7 +484,7 @@ export const complaintController = {
         ],
         limit: Number(limit),
         offset,
-        order: [['createdAt', 'DESC']],
+        order: getComplaintListOrder(String(sort)),
       });
 
       return successResponse(

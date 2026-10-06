@@ -62,6 +62,7 @@ import {
   FileText,
   ImageIcon,
   Loader2,
+  ListFilter,
   MapPin,
   PackageCheck,
   Printer,
@@ -70,6 +71,15 @@ import {
   Send,
   UserRound,
 } from 'lucide-react';
+
+type ComplaintSort = 'urgent' | 'newest' | 'oldest' | 'deadline';
+
+const complaintSortLabels: Record<ComplaintSort, string> = {
+  urgent: 'Terurgent dulu',
+  newest: 'Terbaru dulu',
+  oldest: 'Terlama dulu',
+  deadline: 'Deadline terdekat',
+};
 
 function statusLabel(status: ComplaintStatus) {
   return getComplaintStatusLabel(status);
@@ -226,6 +236,7 @@ export default function ComplaintsPage() {
   const [debouncedSearchFilter, setDebouncedSearchFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageLimit, setPageLimit] = useState('10');
+  const [complaintSort, setComplaintSort] = useState<ComplaintSort>('urgent');
 
   const createComplaint = useCreateComplaint();
   const claimComplaint = useClaimComplaint();
@@ -253,7 +264,7 @@ export default function ComplaintsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, debouncedSearchFilter, pageLimit, complaintScope]);
+  }, [statusFilter, debouncedSearchFilter, pageLimit, complaintScope, complaintSort]);
 
   const eligibleSalesQuery = useEligibleComplaintSales(debouncedSaleQuery, {
     enabled: canCreate,
@@ -265,6 +276,7 @@ export default function ComplaintsPage() {
     status: statusFilter === 'all' ? undefined : statusFilter,
     search: debouncedSearchFilter || undefined,
     scope: statusFilter === 'all' ? complaintScope : undefined,
+    sort: complaintSort,
   });
 
   const complaints: Complaint[] = useMemo(
@@ -743,7 +755,7 @@ export default function ComplaintsPage() {
               </TabsList>
             </Tabs>
           </div>
-          <div className="grid gap-2 md:grid-cols-[1fr_260px_160px]">
+          <div className="grid gap-2 md:grid-cols-[1fr_240px_220px_160px]">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -771,6 +783,17 @@ export default function ComplaintsPage() {
                 <SelectItem value="REJECTED_BY_TCP">Ditolak PUSAT</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={complaintSort} onValueChange={(value) => setComplaintSort(value as ComplaintSort)}>
+              <SelectTrigger aria-label="Urutkan data komplen">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="urgent">Terurgent dulu</SelectItem>
+                <SelectItem value="newest">Terbaru dulu</SelectItem>
+                <SelectItem value="oldest">Terlama dulu</SelectItem>
+                <SelectItem value="deadline">Deadline terdekat</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={pageLimit} onValueChange={setPageLimit}>
               <SelectTrigger>
                 <SelectValue />
@@ -790,12 +813,18 @@ export default function ComplaintsPage() {
                 {totalComplaints} data {complaintScope === 'active' ? 'komplen aktif' : 'riwayat komplen'}
               </p>
               <p className="text-xs text-muted-foreground">
-                Gunakan pencarian dan filter status untuk mempercepat pengecekan.
+                Gunakan pencarian, filter status, dan urutan prioritas untuk mempercepat pengecekan.
               </p>
             </div>
-            <Badge variant="outline" className="bg-background">
-              Halaman {safeCurrentPage} / {totalPages}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="bg-background">
+                <ListFilter className="mr-1 h-3.5 w-3.5" />
+                {complaintSortLabels[complaintSort]}
+              </Badge>
+              <Badge variant="outline" className="bg-background">
+                Halaman {safeCurrentPage} / {totalPages}
+              </Badge>
+            </div>
           </div>
           {complaintsQuery.isLoading ? (
             <div className="py-10 text-center text-muted-foreground flex items-center justify-center gap-2">

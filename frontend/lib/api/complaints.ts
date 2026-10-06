@@ -37,6 +37,7 @@ export const complaintsApi = {
     status?: string;
     search?: string;
     scope?: 'active' | 'history';
+    sort?: 'urgent' | 'newest' | 'oldest' | 'deadline';
   }) => {
     const response = await apiClient.get<ApiResponse<ComplaintListData>>('/complaints', { params });
     return response.data;
