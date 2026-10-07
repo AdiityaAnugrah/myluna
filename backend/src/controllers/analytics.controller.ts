@@ -4,12 +4,22 @@ import { sequelize } from '../config/database';
 import {
   Complaint,
   ComplaintStatus,
+  BankBookEntry,
+  BankBookEntryStatus,
+  ChangeRequest,
   InventoryLoan,
   InventoryLoanStatus,
+  Expense,
+  OtherIncome,
+  Purchase,
+  PurchaseStatus,
   ReturnTicket,
   ReturnTicketStatus,
   SaleReturn,
   SaleReturnStatus,
+  Settlement,
+  SettlementRequest,
+  SettlementRequestStatus,
 } from '../models';
 import { successResponse } from '../utils/response';
 import { createPlatformNameResolver } from '../utils/platformName';
@@ -88,15 +98,37 @@ export const analyticsController = {
       const returnWhere: any = {};
       const ticketWhere: any = {};
       const loanWhere: any = {};
+      const purchaseWhere: any = {};
+      const settlementWhere: any = {};
+      const settlementRequestWhere: any = {};
+      const expenseWhere: any = {};
+      const otherIncomeWhere: any = {};
+      const bankBookWhere: any = {};
+      const approvalWhere: any = {};
+      const stockMovementWhere: any = {};
 
       if (createdAt) {
         complaintWhere.createdAt = createdAt;
         returnWhere.createdAt = createdAt;
         ticketWhere.createdAt = createdAt;
+        approvalWhere.createdAt = createdAt;
+        stockMovementWhere.createdAt = createdAt;
         loanWhere.loanDate = {
           ...(startDate ? { [Op.gte]: startDate } : {}),
           ...(endDate ? { [Op.lte]: endDate } : {}),
         };
+        purchaseWhere.purchaseDate = {
+          ...(startDate ? { [Op.gte]: new Date(`${startDate}T00:00:00.000Z`) } : {}),
+          ...(endDate ? { [Op.lte]: new Date(`${endDate}T23:59:59.999Z`) } : {}),
+        };
+        settlementWhere.settlementDate = {
+          ...(startDate ? { [Op.gte]: startDate } : {}),
+          ...(endDate ? { [Op.lte]: endDate } : {}),
+        };
+        settlementRequestWhere.settlementDate = settlementWhere.settlementDate;
+        expenseWhere.expenseDate = settlementWhere.settlementDate;
+        otherIncomeWhere.transactionDate = settlementWhere.settlementDate;
+        bankBookWhere.startDate = settlementWhere.settlementDate;
       }
 
       if (isUserRole && req.user?.id) {
@@ -104,6 +136,14 @@ export const analyticsController = {
         returnWhere.requestedBy = req.user.id;
         ticketWhere.createdBy = req.user.id;
         loanWhere.createdBy = req.user.id;
+        purchaseWhere.createdBy = req.user.id;
+        settlementWhere.createdBy = req.user.id;
+        settlementRequestWhere.requestedBy = req.user.id;
+        expenseWhere.createdBy = req.user.id;
+        otherIncomeWhere.createdBy = req.user.id;
+        bankBookWhere.createdBy = req.user.id;
+        approvalWhere.requestedBy = req.user.id;
+        stockMovementWhere.createdBy = req.user.id;
       }
 
       const [
@@ -112,6 +152,16 @@ export const analyticsController = {
         ticketRows,
         loanRows,
         loanUnitRows,
+        purchaseRows,
+        purchaseSummaryRow,
+        settlementRequestRows,
+        settlementSummaryRow,
+        expenseSummaryRow,
+        otherIncomeSummaryRow,
+        bankBookRows,
+        approvalRows,
+        stockMovementRows,
+        stockSummaryRows,
       ] = await Promise.all([
         Complaint.findAll({
           attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
@@ -154,6 +204,99 @@ export const analyticsController = {
             type: QueryTypes.SELECT,
             replacements: { startDate, endDate, userId: req.user?.id },
           }
+        ),
+        Purchase.findAll({
+          attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+          where: purchaseWhere,
+          group: ['status'],
+          raw: true,
+        }),
+        Purchase.findOne({
+          attributes: [
+            [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+            [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('totalAmount')), 0), 'amount'],
+          ],
+          where: purchaseWhere,
+          raw: true,
+        }),
+        SettlementRequest.findAll({
+          attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+          where: settlementRequestWhere,
+          group: ['status'],
+          raw: true,
+        }),
+        Settlement.findOne({
+          attributes: [
+            [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+            [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmount')), 0), 'netAmount'],
+            [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('deductionAmount')), 0), 'deductionAmount'],
+          ],
+          where: settlementWhere,
+          raw: true,
+        }),
+        Expense.findOne({
+          attributes: [
+            [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+            [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amount'],
+          ],
+          where: expenseWhere,
+          raw: true,
+        }),
+        OtherIncome.findOne({
+          attributes: [
+            [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+            [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amount'],
+          ],
+          where: otherIncomeWhere,
+          raw: true,
+        }),
+        BankBookEntry.findAll({
+          attributes: [
+            'status',
+            [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+            [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('differenceAmount')), 0), 'differenceAmount'],
+          ],
+          where: bankBookWhere,
+          group: ['status'],
+          raw: true,
+        }),
+        ChangeRequest.findAll({
+          attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+          where: approvalWhere,
+          group: ['status'],
+          raw: true,
+        }),
+        sequelize.query(
+          `
+            SELECT type, COUNT(*) AS count, COALESCE(SUM(quantity), 0) AS quantity
+            FROM stock_movements
+            WHERE 1 = 1
+              ${startDate ? 'AND createdAt >= :startAt' : ''}
+              ${endDate ? 'AND createdAt <= :endAt' : ''}
+              ${isUserRole && req.user?.id ? 'AND createdBy = :userId' : ''}
+            GROUP BY type
+          `,
+          {
+            type: QueryTypes.SELECT,
+            replacements: {
+              startAt: startDate ? `${startDate}T00:00:00.000Z` : null,
+              endAt: endDate ? `${endDate}T23:59:59.999Z` : null,
+              userId: req.user?.id,
+            },
+          }
+        ),
+        sequelize.query(
+          `
+            SELECT
+              (SELECT COUNT(*) FROM products WHERE isActive = 1) AS activeProducts,
+              (SELECT COUNT(*) FROM products WHERE isActive = 0) AS inactiveProducts,
+              (SELECT COUNT(*) FROM products WHERE isActive = 1 AND stock <= minStock) AS lowStockProducts,
+              (SELECT COUNT(*) FROM products WHERE isActive = 1 AND stock <= 0) AS outOfStockProducts,
+              (SELECT COALESCE(SUM(stock), 0) FROM products WHERE isActive = 1) AS onlineUnits,
+              (SELECT COALESCE(SUM(stock), 0) FROM product_variants) AS variantUnits,
+              (SELECT COALESCE(SUM(stock), 0) FROM product_location_stocks WHERE location = 'CENTER') AS centerUnits
+          `,
+          { type: QueryTypes.SELECT }
         ),
       ]);
 
@@ -325,6 +468,155 @@ export const analyticsController = {
       inventoryLoans.borrowedUnits = Number(loanUnits.borrowedUnits || 0);
       inventoryLoans.returnedUnits = Number(loanUnits.returnedUnits || 0);
 
+      const purchases = {
+        total: Number((purchaseSummaryRow as any)?.count || 0),
+        amount: Number((purchaseSummaryRow as any)?.amount || 0),
+        pending: 0,
+        completed: 0,
+        cancelled: 0,
+      };
+
+      for (const row of purchaseRows as any[]) {
+        const count = Number(row.count || 0);
+        switch (row.status as PurchaseStatus) {
+          case PurchaseStatus.PENDING:
+            purchases.pending = count;
+            break;
+          case PurchaseStatus.COMPLETED:
+            purchases.completed = count;
+            break;
+          case PurchaseStatus.CANCELLED:
+            purchases.cancelled = count;
+            break;
+        }
+      }
+
+      const settlementRequests = {
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+      };
+
+      for (const row of settlementRequestRows as any[]) {
+        const count = Number(row.count || 0);
+        settlementRequests.total += count;
+        switch (row.status as SettlementRequestStatus) {
+          case SettlementRequestStatus.PENDING:
+            settlementRequests.pending = count;
+            break;
+          case SettlementRequestStatus.APPROVED:
+            settlementRequests.approved = count;
+            break;
+          case SettlementRequestStatus.REJECTED:
+            settlementRequests.rejected = count;
+            break;
+        }
+      }
+
+      const settlements = {
+        total: Number((settlementSummaryRow as any)?.count || 0),
+        netAmount: Number((settlementSummaryRow as any)?.netAmount || 0),
+        deductionAmount: Number((settlementSummaryRow as any)?.deductionAmount || 0),
+        requests: settlementRequests,
+      };
+
+      const finance = {
+        expenses: {
+          total: Number((expenseSummaryRow as any)?.count || 0),
+          amount: Number((expenseSummaryRow as any)?.amount || 0),
+        },
+        otherIncome: {
+          total: Number((otherIncomeSummaryRow as any)?.count || 0),
+          amount: Number((otherIncomeSummaryRow as any)?.amount || 0),
+        },
+        bankBook: {
+          total: 0,
+          matched: 0,
+          cancelled: 0,
+          differenceAmount: 0,
+        },
+      };
+
+      for (const row of bankBookRows as any[]) {
+        const count = Number(row.count || 0);
+        finance.bankBook.total += count;
+        finance.bankBook.differenceAmount += Number(row.differenceAmount || 0);
+        switch (row.status as BankBookEntryStatus) {
+          case BankBookEntryStatus.MATCHED:
+            finance.bankBook.matched = count;
+            break;
+          case BankBookEntryStatus.CANCELLED:
+            finance.bankBook.cancelled = count;
+            break;
+        }
+      }
+
+      const approvals = {
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+      };
+
+      for (const row of approvalRows as any[]) {
+        const count = Number(row.count || 0);
+        approvals.total += count;
+        switch (String(row.status || '')) {
+          case 'PENDING':
+            approvals.pending = count;
+            break;
+          case 'APPROVED':
+            approvals.approved = count;
+            break;
+          case 'REJECTED':
+            approvals.rejected = count;
+            break;
+        }
+      }
+
+      const stockMovements = {
+        total: 0,
+        in: 0,
+        out: 0,
+        adjustment: 0,
+        inUnits: 0,
+        outUnits: 0,
+        adjustmentUnits: 0,
+      };
+
+      for (const row of stockMovementRows as any[]) {
+        const count = Number(row.count || 0);
+        const quantity = Number(row.quantity || 0);
+        stockMovements.total += count;
+        switch (String(row.type || '')) {
+          case 'IN':
+            stockMovements.in = count;
+            stockMovements.inUnits = quantity;
+            break;
+          case 'OUT':
+            stockMovements.out = count;
+            stockMovements.outUnits = quantity;
+            break;
+          case 'ADJUSTMENT':
+            stockMovements.adjustment = count;
+            stockMovements.adjustmentUnits = quantity;
+            break;
+        }
+      }
+
+      const stockRow = (stockSummaryRows as any[])[0] || {};
+      const stock = {
+        activeProducts: Number(stockRow.activeProducts || 0),
+        inactiveProducts: Number(stockRow.inactiveProducts || 0),
+        lowStockProducts: Number(stockRow.lowStockProducts || 0),
+        outOfStockProducts: Number(stockRow.outOfStockProducts || 0),
+        onlineUnits: Number(stockRow.onlineUnits || 0),
+        variantUnits: Number(stockRow.variantUnits || 0),
+        centerUnits: Number(stockRow.centerUnits || 0),
+        movements: stockMovements,
+      };
+
       return successResponse(
         res,
         {
@@ -333,6 +625,11 @@ export const analyticsController = {
           returns,
           tickets,
           inventoryLoans,
+          stock,
+          purchases,
+          settlements,
+          finance,
+          approvals,
         },
         'Operational analytics retrieved successfully',
         200

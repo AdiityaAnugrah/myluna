@@ -485,6 +485,64 @@ export interface OperationalAnalytics {
     borrowedUnits: number;
     returnedUnits: number;
   };
+  stock: {
+    activeProducts: number;
+    inactiveProducts: number;
+    lowStockProducts: number;
+    outOfStockProducts: number;
+    onlineUnits: number;
+    variantUnits: number;
+    centerUnits: number;
+    movements: {
+      total: number;
+      in: number;
+      out: number;
+      adjustment: number;
+      inUnits: number;
+      outUnits: number;
+      adjustmentUnits: number;
+    };
+  };
+  purchases: {
+    total: number;
+    amount: number;
+    pending: number;
+    completed: number;
+    cancelled: number;
+  };
+  settlements: {
+    total: number;
+    netAmount: number;
+    deductionAmount: number;
+    requests: {
+      total: number;
+      pending: number;
+      approved: number;
+      rejected: number;
+    };
+  };
+  finance: {
+    expenses: {
+      total: number;
+      amount: number;
+    };
+    otherIncome: {
+      total: number;
+      amount: number;
+    };
+    bankBook: {
+      total: number;
+      matched: number;
+      cancelled: number;
+      differenceAmount: number;
+    };
+  };
+  approvals: {
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+  };
 }
 
 export type ComplaintStatus =

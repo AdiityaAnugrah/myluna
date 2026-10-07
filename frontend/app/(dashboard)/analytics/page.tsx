@@ -20,9 +20,13 @@ import {
   Handshake,
   MapPin,
   MessageSquareWarning,
+  PackageSearch,
   ReceiptText,
+  ShieldCheck,
+  ShoppingCart,
   Store,
   Ticket,
+  WalletCards,
 } from 'lucide-react';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
@@ -452,6 +456,98 @@ export default function AnalyticsPage() {
               </p>
             </div>
             <Handshake className="h-6 w-6 shrink-0 text-orange-600" />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <Card>
+          <CardContent className="flex items-start justify-between gap-4 p-5">
+            <div>
+              <p className="text-sm text-muted-foreground">Kontrol Stok</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums">
+                {operationsQuery.isLoading ? '...' : (operations?.stock?.lowStockProducts || 0)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Stok habis: {operations?.stock?.outOfStockProducts || 0} • Unit online: {operations?.stock?.onlineUnits || 0} • Unit pusat: {operations?.stock?.centerUnits || 0}
+              </p>
+            </div>
+            <PackageSearch className="h-6 w-6 shrink-0 text-rose-600" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-start justify-between gap-4 p-5">
+            <div>
+              <p className="text-sm text-muted-foreground">Pembelian</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums">
+                {operationsQuery.isLoading ? '...' : formatCurrency(operations?.purchases?.amount || 0)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Pending: {operations?.purchases?.pending || 0} • Selesai: {operations?.purchases?.completed || 0} • Batal: {operations?.purchases?.cancelled || 0}
+              </p>
+            </div>
+            <ShoppingCart className="h-6 w-6 shrink-0 text-emerald-600" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-start justify-between gap-4 p-5">
+            <div>
+              <p className="text-sm text-muted-foreground">Pelunasan / Settlement</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums">
+                {operationsQuery.isLoading ? '...' : formatCurrency(operations?.settlements?.netAmount || 0)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Request pending: {operations?.settlements?.requests?.pending || 0} • Potongan: {formatCurrency(operations?.settlements?.deductionAmount || 0)}
+              </p>
+            </div>
+            <WalletCards className="h-6 w-6 shrink-0 text-blue-600" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-start justify-between gap-4 p-5">
+            <div>
+              <p className="text-sm text-muted-foreground">Keuangan</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums">
+                {operationsQuery.isLoading ? '...' : formatCurrency((operations?.finance?.otherIncome?.amount || 0) - (operations?.finance?.expenses?.amount || 0))}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Pemasukan lain: {formatCurrency(operations?.finance?.otherIncome?.amount || 0)} • Expense: {formatCurrency(operations?.finance?.expenses?.amount || 0)}
+              </p>
+            </div>
+            <ReceiptText className="h-6 w-6 shrink-0 text-violet-600" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-start justify-between gap-4 p-5">
+            <div>
+              <p className="text-sm text-muted-foreground">Approval / Pengajuan</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums">
+                {operationsQuery.isLoading ? '...' : (operations?.approvals?.pending || 0)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Disetujui: {operations?.approvals?.approved || 0} • Ditolak: {operations?.approvals?.rejected || 0} • Total: {operations?.approvals?.total || 0}
+              </p>
+            </div>
+            <ShieldCheck className="h-6 w-6 shrink-0 text-cyan-600" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-start justify-between gap-4 p-5">
+            <div>
+              <p className="text-sm text-muted-foreground">Pergerakan Stok</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums">
+                {operationsQuery.isLoading ? '...' : (operations?.stock?.movements?.total || 0)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Masuk: {operations?.stock?.movements?.inUnits || 0} unit • Keluar: {operations?.stock?.movements?.outUnits || 0} unit • Koreksi: {operations?.stock?.movements?.adjustment || 0}
+              </p>
+            </div>
+            <Boxes className="h-6 w-6 shrink-0 text-amber-600" />
           </CardContent>
         </Card>
       </div>
