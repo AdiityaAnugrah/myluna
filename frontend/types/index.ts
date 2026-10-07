@@ -448,6 +448,10 @@ export interface OperationalAnalytics {
     pendingReview: number;
     acceptedByTcp: number;
     replacementShipped: number;
+    waitingUserConfirmation: number;
+    waitingUserDeliveryConfirmation: number;
+    monitoringCustomerConfirmation: number;
+    followUpRequired: number;
     completed: number;
     convertedToReturn: number;
     rejected: number;
@@ -469,6 +473,7 @@ export interface OperationalAnalytics {
     active: number;
     open: number;
     inDiscussion: number;
+    decisionFinalized: number;
     waitingTcpExecution: number;
     tcpExecuting: number;
     overdue: number;

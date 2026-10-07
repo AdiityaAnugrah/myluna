@@ -285,6 +285,10 @@ export const analyticsController = {
         pendingReview: 0,
         acceptedByTcp: 0,
         replacementShipped: 0,
+        waitingUserConfirmation: 0,
+        waitingUserDeliveryConfirmation: 0,
+        monitoringCustomerConfirmation: 0,
+        followUpRequired: 0,
         completed: 0,
         convertedToReturn: 0,
         rejected: 0,
@@ -305,6 +309,22 @@ export const analyticsController = {
             break;
           case ComplaintStatus.REPLACEMENT_SHIPPED:
             complaints.replacementShipped = count;
+            complaints.active += count;
+            break;
+          case ComplaintStatus.WAITING_USER_CONFIRMATION:
+            complaints.waitingUserConfirmation = count;
+            complaints.active += count;
+            break;
+          case ComplaintStatus.WAITING_USER_DELIVERY_CONFIRMATION:
+            complaints.waitingUserDeliveryConfirmation = count;
+            complaints.active += count;
+            break;
+          case ComplaintStatus.MONITORING_CUSTOMER_CONFIRMATION:
+            complaints.monitoringCustomerConfirmation = count;
+            complaints.active += count;
+            break;
+          case ComplaintStatus.FOLLOW_UP_REQUIRED:
+            complaints.followUpRequired = count;
             complaints.active += count;
             break;
           case ComplaintStatus.COMPLETED:
@@ -372,6 +392,7 @@ export const analyticsController = {
         active: 0,
         open: 0,
         inDiscussion: 0,
+        decisionFinalized: 0,
         waitingTcpExecution: 0,
         tcpExecuting: 0,
         overdue: 0,
@@ -390,6 +411,10 @@ export const analyticsController = {
             break;
           case ReturnTicketStatus.IN_DISCUSSION:
             tickets.inDiscussion = count;
+            tickets.active += count;
+            break;
+          case ReturnTicketStatus.DECISION_FINALIZED:
+            tickets.decisionFinalized = count;
             tickets.active += count;
             break;
           case ReturnTicketStatus.WAITING_TCP_EXECUTION:

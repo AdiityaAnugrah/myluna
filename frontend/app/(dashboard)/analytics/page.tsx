@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { type ComponentType, useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -48,6 +48,8 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+const formatNumber = (value: number) => Number(value || 0).toLocaleString('id-ID');
+
 const regionLabels = {
   province: 'Provinsi',
   regency: 'Kabupaten/Kota',
@@ -66,6 +68,53 @@ type SummaryCardItem = {
   icon: typeof ReceiptText;
   iconClassName?: string;
 };
+
+type OperationalRow = {
+  label: string;
+  value: string | number;
+  helper?: string;
+};
+
+function OperationalBreakdownCard({
+  title,
+  description,
+  icon: Icon,
+  rows,
+}: {
+  title: string;
+  description: string;
+  icon: ComponentType<{ className?: string }>;
+  rows: OperationalRow[];
+}) {
+  return (
+    <Card className="h-full">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">{title}</CardTitle>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+          </div>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Icon className="h-5 w-5" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="divide-y rounded-lg border">
+          {rows.map((row) => (
+            <div key={row.label} className="flex items-start justify-between gap-3 px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">{row.label}</p>
+                {row.helper && <p className="mt-0.5 text-[11px] text-muted-foreground/80">{row.helper}</p>}
+              </div>
+              <p className="shrink-0 text-right text-sm font-semibold tabular-nums">{row.value}</p>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 interface RegionPathItem {
   id: number;
@@ -551,6 +600,183 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {operationsQuery.isError ? (
+        <ErrorState
+          message="Gagal memuat ringkasan operasional."
+          onRetry={() => operationsQuery.refetch()}
+        />
+      ) : operationsQuery.isLoading ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)}
+        </div>
+      ) : operations ? (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">Rincian Operasional Lengkap</h2>
+            <p className="text-sm text-muted-foreground">
+              Semua status utama ditampilkan agar data yang masuk dari sistem tidak tersembunyi di kartu ringkas.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <OperationalBreakdownCard
+              title="Komplain"
+              description="Status komplain dari review PUSAT sampai selesai."
+              icon={MessageSquareWarning}
+              rows={[
+                { label: 'Total komplain', value: formatNumber(operations.complaints.total) },
+                { label: 'Aktif', value: formatNumber(operations.complaints.active) },
+                { label: 'Menunggu review PUSAT', value: formatNumber(operations.complaints.pendingReview) },
+                { label: 'Diterima PUSAT', value: formatNumber(operations.complaints.acceptedByTcp) },
+                { label: 'Pengganti dikirim', value: formatNumber(operations.complaints.replacementShipped) },
+                { label: 'Menunggu konfirmasi user', value: formatNumber(operations.complaints.waitingUserConfirmation) },
+                { label: 'Menunggu konfirmasi terima barang', value: formatNumber(operations.complaints.waitingUserDeliveryConfirmation) },
+                { label: 'Monitoring customer', value: formatNumber(operations.complaints.monitoringCustomerConfirmation) },
+                { label: 'Perlu follow up', value: formatNumber(operations.complaints.followUpRequired) },
+                { label: 'Selesai', value: formatNumber(operations.complaints.completed) },
+                { label: 'Jadi retur', value: formatNumber(operations.complaints.convertedToReturn) },
+                { label: 'Ditolak', value: formatNumber(operations.complaints.rejected) },
+              ]}
+            />
+
+            <OperationalBreakdownCard
+              title="Retur Penjualan"
+              description="Retur penjualan utama, bukan retur pinjaman barang."
+              icon={ClipboardList}
+              rows={[
+                { label: 'Total retur', value: formatNumber(operations.returns.total) },
+                { label: 'Aktif', value: formatNumber(operations.returns.active) },
+                { label: 'Menunggu review', value: formatNumber(operations.returns.pendingReview) },
+                { label: 'Menunggu barang balik', value: formatNumber(operations.returns.waitingItemReturn) },
+                { label: 'Barang diterima', value: formatNumber(operations.returns.itemReceived) },
+                { label: 'Restock', value: formatNumber(operations.returns.restocked) },
+                { label: 'Rusak', value: formatNumber(operations.returns.damaged) },
+                { label: 'Kirim ulang', value: formatNumber(operations.returns.resent) },
+                { label: 'Selesai', value: formatNumber(operations.returns.completed) },
+                { label: 'Ditolak', value: formatNumber(operations.returns.rejected) },
+              ]}
+            />
+
+            <OperationalBreakdownCard
+              title="Tiket Bantuan"
+              description="Tiket lanjutan dari retur/komplain yang perlu eksekusi PUSAT."
+              icon={Ticket}
+              rows={[
+                { label: 'Total tiket', value: formatNumber(operations.tickets.total) },
+                { label: 'Aktif', value: formatNumber(operations.tickets.active) },
+                { label: 'Open', value: formatNumber(operations.tickets.open) },
+                { label: 'Diskusi', value: formatNumber(operations.tickets.inDiscussion) },
+                { label: 'Keputusan final', value: formatNumber(operations.tickets.decisionFinalized) },
+                { label: 'Menunggu eksekusi PUSAT', value: formatNumber(operations.tickets.waitingTcpExecution) },
+                { label: 'PUSAT proses', value: formatNumber(operations.tickets.tcpExecuting) },
+                { label: 'Overdue', value: formatNumber(operations.tickets.overdue) },
+                { label: 'Selesai', value: formatNumber(operations.tickets.completed) },
+                { label: 'Ditolak', value: formatNumber(operations.tickets.rejected) },
+              ]}
+            />
+
+            <OperationalBreakdownCard
+              title="Pinjaman Barang"
+              description="Form pinjam barang toko dan status pengembaliannya."
+              icon={Handshake}
+              rows={[
+                { label: 'Total form', value: formatNumber(operations.inventoryLoans.total) },
+                { label: 'Aktif / masih dipinjam', value: formatNumber(operations.inventoryLoans.active) },
+                { label: 'Form dipinjam', value: formatNumber(operations.inventoryLoans.borrowed) },
+                { label: 'Form dikembalikan', value: formatNumber(operations.inventoryLoans.returned) },
+                { label: 'Form dibatalkan', value: formatNumber(operations.inventoryLoans.cancelled) },
+                { label: 'Total unit', value: formatNumber(operations.inventoryLoans.totalUnits) },
+                { label: 'Unit masih dipinjam', value: formatNumber(operations.inventoryLoans.borrowedUnits) },
+                { label: 'Unit sudah kembali', value: formatNumber(operations.inventoryLoans.returnedUnits) },
+              ]}
+            />
+
+            <OperationalBreakdownCard
+              title="Stok"
+              description="Kondisi stok produk, varian, dan stok pusat."
+              icon={PackageSearch}
+              rows={[
+                { label: 'Produk aktif', value: formatNumber(operations.stock.activeProducts) },
+                { label: 'Produk nonaktif', value: formatNumber(operations.stock.inactiveProducts) },
+                { label: 'Produk stok menipis', value: formatNumber(operations.stock.lowStockProducts) },
+                { label: 'Produk stok habis', value: formatNumber(operations.stock.outOfStockProducts) },
+                { label: 'Unit stok online', value: formatNumber(operations.stock.onlineUnits) },
+                { label: 'Unit stok varian', value: formatNumber(operations.stock.variantUnits) },
+                { label: 'Unit stok pusat', value: formatNumber(operations.stock.centerUnits) },
+              ]}
+            />
+
+            <OperationalBreakdownCard
+              title="Pergerakan Stok"
+              description="Jumlah transaksi stok masuk, keluar, dan koreksi."
+              icon={Boxes}
+              rows={[
+                { label: 'Total aktivitas', value: formatNumber(operations.stock.movements.total) },
+                { label: 'Aktivitas masuk', value: formatNumber(operations.stock.movements.in), helper: `${formatNumber(operations.stock.movements.inUnits)} unit` },
+                { label: 'Aktivitas keluar', value: formatNumber(operations.stock.movements.out), helper: `${formatNumber(operations.stock.movements.outUnits)} unit` },
+                { label: 'Aktivitas koreksi', value: formatNumber(operations.stock.movements.adjustment), helper: `${formatNumber(operations.stock.movements.adjustmentUnits)} unit` },
+              ]}
+            />
+
+            <OperationalBreakdownCard
+              title="Pembelian"
+              description="Pembelian barang ke supplier pada periode terpilih."
+              icon={ShoppingCart}
+              rows={[
+                { label: 'Total pembelian', value: formatNumber(operations.purchases.total) },
+                { label: 'Nilai pembelian', value: formatCurrency(operations.purchases.amount) },
+                { label: 'Pending', value: formatNumber(operations.purchases.pending) },
+                { label: 'Selesai', value: formatNumber(operations.purchases.completed) },
+                { label: 'Batal', value: formatNumber(operations.purchases.cancelled) },
+              ]}
+            />
+
+            <OperationalBreakdownCard
+              title="Pelunasan / Settlement"
+              description="Pelunasan order dan pengajuan pelunasan."
+              icon={WalletCards}
+              rows={[
+                { label: 'Total settlement', value: formatNumber(operations.settlements.total) },
+                { label: 'Nilai bersih', value: formatCurrency(operations.settlements.netAmount) },
+                { label: 'Total potongan', value: formatCurrency(operations.settlements.deductionAmount) },
+                { label: 'Request total', value: formatNumber(operations.settlements.requests.total) },
+                { label: 'Request pending', value: formatNumber(operations.settlements.requests.pending) },
+                { label: 'Request disetujui', value: formatNumber(operations.settlements.requests.approved) },
+                { label: 'Request ditolak', value: formatNumber(operations.settlements.requests.rejected) },
+              ]}
+            />
+
+            <OperationalBreakdownCard
+              title="Keuangan"
+              description="Expense, pemasukan lain, dan rekonsiliasi buku bank."
+              icon={ReceiptText}
+              rows={[
+                { label: 'Total expense', value: formatNumber(operations.finance.expenses.total) },
+                { label: 'Nilai expense', value: formatCurrency(operations.finance.expenses.amount) },
+                { label: 'Total pemasukan lain', value: formatNumber(operations.finance.otherIncome.total) },
+                { label: 'Nilai pemasukan lain', value: formatCurrency(operations.finance.otherIncome.amount) },
+                { label: 'Buku bank total', value: formatNumber(operations.finance.bankBook.total) },
+                { label: 'Buku bank cocok', value: formatNumber(operations.finance.bankBook.matched) },
+                { label: 'Buku bank batal', value: formatNumber(operations.finance.bankBook.cancelled) },
+                { label: 'Selisih buku bank', value: formatCurrency(operations.finance.bankBook.differenceAmount) },
+              ]}
+            />
+
+            <OperationalBreakdownCard
+              title="Approval / Pengajuan"
+              description="Semua request perubahan yang membutuhkan persetujuan."
+              icon={ShieldCheck}
+              rows={[
+                { label: 'Total pengajuan', value: formatNumber(operations.approvals.total) },
+                { label: 'Pending', value: formatNumber(operations.approvals.pending) },
+                { label: 'Disetujui', value: formatNumber(operations.approvals.approved) },
+                { label: 'Ditolak', value: formatNumber(operations.approvals.rejected) },
+              ]}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {!isDetailView ? (
         canViewSalesAnalytics ? (
