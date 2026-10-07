@@ -153,12 +153,18 @@ export const analyticsController = {
         loanRows,
         loanUnitRows,
         purchaseRows,
-        purchaseSummaryRow,
+        purchaseCount,
+        purchaseAmount,
         settlementRequestRows,
-        settlementSummaryRow,
-        expenseSummaryRow,
-        otherIncomeSummaryRow,
+        settlementCount,
+        settlementNetAmount,
+        settlementDeductionAmount,
+        expenseCount,
+        expenseAmount,
+        otherIncomeCount,
+        otherIncomeAmount,
         bankBookRows,
+        bankBookDifferenceAmount,
         approvalRows,
         stockMovementRows,
         stockSummaryRows,
@@ -211,55 +217,28 @@ export const analyticsController = {
           group: ['status'],
           raw: true,
         }),
-        Purchase.findOne({
-          attributes: [
-            [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
-            [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('totalAmount')), 0), 'amount'],
-          ],
-          where: purchaseWhere,
-          raw: true,
-        }),
+        Purchase.count({ where: purchaseWhere }),
+        Purchase.sum('totalAmount', { where: purchaseWhere }),
         SettlementRequest.findAll({
           attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
           where: settlementRequestWhere,
           group: ['status'],
           raw: true,
         }),
-        Settlement.findOne({
-          attributes: [
-            [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
-            [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmount')), 0), 'netAmount'],
-            [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('deductionAmount')), 0), 'deductionAmount'],
-          ],
-          where: settlementWhere,
-          raw: true,
-        }),
-        Expense.findOne({
-          attributes: [
-            [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
-            [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amount'],
-          ],
-          where: expenseWhere,
-          raw: true,
-        }),
-        OtherIncome.findOne({
-          attributes: [
-            [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
-            [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amount'],
-          ],
-          where: otherIncomeWhere,
-          raw: true,
-        }),
+        Settlement.count({ where: settlementWhere }),
+        Settlement.sum('netAmount', { where: settlementWhere }),
+        Settlement.sum('deductionAmount', { where: settlementWhere }),
+        Expense.count({ where: expenseWhere }),
+        Expense.sum('amount', { where: expenseWhere }),
+        OtherIncome.count({ where: otherIncomeWhere }),
+        OtherIncome.sum('amount', { where: otherIncomeWhere }),
         BankBookEntry.findAll({
-          attributes: [
-            'status',
-            [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
-            [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('differenceAmount')), 0), 'differenceAmount'],
-          ],
+          attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
           where: bankBookWhere,
           group: ['status'],
           raw: true,
         }),
+        BankBookEntry.sum('differenceAmount', { where: bankBookWhere }),
         ChangeRequest.findAll({
           attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
           where: approvalWhere,
@@ -469,8 +448,8 @@ export const analyticsController = {
       inventoryLoans.returnedUnits = Number(loanUnits.returnedUnits || 0);
 
       const purchases = {
-        total: Number((purchaseSummaryRow as any)?.count || 0),
-        amount: Number((purchaseSummaryRow as any)?.amount || 0),
+        total: Number(purchaseCount || 0),
+        amount: Number(purchaseAmount || 0),
         pending: 0,
         completed: 0,
         cancelled: 0,
@@ -515,33 +494,32 @@ export const analyticsController = {
       }
 
       const settlements = {
-        total: Number((settlementSummaryRow as any)?.count || 0),
-        netAmount: Number((settlementSummaryRow as any)?.netAmount || 0),
-        deductionAmount: Number((settlementSummaryRow as any)?.deductionAmount || 0),
+        total: Number(settlementCount || 0),
+        netAmount: Number(settlementNetAmount || 0),
+        deductionAmount: Number(settlementDeductionAmount || 0),
         requests: settlementRequests,
       };
 
       const finance = {
         expenses: {
-          total: Number((expenseSummaryRow as any)?.count || 0),
-          amount: Number((expenseSummaryRow as any)?.amount || 0),
+          total: Number(expenseCount || 0),
+          amount: Number(expenseAmount || 0),
         },
         otherIncome: {
-          total: Number((otherIncomeSummaryRow as any)?.count || 0),
-          amount: Number((otherIncomeSummaryRow as any)?.amount || 0),
+          total: Number(otherIncomeCount || 0),
+          amount: Number(otherIncomeAmount || 0),
         },
         bankBook: {
           total: 0,
           matched: 0,
           cancelled: 0,
-          differenceAmount: 0,
+          differenceAmount: Number(bankBookDifferenceAmount || 0),
         },
       };
 
       for (const row of bankBookRows as any[]) {
         const count = Number(row.count || 0);
         finance.bankBook.total += count;
-        finance.bankBook.differenceAmount += Number(row.differenceAmount || 0);
         switch (row.status as BankBookEntryStatus) {
           case BankBookEntryStatus.MATCHED:
             finance.bankBook.matched = count;
