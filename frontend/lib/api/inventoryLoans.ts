@@ -2,7 +2,7 @@ import apiClient from './client';
 import { ApiResponse, InventoryLoan, PaginatedResponse, PaginationParams, ProductLocationStock } from '@/types';
 
 export interface InventoryLoanCreatePayload {
-  direction: 'TO_CENTER' | 'FROM_CENTER';
+  direction: 'FROM_CENTER';
   loanDate: string;
   borrowerName: string;
   targetName: string;

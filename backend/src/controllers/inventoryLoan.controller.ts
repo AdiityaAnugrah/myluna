@@ -222,8 +222,8 @@ export const inventoryLoanController = {
         items,
       } = req.body;
 
-      if (!Object.values(InventoryLoanDirection).includes(direction)) {
-        throw new AppError('Arah pinjaman tidak valid', 400);
+      if (direction !== InventoryLoanDirection.FROM_CENTER) {
+        throw new AppError('Form Pinjam Barang hanya untuk toko meminjam barang dari Pusat/TCP. Barang dari toko ke pusat gunakan proses retur/stok keluar.', 400);
       }
       if (!borrowerName || !targetName) {
         throw new AppError('Nama peminjam dan ditujukan pada wajib diisi', 400);
@@ -252,7 +252,7 @@ export const inventoryLoanController = {
         { transaction }
       );
 
-      const sign = direction === InventoryLoanDirection.TO_CENTER ? -1 : 1;
+      const sign = 1;
       const reference = `INVENTORY_LOAN:${loan.loanNumber}`;
       for (const rawItem of items) {
         const quantity = Math.abs(Number(rawItem.quantity || 0));
@@ -277,10 +277,7 @@ export const inventoryLoanController = {
           variantName: rawItem.variantName || null,
           quantityDelta: sign * quantity,
           reference,
-          notes:
-            direction === InventoryLoanDirection.TO_CENTER
-              ? `Pinjam barang keluar ke pusat - ${loan.loanNumber}`
-              : `Pinjam barang masuk dari pusat - ${loan.loanNumber}`,
+          notes: `Pinjam barang dari pusat/TCP - ${loan.loanNumber}`,
           createdBy: req.user!.id,
           transaction,
         });
