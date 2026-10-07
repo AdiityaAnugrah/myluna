@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent } from 'react';
+import Link from 'next/link';
 import { format } from 'date-fns';
 import { CheckCircle2, ChevronDown, ChevronUp, Handshake, Loader2, Plus, Printer, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -520,9 +521,40 @@ export default function InventoryLoansPage() {
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">Pinjam Barang</h1>
             <p className="mt-1 max-w-3xl text-muted-foreground">Kelola peminjaman barang dari Pusat/TCP ke toko dengan tanda tangan digital dan form cetak. Pengiriman barang toko ke pusat masuk alur retur/stok keluar.</p>
           </div>
-          {canCreate && <Button size="lg" className="bg-orange-600 hover:bg-orange-700" onClick={() => setShowForm((v) => !v)}>{showForm ? <ChevronUp className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}{showForm ? 'Sembunyikan Form' : 'Buat Pinjaman'}</Button>}
         </div>
       </div>
+
+      {canCreate && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 shadow-sm">
+            <div className="flex h-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="mb-1 text-sm font-bold text-orange-900">Pinjam Barang</div>
+                <p className="text-sm text-orange-800">Dipakai saat toko/Admin Order meminjam barang dari Pusat/TCP. Form, TTD, dan pengembalian tetap tercatat.</p>
+              </div>
+              <Button size="lg" className="shrink-0 bg-orange-600 hover:bg-orange-700" onClick={() => setShowForm((v) => !v)}>
+                {showForm ? <ChevronUp className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+                {showForm ? 'Tutup Form' : 'Buat Pinjaman'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex h-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="mb-1 text-sm font-bold text-slate-900">Retur ke Pusat</div>
+                <p className="text-sm text-muted-foreground">Dipakai saat barang dari toko dikirim/ditarik ke Pusat/TCP. Alur ini mengurangi stok sistem, bukan membuat form pinjaman.</p>
+              </div>
+              <Link href="/returns/new" className="shrink-0">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto">
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Buat Retur
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {canCreate && showForm && renderLoanForm()}
 
