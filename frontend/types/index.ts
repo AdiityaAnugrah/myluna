@@ -475,6 +475,16 @@ export interface OperationalAnalytics {
     completed: number;
     rejected: number;
   };
+  inventoryLoans: {
+    total: number;
+    active: number;
+    borrowed: number;
+    returned: number;
+    cancelled: number;
+    totalUnits: number;
+    borrowedUnits: number;
+    returnedUnits: number;
+  };
 }
 
 export type ComplaintStatus =

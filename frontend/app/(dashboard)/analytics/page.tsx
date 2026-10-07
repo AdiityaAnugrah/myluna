@@ -17,6 +17,7 @@ import {
   Boxes,
   ChevronRight,
   ClipboardList,
+  Handshake,
   MapPin,
   MessageSquareWarning,
   ReceiptText,
@@ -34,6 +35,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useOperationalAnalytics, useSalesAnalytics } from '@/lib/hooks/useAnalytics';
 import { SalesAnalytics } from '@/types';
 import { UnmappedSalesDialog } from '@/components/analytics/UnmappedSalesDialog';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('id-ID', {
@@ -97,6 +99,7 @@ const analyticsCategoryOptions = [
 ];
 
 export default function AnalyticsPage() {
+  const { user } = useAuth();
   const today = useMemo(() => new Date(), []);
   const [startDate, setStartDate] = useState(
     () => new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
@@ -105,6 +108,8 @@ export default function AnalyticsPage() {
   const [selectedCategory, setSelectedCategory] = useState<AnalyticsCategory>(null);
   const [regionPath, setRegionPath] = useState<RegionPathItem[]>([]);
   const [unmappedDialogOpen, setUnmappedDialogOpen] = useState(false);
+  const roleName = String(user?.role || '').toUpperCase();
+  const canViewSalesAnalytics = ['ADMIN', 'SUPER_ADMIN', 'DEV'].includes(roleName);
 
   const regionLevel = regionLevels[Math.min(regionPath.length, regionLevels.length - 1)];
   const activeScope = regionPath.length > 0 ? regionPath[regionPath.length - 1] : undefined;
@@ -311,9 +316,9 @@ export default function AnalyticsPage() {
       <Breadcrumbs items={[{ label: 'Analisa' }]} />
 
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Analisa Penjualan</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Analisa & Operasional</h1>
         <p className="mt-1 text-muted-foreground">
-          Pilih kategori analisa yang ingin ditampilkan.
+          Pantau performa penjualan, komplain, retur, tiket bantuan, dan pinjaman barang dalam satu periode.
         </p>
       </div>
 
@@ -389,7 +394,7 @@ export default function AnalyticsPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardContent className="flex items-start justify-between gap-4 p-5">
             <div>
@@ -423,7 +428,7 @@ export default function AnalyticsPage() {
         <Card>
           <CardContent className="flex items-start justify-between gap-4 p-5">
             <div>
-              <p className="text-sm text-muted-foreground">Retur Aktif</p>
+              <p className="text-sm text-muted-foreground">Tiket Bantuan Aktif</p>
               <p className="mt-1 text-2xl font-bold tabular-nums">
                 {operationsQuery.isLoading ? '...' : (operations?.tickets.active || 0)}
               </p>
@@ -434,34 +439,61 @@ export default function AnalyticsPage() {
             <Ticket className="h-6 w-6 shrink-0 text-primary" />
           </CardContent>
         </Card>
+
+        <Card>
+          <CardContent className="flex items-start justify-between gap-4 p-5">
+            <div>
+              <p className="text-sm text-muted-foreground">Pinjaman Barang Aktif</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums">
+                {operationsQuery.isLoading ? '...' : (operations?.inventoryLoans?.active || 0)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Unit dipinjam: {operations?.inventoryLoans?.borrowedUnits || 0} • Sudah kembali: {operations?.inventoryLoans?.returned || 0} form / {operations?.inventoryLoans?.returnedUnits || 0} unit
+              </p>
+            </div>
+            <Handshake className="h-6 w-6 shrink-0 text-orange-600" />
+          </CardContent>
+        </Card>
       </div>
 
       {!isDetailView ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          {analyticsCategoryOptions.map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              className="text-left"
-              onClick={() => openCategory(option.key)}
-            >
-              <Card className="h-full border transition-colors hover:border-primary hover:bg-primary/5">
-                <CardHeader className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <option.icon className="h-5 w-5" />
+        canViewSalesAnalytics ? (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {analyticsCategoryOptions.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                className="text-left"
+                onClick={() => openCategory(option.key)}
+              >
+                <Card className="h-full border transition-colors hover:border-primary hover:bg-primary/5">
+                  <CardHeader className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <option.icon className="h-5 w-5" />
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
                     </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <CardTitle className="text-xl">{option.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm leading-6 text-muted-foreground">{option.description}</p>
-                </CardContent>
-              </Card>
-            </button>
-          ))}
-        </div>
+                    <CardTitle className="text-xl">{option.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm leading-6 text-muted-foreground">{option.description}</p>
+                  </CardContent>
+                </Card>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="p-6">
+              <EmptyState
+                icon={BarChart3}
+                title="Ringkasan operasional sudah ditampilkan"
+                description="Analisa penjualan detail hanya ditampilkan untuk role admin, super admin, dan dev. Role operasional tetap bisa melihat komplain, retur, tiket bantuan, dan pinjaman barang aktif."
+              />
+            </CardContent>
+          </Card>
+        )
       ) : analyticsQuery.isError ? (
         <ErrorState
           message="Gagal memuat data analisa."

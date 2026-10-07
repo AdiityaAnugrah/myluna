@@ -4,6 +4,8 @@ import { sequelize } from '../config/database';
 import {
   Complaint,
   ComplaintStatus,
+  InventoryLoan,
+  InventoryLoanStatus,
   ReturnTicket,
   ReturnTicketStatus,
   SaleReturn,
@@ -85,23 +87,31 @@ export const analyticsController = {
       const complaintWhere: any = {};
       const returnWhere: any = {};
       const ticketWhere: any = {};
+      const loanWhere: any = {};
 
       if (createdAt) {
         complaintWhere.createdAt = createdAt;
         returnWhere.createdAt = createdAt;
         ticketWhere.createdAt = createdAt;
+        loanWhere.loanDate = {
+          ...(startDate ? { [Op.gte]: startDate } : {}),
+          ...(endDate ? { [Op.lte]: endDate } : {}),
+        };
       }
 
       if (isUserRole && req.user?.id) {
         complaintWhere.createdBy = req.user.id;
         returnWhere.requestedBy = req.user.id;
         ticketWhere.createdBy = req.user.id;
+        loanWhere.createdBy = req.user.id;
       }
 
       const [
         complaintRows,
         returnRows,
         ticketRows,
+        loanRows,
+        loanUnitRows,
       ] = await Promise.all([
         Complaint.findAll({
           attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
@@ -121,6 +131,30 @@ export const analyticsController = {
           group: ['status'],
           raw: true,
         }),
+        InventoryLoan.findAll({
+          attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+          where: loanWhere,
+          group: ['status'],
+          raw: true,
+        }),
+        sequelize.query(
+          `
+            SELECT
+              COALESCE(SUM(ili.quantity), 0) AS totalUnits,
+              COALESCE(SUM(CASE WHEN il.status = 'BORROWED' THEN ili.quantity ELSE 0 END), 0) AS borrowedUnits,
+              COALESCE(SUM(CASE WHEN il.status = 'RETURNED' THEN ili.quantity ELSE 0 END), 0) AS returnedUnits
+            FROM inventory_loan_items ili
+            INNER JOIN inventory_loans il ON il.id = ili.loan_id
+            WHERE 1 = 1
+              ${startDate ? 'AND il.loan_date >= :startDate' : ''}
+              ${endDate ? 'AND il.loan_date <= :endDate' : ''}
+              ${isUserRole && req.user?.id ? 'AND il.created_by = :userId' : ''}
+          `,
+          {
+            type: QueryTypes.SELECT,
+            replacements: { startDate, endDate, userId: req.user?.id },
+          }
+        ),
       ]);
 
       const complaints = {
@@ -257,6 +291,40 @@ export const analyticsController = {
         }
       }
 
+      const inventoryLoans = {
+        total: 0,
+        active: 0,
+        borrowed: 0,
+        returned: 0,
+        cancelled: 0,
+        totalUnits: 0,
+        borrowedUnits: 0,
+        returnedUnits: 0,
+      };
+
+      for (const row of loanRows as any[]) {
+        const count = Number(row.count || 0);
+        inventoryLoans.total += count;
+
+        switch (row.status as InventoryLoanStatus) {
+          case InventoryLoanStatus.BORROWED:
+            inventoryLoans.borrowed = count;
+            inventoryLoans.active += count;
+            break;
+          case InventoryLoanStatus.RETURNED:
+            inventoryLoans.returned = count;
+            break;
+          case InventoryLoanStatus.CANCELLED:
+            inventoryLoans.cancelled = count;
+            break;
+        }
+      }
+
+      const loanUnits = (loanUnitRows as any[])[0] || {};
+      inventoryLoans.totalUnits = Number(loanUnits.totalUnits || 0);
+      inventoryLoans.borrowedUnits = Number(loanUnits.borrowedUnits || 0);
+      inventoryLoans.returnedUnits = Number(loanUnits.returnedUnits || 0);
+
       return successResponse(
         res,
         {
@@ -264,6 +332,7 @@ export const analyticsController = {
           complaints,
           returns,
           tickets,
+          inventoryLoans,
         },
         'Operational analytics retrieved successfully',
         200
