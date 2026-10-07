@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent } from 'react';
-import Link from 'next/link';
 import { format } from 'date-fns';
 import { CheckCircle2, ChevronDown, ChevronUp, Handshake, Loader2, Plus, Printer, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -127,6 +126,7 @@ export default function InventoryLoansPage() {
   const [showCenterPanel, setShowCenterPanel] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
+  const returnListRef = useRef<HTMLDivElement | null>(null);
   const [form, setForm] = useState({
     direction: 'FROM_CENTER' as const,
     loanDate: today(),
@@ -542,15 +542,23 @@ export default function InventoryLoansPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex h-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="mb-1 text-sm font-bold text-slate-900">Retur ke Pusat</div>
-                <p className="text-sm text-muted-foreground">Dipakai saat barang dari toko dikirim/ditarik ke Pusat/TCP. Alur ini mengurangi stok sistem, bukan membuat form pinjaman.</p>
+                <div className="mb-1 text-sm font-bold text-slate-900">Retur Pinjaman</div>
+                <p className="text-sm text-muted-foreground">Dipakai saat barang pinjaman dikembalikan lagi ke Pusat/TCP. Sistem akan menampilkan data yang masih dipinjam untuk ditandai kembali.</p>
               </div>
-              <Link href="/returns/new" className="shrink-0">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Buat Retur
-                </Button>
-              </Link>
+              <Button
+                size="lg"
+                variant="outline"
+                className="shrink-0"
+                onClick={() => {
+                  setShowForm(false);
+                  setSearch('');
+                  setStatusFilter('BORROWED');
+                  setTimeout(() => returnListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                }}
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Retur Pinjaman
+              </Button>
             </div>
           </div>
         </div>
@@ -568,7 +576,7 @@ export default function InventoryLoansPage() {
         </div>
       )}
 
-      <div className="grid gap-3 rounded-2xl border bg-card p-4 shadow-sm md:grid-cols-3"><Input placeholder="Cari no form / peminjam / tujuan" value={search} onChange={(e) => setSearch(e.target.value)} /><Select value={statusFilter || 'all'} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : v)}><SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">Semua status</SelectItem><SelectItem value="BORROWED">Masih dipinjam</SelectItem><SelectItem value="RETURNED">Sudah kembali</SelectItem></SelectContent></Select><Button variant="outline" onClick={() => { setSearch(''); setStatusFilter(''); }}>Reset filter</Button></div>
+      <div ref={returnListRef} className="grid gap-3 rounded-2xl border bg-card p-4 shadow-sm md:grid-cols-3"><Input placeholder="Cari no form / peminjam / tujuan" value={search} onChange={(e) => setSearch(e.target.value)} /><Select value={statusFilter || 'all'} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : v)}><SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">Semua status</SelectItem><SelectItem value="BORROWED">Masih dipinjam</SelectItem><SelectItem value="RETURNED">Sudah kembali</SelectItem></SelectContent></Select><Button variant="outline" onClick={() => { setSearch(''); setStatusFilter(''); }}>Reset filter</Button></div>
 
       <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
         <Table><TableHeader><TableRow><TableHead>No Form</TableHead><TableHead>Tanggal</TableHead><TableHead>Arah</TableHead><TableHead>Barang</TableHead><TableHead>Status</TableHead><TableHead>Catatan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader><TableBody>{isLoading ? <TableRow><TableCell colSpan={7} className="py-12 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow> : loans.length === 0 ? <TableRow><TableCell colSpan={7} className="py-12 text-center text-muted-foreground"><Handshake className="mx-auto mb-2 h-10 w-10 opacity-40" />Belum ada data pinjam barang</TableCell></TableRow> : loans.map((loan) => <TableRow key={loan.id}><TableCell className="font-semibold">{loan.loanNumber}</TableCell><TableCell>{format(new Date(loan.loanDate), 'dd MMM yyyy')}</TableCell><TableCell>{directionLabel(loan.direction)}</TableCell><TableCell className="max-w-sm"><div className="space-y-1 text-sm">{(loan.items || []).map((item) => <div key={item.id}><span className="font-medium">{item.product?.name || '-'}</span>{item.variantName ? <span className="text-muted-foreground"> ({item.variantName})</span> : null}<span> • {item.quantity} unit</span><span className="text-muted-foreground"> • {conditionLabels[item.condition]}</span><span className="text-muted-foreground"> • stok: {stockText(item.product, item.variantName)}</span></div>)}</div></TableCell><TableCell>{loan.status === 'BORROWED' ? <Badge className="bg-amber-500 text-white">Masih dipinjam</Badge> : <Badge className="bg-green-600 text-white">Sudah kembali</Badge>}</TableCell><TableCell className="max-w-xs text-sm text-muted-foreground"><div>{loan.notes || '-'}</div><div className="mt-1 text-xs">Peminjam: {loan.borrowerName} → {loan.targetName}</div></TableCell><TableCell className="text-right"><Button size="sm" variant="ghost" onClick={() => printLoan(loan)} className="mb-2"><Printer className="mr-2 h-4 w-4" />Cetak</Button>{canCreate && loan.status === 'BORROWED' && <div className="flex min-w-56 flex-col gap-2"><Input placeholder="Catatan kembali" value={returnNotes[loan.id] || ''} onChange={(e) => setReturnNotes({ ...returnNotes, [loan.id]: e.target.value })} /><Button size="sm" variant="outline" onClick={() => returnLoan.mutate({ id: loan.id, returnNotes: returnNotes[loan.id] })} disabled={returnLoan.isPending}><RotateCcw className="mr-2 h-4 w-4" /> Tandai Kembali</Button></div>}</TableCell></TableRow>)}</TableBody></Table>
