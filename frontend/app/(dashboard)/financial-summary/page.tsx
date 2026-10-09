@@ -363,7 +363,63 @@ export default function FinancialSummaryPage() {
     ];
     appendSheet('03 Detail Transaksi', transactionAoa, [6, 14, 22, 22, 18, 48, 18, 18, 18, 18, 18], ['G', 'H', 'I', 'J', 'K']);
 
-    // ── Sheet 4: Tren Harian ────────────────────────────────────────────────
+    // ── Sheet 4: Detail transaksi dikelompokkan per tanggal ────────────────
+    const groupedByDate = transactions.reduce((map: Record<string, any[]>, row: any) => {
+      const key = row.date ? new Date(row.date).toISOString().slice(0, 10) : 'Tanpa Tanggal';
+      if (!map[key]) map[key] = [];
+      map[key].push(row);
+      return map;
+    }, {});
+    const groupedDetailAoa: any[][] = [
+      ...addHeader('Detail Transaksi Keuangan Per Tanggal', 'Setiap tanggal memiliki subtotal agar mudah dicocokkan dengan catatan harian.'),
+    ];
+
+    Object.keys(groupedByDate).sort().forEach((dateKey) => {
+      const rows = groupedByDate[dateKey];
+      const readableDate = dateKey === 'Tanpa Tanggal'
+        ? dateKey
+        : new Date(dateKey).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+      const subtotal = rows.reduce((acc: any, row: any) => {
+        acc.debit += Number(row.debit || 0);
+        acc.credit += Number(row.credit || 0);
+        acc.netAmount += Number(row.netAmount || 0);
+        acc.platformFee += Number(row.platformFee || 0);
+        return acc;
+      }, { debit: 0, credit: 0, netAmount: 0, platformFee: 0 });
+
+      groupedDetailAoa.push([]);
+      groupedDetailAoa.push([readableDate]);
+      groupedDetailAoa.push(['No', 'Tipe', 'No Invoice', 'Platform', 'Keterangan', 'Debit', 'Kredit', 'Dana Bersih', 'Biaya Platform', 'Saldo Piutang']);
+      rows.forEach((row: any, index: number) => {
+        groupedDetailAoa.push([
+          index + 1,
+          typeLabels[row.type] || row.type || '-',
+          row.invoiceNumber || '-',
+          getPlatformDisplayName(row.platform || ''),
+          row.description || '-',
+          Number(row.debit || 0),
+          Number(row.credit || 0),
+          Number(row.netAmount || 0),
+          Number(row.platformFee || 0),
+          row.balance === null || row.balance === undefined ? '' : Number(row.balance || 0),
+        ]);
+      });
+      groupedDetailAoa.push([
+        '',
+        'SUBTOTAL',
+        '',
+        '',
+        `${rows.length} transaksi`,
+        subtotal.debit,
+        subtotal.credit,
+        subtotal.netAmount,
+        subtotal.platformFee,
+        '',
+      ]);
+    });
+    appendSheet('04 Detail Per Tanggal', groupedDetailAoa, [6, 22, 22, 18, 52, 18, 18, 18, 18, 18], ['F', 'G', 'H', 'I', 'J']);
+
+    // ── Sheet 5: Tren Harian ────────────────────────────────────────────────
     const trendAoa: any[][] = [
       ...addHeader('Tren Harian Penjualan'),
       ['Tanggal', 'Pendapatan', 'Total Unit', 'Produk Teratas'],
@@ -374,9 +430,9 @@ export default function FinancialSummaryPage() {
         (row.productList || []).slice(0, 5).map((product: any) => `${product.name} (${product.quantity})`).join(', '),
       ]),
     ];
-    appendSheet('04 Tren Harian', trendAoa, [16, 22, 12, 70], ['B']);
+    appendSheet('05 Tren Harian', trendAoa, [16, 22, 12, 70], ['B']);
 
-    // ── Sheet 5: Penjualan Mentah ───────────────────────────────────────────
+    // ── Sheet 6: Penjualan Mentah ───────────────────────────────────────────
     const salesAoa: any[][] = [
       ...addHeader('Data Penjualan Periode'),
       ['No', 'Tanggal', 'No Penjualan', 'Customer', 'No HP', 'Platform', 'Status', 'Total', 'Dibuat Oleh'],
@@ -392,7 +448,7 @@ export default function FinancialSummaryPage() {
         sale.creator?.fullName || '-',
       ]),
     ];
-    appendSheet('05 Data Penjualan', salesAoa, [6, 14, 24, 28, 18, 18, 16, 18, 24], ['H']);
+    appendSheet('06 Data Penjualan', salesAoa, [6, 14, 24, 28, 18, 18, 16, 18, 24], ['H']);
 
     XLSX.writeFile(wb, `Laporan_Keuangan_Lunarea_${fileSafePeriod}.xlsx`);
   };
