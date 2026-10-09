@@ -296,30 +296,53 @@ export default function FinancialSummaryPage() {
       XLSX.utils.book_append_sheet(wb, ws, name);
     };
 
+    // ── Sheet 0: Panduan baca ───────────────────────────────────────────────
+    const guideAoa: any[][] = [
+      ...addHeader('Panduan Membaca Laporan Keuangan', 'Gunakan sheet ini agar laporan mudah dipahami oleh admin dan tim operasional.'),
+      ['Istilah di Laporan', 'Arti Sederhana'],
+      ['Omset / Penjualan Baru', 'Total nilai penjualan yang dibuat pada periode yang dipilih.'],
+      ['Uang Masuk / Pelunasan', 'Dana yang sudah benar-benar masuk atau dicatat sebagai pelunasan.'],
+      ['Piutang', 'Uang penjualan yang belum masuk atau belum dilunasi.'],
+      ['Potongan Platform', 'Selisih/potongan dari marketplace, admin, atau biaya platform.'],
+      ['Pendapatan Lain', 'Uang masuk tambahan di luar penjualan utama.'],
+      ['Transaksi Batal', 'Transaksi yang tidak dihitung ke pendapatan karena dibatalkan.'],
+      [],
+      ['Urutan Sheet', 'Kegunaan'],
+      ['01 Ringkasan Mudah', 'Melihat kondisi keuangan secara cepat.'],
+      ['02 Per Platform', 'Melihat penjualan berdasarkan sumber/platform.'],
+      ['03 Semua Transaksi', 'Melihat semua transaksi keuangan dalam satu tabel.'],
+      ['04 Per Tanggal', 'Melihat transaksi harian dan subtotal per tanggal.'],
+      ['07 Piutang', 'Melihat daftar uang yang belum masuk.'],
+      ['08 Uang Masuk', 'Melihat daftar pelunasan/dana masuk.'],
+      ['09 Potongan Platform', 'Melihat rincian biaya/potongan platform.'],
+      ['12 Rekap Produk', 'Melihat produk dan unit yang terjual.'],
+    ];
+    appendSheet('00 Panduan Baca', guideAoa, [26, 78]);
+
     // ── Sheet 1: Ringkasan ──────────────────────────────────────────────────
     const summaryAoa: any[][] = [
-      ...addHeader('Ringkasan Keuangan Resmi', 'Laporan ini mengikuti filter periode aktif di sistem.'),
+      ...addHeader('Ringkasan Keuangan Mudah Dibaca', 'Laporan ini mengikuti periode yang dipilih di sistem.'),
       [],
-      ['RINGKASAN PIUTANG (AR LEDGER)', ''],
-      ['Saldo Awal Piutang', Number(summary.saldoAwalPiutang || 0)],
-      ['+ Penjualan Baru (Omset)', Number(summary.omsetKeseluruhan || 0)],
-      ['- Pelunasan Diterima (incl. historis)', Number(summary.totalPelunasanNet || 0)],
-      ['= Sisa Piutang Akhir', Number(summary.saldoAkhirAR || summary.sisaPiutangAkhir || 0)],
+      ['RINGKASAN UANG YANG BELUM MASUK', 'Nominal'],
+      ['Piutang Awal / Uang Belum Masuk dari Periode Sebelumnya', Number(summary.saldoAwalPiutang || 0)],
+      ['+ Penjualan Baru pada Periode Ini', Number(summary.omsetKeseluruhan || 0)],
+      ['- Uang Masuk / Pelunasan yang Sudah Diterima', Number(summary.totalPelunasanNet || 0)],
+      ['= Sisa Uang yang Belum Masuk', Number(summary.saldoAkhirAR || summary.sisaPiutangAkhir || 0)],
       [],
-      ['RINCIAN SETTLED', ''],
-      ['Pendapatan Kotor (Settled)', Number(summary.totalGrossSettled || 0)],
-      ['Beban Platform', Number(summary.totalSelisih || 0)],
-      ['Dana Bersih Diterima', Number(summary.danaBersih || 0)],
-      ['Piutang Baru (Belum Dilunasi)', Number(summary.piutang || 0)],
-      ['Jumlah Baris Transaksi', Number(summary.transactionCount || transactions.length || 0)],
+      ['RINGKASAN UANG MASUK', 'Nominal'],
+      ['Total Penjualan yang Sudah Lunas', Number(summary.totalGrossSettled || 0)],
+      ['Potongan Admin / Platform', Number(summary.totalSelisih || 0)],
+      ['Uang Bersih yang Diterima', Number(summary.danaBersih || 0)],
+      ['Penjualan Baru yang Belum Lunas', Number(summary.piutang || 0)],
+      ['Jumlah Data Transaksi', Number(summary.transactionCount || transactions.length || 0)],
     ];
 
-    appendSheet('01 Ringkasan', summaryAoa, [44, 24], ['B']);
+    appendSheet('01 Ringkasan Mudah', summaryAoa, [58, 24], ['B']);
 
     // ── Sheet 2: Per Platform ───────────────────────────────────────────────
     const platformAoa: any[][] = [
-      ...addHeader('Kontribusi Penjualan Per Platform'),
-      ['Platform', 'Jumlah Transaksi', 'Total Pendapatan (IDR)', 'Rata-rata / Transaksi', 'Kontribusi (%)'],
+      ...addHeader('Penjualan Berdasarkan Platform', 'Melihat dari mana penjualan paling banyak berasal.'),
+      ['Platform', 'Jumlah Transaksi', 'Total Penjualan', 'Rata-rata per Transaksi', 'Porsi dari Total'],
       ...platformStats.map((p) => [
         p.name,
         p.count,
@@ -335,19 +358,19 @@ export default function FinancialSummaryPage() {
 
     // ── Sheet 3: Detail Transaksi Keuangan ─────────────────────────────────
     const typeLabels: Record<string, string> = {
-      carry_forward: 'Saldo Awal',
-      sale_settled: 'Penjualan Settled',
+      carry_forward: 'Piutang Awal',
+      sale_settled: 'Penjualan Sudah Lunas',
       sale_pending: 'Penjualan Belum Lunas',
-      settlement: 'Pelunasan Net',
-      settlement_fee: 'Biaya Platform',
-      historical_settlement: 'Pelunasan Historis',
+      settlement: 'Uang Masuk',
+      settlement_fee: 'Potongan Platform',
+      historical_settlement: 'Uang Masuk Piutang Lama',
       other_income: 'Pendapatan Lain',
       cancelled: 'Dibatalkan',
     };
     const rowsByType = (types: string[]) => transactions.filter((row: any) => types.includes(String(row.type || '')));
     const transactionAoa: any[][] = [
-      ...addHeader('Detail Transaksi Keuangan'),
-      ['No', 'Tanggal', 'Tipe', 'No Invoice', 'Platform', 'Keterangan', 'Debit', 'Kredit', 'Dana Bersih', 'Biaya Platform', 'Saldo Piutang'],
+      ...addHeader('Semua Transaksi Keuangan', 'Daftar lengkap uang masuk, penjualan, piutang, dan potongan platform.'),
+      ['No', 'Tanggal', 'Jenis Transaksi', 'No Invoice', 'Platform', 'Keterangan', 'Penjualan / Piutang Bertambah', 'Uang Masuk / Piutang Berkurang', 'Uang Bersih', 'Potongan Platform', 'Sisa Piutang'],
       ...transactions.map((row: any, index: number) => [
         index + 1,
         row.date ? new Date(row.date).toLocaleDateString('id-ID') : '-',
@@ -362,7 +385,7 @@ export default function FinancialSummaryPage() {
         row.balance === null || row.balance === undefined ? '' : Number(row.balance || 0),
       ]),
     ];
-    appendSheet('03 Detail Transaksi', transactionAoa, [6, 14, 22, 22, 18, 48, 18, 18, 18, 18, 18], ['G', 'H', 'I', 'J', 'K']);
+    appendSheet('03 Semua Transaksi', transactionAoa, [6, 14, 24, 22, 18, 52, 24, 26, 18, 20, 18], ['G', 'H', 'I', 'J', 'K']);
 
     // ── Sheet 4: Detail transaksi dikelompokkan per tanggal ────────────────
     const groupedByDate = transactions.reduce((map: Record<string, any[]>, row: any) => {
@@ -372,7 +395,7 @@ export default function FinancialSummaryPage() {
       return map;
     }, {});
     const groupedDetailAoa: any[][] = [
-      ...addHeader('Detail Transaksi Keuangan Per Tanggal', 'Setiap tanggal memiliki subtotal agar mudah dicocokkan dengan catatan harian.'),
+      ...addHeader('Transaksi Keuangan Per Tanggal', 'Setiap tanggal memiliki subtotal agar mudah dicocokkan dengan catatan harian.'),
     ];
 
     Object.keys(groupedByDate).sort().forEach((dateKey) => {
@@ -390,7 +413,7 @@ export default function FinancialSummaryPage() {
 
       groupedDetailAoa.push([]);
       groupedDetailAoa.push([readableDate]);
-      groupedDetailAoa.push(['No', 'Tipe', 'No Invoice', 'Platform', 'Keterangan', 'Debit', 'Kredit', 'Dana Bersih', 'Biaya Platform', 'Saldo Piutang']);
+      groupedDetailAoa.push(['No', 'Jenis Transaksi', 'No Invoice', 'Platform', 'Keterangan', 'Penjualan / Piutang Bertambah', 'Uang Masuk / Piutang Berkurang', 'Uang Bersih', 'Potongan Platform', 'Sisa Piutang']);
       rows.forEach((row: any, index: number) => {
         groupedDetailAoa.push([
           index + 1,
@@ -407,7 +430,7 @@ export default function FinancialSummaryPage() {
       });
       groupedDetailAoa.push([
         '',
-        'SUBTOTAL',
+        'SUBTOTAL HARI INI',
         '',
         '',
         `${rows.length} transaksi`,
@@ -418,12 +441,12 @@ export default function FinancialSummaryPage() {
         '',
       ]);
     });
-    appendSheet('04 Detail Per Tanggal', groupedDetailAoa, [6, 22, 22, 18, 52, 18, 18, 18, 18, 18], ['F', 'G', 'H', 'I', 'J']);
+    appendSheet('04 Per Tanggal', groupedDetailAoa, [6, 24, 22, 18, 52, 24, 26, 18, 20, 18], ['F', 'G', 'H', 'I', 'J']);
 
     // ── Sheet 5: Tren Harian ────────────────────────────────────────────────
     const trendAoa: any[][] = [
-      ...addHeader('Tren Harian Penjualan'),
-      ['Tanggal', 'Pendapatan', 'Total Unit', 'Produk Teratas'],
+      ...addHeader('Tren Penjualan Harian', 'Melihat penjualan dan jumlah unit per hari.'),
+      ['Tanggal', 'Total Penjualan', 'Total Unit', 'Produk Teratas'],
       ...chartData.map((row: any) => [
         new Date(row.date).toLocaleDateString('id-ID'),
         Number(row.revenue || 0),
@@ -435,8 +458,8 @@ export default function FinancialSummaryPage() {
 
     // ── Sheet 6: Penjualan Mentah ───────────────────────────────────────────
     const salesAoa: any[][] = [
-      ...addHeader('Data Penjualan Periode'),
-      ['No', 'Tanggal', 'No Penjualan', 'Customer', 'No HP', 'Platform', 'Status', 'Total', 'Dibuat Oleh'],
+      ...addHeader('Data Penjualan Periode', 'Data penjualan mentah yang menjadi dasar laporan.'),
+      ['No', 'Tanggal', 'No Penjualan', 'Nama Pembeli', 'No HP', 'Platform', 'Status', 'Total Penjualan', 'Dibuat Oleh'],
       ...sales.map((sale: any, index: number) => [
         index + 1,
         sale.saleDate ? new Date(sale.saleDate).toLocaleDateString('id-ID') : '-',
@@ -454,8 +477,8 @@ export default function FinancialSummaryPage() {
     // ── Sheet 7: Piutang belum lunas ───────────────────────────────────────
     const receivableRows = rowsByType(['sale_pending', 'carry_forward']);
     const receivableAoa: any[][] = [
-      ...addHeader('Daftar Piutang Belum Lunas', 'Berisi saldo awal dan penjualan periode ini yang masih menjadi piutang.'),
-      ['No', 'Tanggal', 'No Invoice', 'Platform', 'Keterangan', 'Nilai Piutang', 'Saldo Setelah Transaksi'],
+      ...addHeader('Daftar Uang yang Belum Masuk', 'Berisi piutang awal dan penjualan periode ini yang belum lunas.'),
+      ['No', 'Tanggal', 'No Invoice', 'Platform', 'Keterangan', 'Uang yang Belum Masuk', 'Sisa Piutang Setelah Transaksi'],
       ...receivableRows.map((row: any, index: number) => [
         index + 1,
         row.date ? new Date(row.date).toLocaleDateString('id-ID') : '-',
@@ -468,13 +491,13 @@ export default function FinancialSummaryPage() {
       [],
       ['TOTAL', '', '', '', `${receivableRows.length} baris`, receivableRows.reduce((sum: number, row: any) => sum + Number(row.debit || 0), 0), ''],
     ];
-    appendSheet('07 Piutang', receivableAoa, [6, 14, 24, 18, 52, 20, 22], ['F', 'G']);
+    appendSheet('07 Piutang', receivableAoa, [6, 14, 24, 18, 56, 24, 26], ['F', 'G']);
 
     // ── Sheet 8: Pelunasan diterima ────────────────────────────────────────
     const settlementRows = rowsByType(['settlement', 'historical_settlement']);
     const settlementAoa: any[][] = [
-      ...addHeader('Daftar Pelunasan Diterima', 'Berisi dana bersih pelunasan periode ini termasuk pelunasan piutang historis.'),
-      ['No', 'Tanggal Cair', 'No Invoice', 'Tipe', 'Platform', 'Keterangan', 'Dana Bersih / Net', 'Biaya Platform Terkait'],
+      ...addHeader('Daftar Uang Masuk / Pelunasan', 'Berisi dana bersih yang sudah diterima atau dicatat lunas.'),
+      ['No', 'Tanggal Masuk', 'No Invoice', 'Jenis', 'Platform', 'Keterangan', 'Uang Bersih Diterima', 'Potongan Platform Terkait'],
       ...settlementRows.map((row: any, index: number) => [
         index + 1,
         row.date ? new Date(row.date).toLocaleDateString('id-ID') : '-',
@@ -488,13 +511,13 @@ export default function FinancialSummaryPage() {
       [],
       ['TOTAL', '', '', '', '', `${settlementRows.length} baris`, settlementRows.reduce((sum: number, row: any) => sum + Number(row.netAmount || row.credit || 0), 0), settlementRows.reduce((sum: number, row: any) => sum + Number(row.platformFee || 0), 0)],
     ];
-    appendSheet('08 Pelunasan', settlementAoa, [6, 14, 24, 22, 18, 52, 20, 20], ['G', 'H']);
+    appendSheet('08 Uang Masuk', settlementAoa, [6, 14, 24, 24, 18, 56, 22, 24], ['G', 'H']);
 
     // ── Sheet 9: Biaya platform / selisih ──────────────────────────────────
     const platformFeeRows = transactions.filter((row: any) => Number(row.platformFee || 0) > 0 || row.type === 'settlement_fee');
     const platformFeeAoa: any[][] = [
-      ...addHeader('Daftar Biaya Platform / Selisih', 'Berisi selisih gross dan dana bersih sebagai beban platform/marketplace.'),
-      ['No', 'Tanggal', 'No Invoice', 'Platform', 'Keterangan', 'Biaya Platform'],
+      ...addHeader('Daftar Potongan Admin / Platform', 'Berisi potongan marketplace, biaya admin, atau selisih dari penjualan ke uang bersih.'),
+      ['No', 'Tanggal', 'No Invoice', 'Platform', 'Keterangan', 'Nominal Potongan'],
       ...platformFeeRows.map((row: any, index: number) => [
         index + 1,
         row.date ? new Date(row.date).toLocaleDateString('id-ID') : '-',
@@ -506,12 +529,12 @@ export default function FinancialSummaryPage() {
       [],
       ['TOTAL', '', '', '', `${platformFeeRows.length} baris`, platformFeeRows.reduce((sum: number, row: any) => sum + Number(row.platformFee || row.credit || 0), 0)],
     ];
-    appendSheet('09 Biaya Platform', platformFeeAoa, [6, 14, 24, 18, 52, 20], ['F']);
+    appendSheet('09 Potongan Platform', platformFeeAoa, [6, 14, 24, 18, 58, 22], ['F']);
 
     // ── Sheet 10: Pendapatan lain ──────────────────────────────────────────
     const otherIncomeRows = rowsByType(['other_income']);
     const otherIncomeAoa: any[][] = [
-      ...addHeader('Pendapatan Lain Periode'),
+      ...addHeader('Pendapatan Lain Periode', 'Uang masuk tambahan di luar transaksi penjualan utama.'),
       ['No', 'Tanggal', 'Keterangan', 'Nominal'],
       ...otherIncomeRows.map((row: any, index: number) => [
         index + 1,
@@ -527,7 +550,7 @@ export default function FinancialSummaryPage() {
     // ── Sheet 11: Transaksi batal ──────────────────────────────────────────
     const cancelledRows = rowsByType(['cancelled']);
     const cancelledAoa: any[][] = [
-      ...addHeader('Transaksi Dibatalkan / Tidak Masuk Perhitungan'),
+      ...addHeader('Transaksi Dibatalkan / Tidak Masuk Perhitungan', 'Daftar transaksi yang hanya ditampilkan sebagai catatan dan tidak menambah pendapatan.'),
       ['No', 'Tanggal', 'No Invoice', 'Keterangan'],
       ...cancelledRows.map((row: any, index: number) => [
         index + 1,
@@ -557,8 +580,8 @@ export default function FinancialSummaryPage() {
       });
     const productRows = Array.from(productMap.values()).sort((a, b) => b.quantity - a.quantity);
     const productAoa: any[][] = [
-      ...addHeader('Rekap Produk / Unit Terjual'),
-      ['No', 'Produk', 'Total Unit', 'Jumlah Baris Transaksi', 'Estimasi Nilai'],
+      ...addHeader('Rekap Produk / Unit Terjual', 'Ringkasan produk yang muncul pada penjualan periode ini.'),
+      ['No', 'Produk', 'Total Unit Terjual', 'Jumlah Transaksi', 'Estimasi Nilai Penjualan'],
       ...productRows.map((row, index) => [
         index + 1,
         row.name,
