@@ -344,6 +344,7 @@ export default function FinancialSummaryPage() {
       other_income: 'Pendapatan Lain',
       cancelled: 'Dibatalkan',
     };
+    const rowsByType = (types: string[]) => transactions.filter((row: any) => types.includes(String(row.type || '')));
     const transactionAoa: any[][] = [
       ...addHeader('Detail Transaksi Keuangan'),
       ['No', 'Tanggal', 'Tipe', 'No Invoice', 'Platform', 'Keterangan', 'Debit', 'Kredit', 'Dana Bersih', 'Biaya Platform', 'Saldo Piutang'],
@@ -449,6 +450,126 @@ export default function FinancialSummaryPage() {
       ]),
     ];
     appendSheet('06 Data Penjualan', salesAoa, [6, 14, 24, 28, 18, 18, 16, 18, 24], ['H']);
+
+    // ── Sheet 7: Piutang belum lunas ───────────────────────────────────────
+    const receivableRows = rowsByType(['sale_pending', 'carry_forward']);
+    const receivableAoa: any[][] = [
+      ...addHeader('Daftar Piutang Belum Lunas', 'Berisi saldo awal dan penjualan periode ini yang masih menjadi piutang.'),
+      ['No', 'Tanggal', 'No Invoice', 'Platform', 'Keterangan', 'Nilai Piutang', 'Saldo Setelah Transaksi'],
+      ...receivableRows.map((row: any, index: number) => [
+        index + 1,
+        row.date ? new Date(row.date).toLocaleDateString('id-ID') : '-',
+        row.invoiceNumber || '-',
+        getPlatformDisplayName(row.platform || ''),
+        row.description || '-',
+        Number(row.debit || 0),
+        row.balance === null || row.balance === undefined ? '' : Number(row.balance || 0),
+      ]),
+      [],
+      ['TOTAL', '', '', '', `${receivableRows.length} baris`, receivableRows.reduce((sum: number, row: any) => sum + Number(row.debit || 0), 0), ''],
+    ];
+    appendSheet('07 Piutang', receivableAoa, [6, 14, 24, 18, 52, 20, 22], ['F', 'G']);
+
+    // ── Sheet 8: Pelunasan diterima ────────────────────────────────────────
+    const settlementRows = rowsByType(['settlement', 'historical_settlement']);
+    const settlementAoa: any[][] = [
+      ...addHeader('Daftar Pelunasan Diterima', 'Berisi dana bersih pelunasan periode ini termasuk pelunasan piutang historis.'),
+      ['No', 'Tanggal Cair', 'No Invoice', 'Tipe', 'Platform', 'Keterangan', 'Dana Bersih / Net', 'Biaya Platform Terkait'],
+      ...settlementRows.map((row: any, index: number) => [
+        index + 1,
+        row.date ? new Date(row.date).toLocaleDateString('id-ID') : '-',
+        row.invoiceNumber || '-',
+        typeLabels[row.type] || row.type || '-',
+        getPlatformDisplayName(row.platform || ''),
+        row.description || '-',
+        Number(row.netAmount || row.credit || 0),
+        Number(row.platformFee || 0),
+      ]),
+      [],
+      ['TOTAL', '', '', '', '', `${settlementRows.length} baris`, settlementRows.reduce((sum: number, row: any) => sum + Number(row.netAmount || row.credit || 0), 0), settlementRows.reduce((sum: number, row: any) => sum + Number(row.platformFee || 0), 0)],
+    ];
+    appendSheet('08 Pelunasan', settlementAoa, [6, 14, 24, 22, 18, 52, 20, 20], ['G', 'H']);
+
+    // ── Sheet 9: Biaya platform / selisih ──────────────────────────────────
+    const platformFeeRows = transactions.filter((row: any) => Number(row.platformFee || 0) > 0 || row.type === 'settlement_fee');
+    const platformFeeAoa: any[][] = [
+      ...addHeader('Daftar Biaya Platform / Selisih', 'Berisi selisih gross dan dana bersih sebagai beban platform/marketplace.'),
+      ['No', 'Tanggal', 'No Invoice', 'Platform', 'Keterangan', 'Biaya Platform'],
+      ...platformFeeRows.map((row: any, index: number) => [
+        index + 1,
+        row.date ? new Date(row.date).toLocaleDateString('id-ID') : '-',
+        row.invoiceNumber || '-',
+        getPlatformDisplayName(row.platform || ''),
+        row.description || '-',
+        Number(row.platformFee || row.credit || 0),
+      ]),
+      [],
+      ['TOTAL', '', '', '', `${platformFeeRows.length} baris`, platformFeeRows.reduce((sum: number, row: any) => sum + Number(row.platformFee || row.credit || 0), 0)],
+    ];
+    appendSheet('09 Biaya Platform', platformFeeAoa, [6, 14, 24, 18, 52, 20], ['F']);
+
+    // ── Sheet 10: Pendapatan lain ──────────────────────────────────────────
+    const otherIncomeRows = rowsByType(['other_income']);
+    const otherIncomeAoa: any[][] = [
+      ...addHeader('Pendapatan Lain Periode'),
+      ['No', 'Tanggal', 'Keterangan', 'Nominal'],
+      ...otherIncomeRows.map((row: any, index: number) => [
+        index + 1,
+        row.date ? new Date(row.date).toLocaleDateString('id-ID') : '-',
+        row.description || '-',
+        Number(row.debit || 0),
+      ]),
+      [],
+      ['TOTAL', '', `${otherIncomeRows.length} baris`, otherIncomeRows.reduce((sum: number, row: any) => sum + Number(row.debit || 0), 0)],
+    ];
+    appendSheet('10 Pendapatan Lain', otherIncomeAoa, [6, 14, 60, 20], ['D']);
+
+    // ── Sheet 11: Transaksi batal ──────────────────────────────────────────
+    const cancelledRows = rowsByType(['cancelled']);
+    const cancelledAoa: any[][] = [
+      ...addHeader('Transaksi Dibatalkan / Tidak Masuk Perhitungan'),
+      ['No', 'Tanggal', 'No Invoice', 'Keterangan'],
+      ...cancelledRows.map((row: any, index: number) => [
+        index + 1,
+        row.date ? new Date(row.date).toLocaleDateString('id-ID') : '-',
+        row.invoiceNumber || '-',
+        row.description || '-',
+      ]),
+    ];
+    appendSheet('11 Transaksi Batal', cancelledAoa, [6, 14, 24, 70]);
+
+    // ── Sheet 12: Rekap produk / unit ──────────────────────────────────────
+    const productMap = new Map<string, { name: string; quantity: number; total: number; transactions: number }>();
+    sales
+      .filter((sale: any) => !['CANCELLED', 'REJECTED'].includes(sale.status))
+      .forEach((sale: any) => {
+        (sale.items || []).forEach((item: any) => {
+          const productName = item.product?.name || item.productName || item.componentName || item.variantName || 'Produk tanpa nama';
+          const key = String(item.productId || item.componentName || productName);
+          const quantity = Number(item.quantity || 0);
+          const lineTotal = Number(item.totalPrice || item.subtotal || item.price || 0);
+          const current = productMap.get(key) || { name: productName, quantity: 0, total: 0, transactions: 0 };
+          current.quantity += quantity;
+          current.total += lineTotal;
+          current.transactions += 1;
+          productMap.set(key, current);
+        });
+      });
+    const productRows = Array.from(productMap.values()).sort((a, b) => b.quantity - a.quantity);
+    const productAoa: any[][] = [
+      ...addHeader('Rekap Produk / Unit Terjual'),
+      ['No', 'Produk', 'Total Unit', 'Jumlah Baris Transaksi', 'Estimasi Nilai'],
+      ...productRows.map((row, index) => [
+        index + 1,
+        row.name,
+        row.quantity,
+        row.transactions,
+        row.total,
+      ]),
+      [],
+      ['TOTAL', '', productRows.reduce((sum, row) => sum + row.quantity, 0), productRows.reduce((sum, row) => sum + row.transactions, 0), productRows.reduce((sum, row) => sum + row.total, 0)],
+    ];
+    appendSheet('12 Rekap Produk', productAoa, [6, 52, 14, 20, 20], ['E']);
 
     XLSX.writeFile(wb, `Laporan_Keuangan_Lunarea_${fileSafePeriod}.xlsx`);
   };
