@@ -21,6 +21,13 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   TrendingUp,
   TrendingDown,
   Wallet,
@@ -46,6 +53,8 @@ import {
 } from 'recharts';
 import * as XLSX from 'xlsx';
 
+type PeriodPreset = 'today' | 'this_week' | 'this_month' | 'last_month' | 'this_year' | 'custom';
+
 export default function FinancialSummaryPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -63,6 +72,7 @@ export default function FinancialSummaryPage() {
 
   const [startDate, setStartDate] = useState(firstDay);
   const [endDate, setEndDate] = useState(lastDay);
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('this_month');
 
   const { data, isLoading: summaryLoading, refetch } = useFinancialSummary(
     startDate && endDate ? { startDate, endDate } : undefined,
@@ -201,67 +211,194 @@ export default function FinancialSummaryPage() {
 
   const COLORS = ['oklch(0.6 0.12 260)', 'oklch(0.6 0.25 150)', 'oklch(0.7 0.15 80)', 'oklch(0.5 0.2 25)', 'oklch(0.6 0.15 300)', 'oklch(0.6 0.2 330)'];
 
+  const setDateRange = (preset: PeriodPreset) => {
+    setPeriodPreset(preset);
+    const now = new Date();
+    const day = now.getDay() || 7; // Monday-based week
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - day + 1);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+    const ranges: Record<Exclude<PeriodPreset, 'custom'>, [Date, Date]> = {
+      today: [now, now],
+      this_week: [startOfWeek, endOfWeek],
+      this_month: [new Date(now.getFullYear(), now.getMonth(), 1), new Date(now.getFullYear(), now.getMonth() + 1, 0)],
+      last_month: [new Date(now.getFullYear(), now.getMonth() - 1, 1), new Date(now.getFullYear(), now.getMonth(), 0)],
+      this_year: [new Date(now.getFullYear(), 0, 1), new Date(now.getFullYear(), 11, 31)],
+    };
+
+    if (preset === 'custom') return;
+    const [start, end] = ranges[preset];
+    setStartDate(formatDate(start));
+    setEndDate(formatDate(end));
+  };
+
+  const handleDateChange = (type: 'start' | 'end', value: string) => {
+    setPeriodPreset('custom');
+    if (type === 'start') setStartDate(value);
+    else setEndDate(value);
+  };
+
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
+    wb.Props = {
+      Title: `Laporan Keuangan Lunarea ${startDate} s/d ${endDate}`,
+      Subject: 'Ringkasan Keuangan',
+      Author: 'Lunarea Furniture',
+      Company: 'Lunarea Furniture',
+      CreatedDate: new Date(),
+    };
 
-    const formatIDR = (val: number) =>
-      new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val || 0);
-
-    const printed = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+    const transactions = (data as any)?.data?.transactions || [];
+    const printed = new Date().toLocaleString('id-ID', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const moneyFormat = '"Rp" #,##0;[Red]("Rp" #,##0);-';
+    const percentFormat = '0%';
+    const fileSafePeriod = `${startDate}_sd_${endDate}`.replace(/[^\d_a-z-]/gi, '_');
+    const addHeader = (title: string, subtitle?: string) => [
+      ['LUNAREA FURNITURE'],
+      [title],
+      [`Periode: ${startDate} s/d ${endDate}`],
+      [`Dicetak: ${printed}`],
+      ...(subtitle ? [[subtitle]] : []),
+      [],
+    ];
+    const setCurrencyFormat = (ws: XLSX.WorkSheet, cols: string[], fromRow = 1) => {
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+      for (let row = fromRow; row <= range.e.r + 1; row += 1) {
+        cols.forEach((col) => {
+          const cell = ws[`${col}${row}`];
+          if (cell && typeof cell.v === 'number') cell.z = moneyFormat;
+        });
+      }
+    };
+    const setPercentFormat = (ws: XLSX.WorkSheet, cols: string[], fromRow = 1) => {
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+      for (let row = fromRow; row <= range.e.r + 1; row += 1) {
+        cols.forEach((col) => {
+          const cell = ws[`${col}${row}`];
+          if (cell && typeof cell.v === 'number') cell.z = percentFormat;
+        });
+      }
+    };
+    const appendSheet = (name: string, aoa: any[][], widths: number[], currencyCols: string[] = [], percentCols: string[] = []) => {
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = widths.map((wch) => ({ wch }));
+      ws['!freeze'] = { xSplit: 0, ySplit: Math.min(aoa.findIndex((row) => row.includes('No')) + 1 || 1, 8) } as any;
+      if (currencyCols.length) setCurrencyFormat(ws, currencyCols);
+      if (percentCols.length) setPercentFormat(ws, percentCols);
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    };
 
     // ── Sheet 1: Ringkasan ──────────────────────────────────────────────────
     const summaryAoa: any[][] = [
-      ['LUNAREA FURNITURE'],
-      ['Ringkasan Keuangan'],
-      [`Periode: ${startDate} s/d ${endDate}`],
-      [`Dicetak: ${printed}`],
+      ...addHeader('Ringkasan Keuangan Resmi', 'Laporan ini mengikuti filter periode aktif di sistem.'),
       [],
       ['RINGKASAN PIUTANG (AR LEDGER)', ''],
-      ['Saldo Awal Piutang', formatIDR(summary.saldoAwalPiutang || 0)],
-      ['+ Penjualan Baru (Omset)', formatIDR(summary.omsetKeseluruhan || 0)],
-      ['- Pelunasan Diterima (incl. historis)', `(${formatIDR(summary.totalPelunasanNet || 0)})`],
-      ['= Sisa Piutang Akhir', formatIDR(summary.saldoAkhirAR || 0)],
+      ['Saldo Awal Piutang', Number(summary.saldoAwalPiutang || 0)],
+      ['+ Penjualan Baru (Omset)', Number(summary.omsetKeseluruhan || 0)],
+      ['- Pelunasan Diterima (incl. historis)', Number(summary.totalPelunasanNet || 0)],
+      ['= Sisa Piutang Akhir', Number(summary.saldoAkhirAR || summary.sisaPiutangAkhir || 0)],
       [],
       ['RINCIAN SETTLED', ''],
-      ['Pendapatan Kotor (Settled)', formatIDR(summary.totalGrossSettled || 0)],
-      ['Beban Platform', formatIDR(summary.totalSelisih || 0)],
-      ['Dana Bersih Diterima', formatIDR(summary.danaBersih || 0)],
-      ['Piutang Baru (Belum Dilunasi)', formatIDR(summary.piutang || 0)],
+      ['Pendapatan Kotor (Settled)', Number(summary.totalGrossSettled || 0)],
+      ['Beban Platform', Number(summary.totalSelisih || 0)],
+      ['Dana Bersih Diterima', Number(summary.danaBersih || 0)],
+      ['Piutang Baru (Belum Dilunasi)', Number(summary.piutang || 0)],
+      ['Jumlah Baris Transaksi', Number(summary.transactionCount || transactions.length || 0)],
     ];
 
-    const ws1 = XLSX.utils.aoa_to_sheet(summaryAoa);
-    ws1['!cols'] = [{ wch: 42 }, { wch: 24 }];
-    XLSX.utils.book_append_sheet(wb, ws1, 'Ringkasan');
+    appendSheet('01 Ringkasan', summaryAoa, [44, 24], ['B']);
 
     // ── Sheet 2: Per Platform ───────────────────────────────────────────────
     const platformAoa: any[][] = [
-      ['LUNAREA FURNITURE'],
-      ['Kontribusi Penjualan Per Platform'],
-      [`Periode: ${startDate} s/d ${endDate}`],
-      [`Dicetak: ${printed}`],
-      [],
+      ...addHeader('Kontribusi Penjualan Per Platform'),
       ['Platform', 'Jumlah Transaksi', 'Total Pendapatan (IDR)', 'Rata-rata / Transaksi', 'Kontribusi (%)'],
       ...platformStats.map((p) => [
         p.name,
         p.count,
-        formatIDR(p.value),
-        formatIDR(p.count > 0 ? Math.round(p.value / p.count) : 0),
-        totalRevenue > 0 ? `${Math.round((p.value / totalRevenue) * 100)}%` : '0%',
+        Number(p.value),
+        Number(p.count > 0 ? Math.round(p.value / p.count) : 0),
+        totalRevenue > 0 ? p.value / totalRevenue : 0,
       ]),
       [],
-      ['TOTAL', platformStats.reduce((s, p) => s + p.count, 0), formatIDR(totalRevenue), '', '100%'],
+      ['TOTAL', platformStats.reduce((s, p) => s + p.count, 0), Number(totalRevenue), '', totalRevenue > 0 ? 1 : 0],
     ];
 
-    const ws2 = XLSX.utils.aoa_to_sheet(platformAoa);
-    ws2['!cols'] = [{ wch: 22 }, { wch: 18 }, { wch: 24 }, { wch: 24 }, { wch: 14 }];
-    XLSX.utils.book_append_sheet(wb, ws2, 'Per Platform');
+    appendSheet('02 Per Platform', platformAoa, [24, 18, 24, 24, 14], ['C', 'D'], ['E']);
 
-    XLSX.writeFile(wb, `Ringkasan_Keuangan_${startDate}_${endDate}.xlsx`);
+    // ── Sheet 3: Detail Transaksi Keuangan ─────────────────────────────────
+    const typeLabels: Record<string, string> = {
+      carry_forward: 'Saldo Awal',
+      sale_settled: 'Penjualan Settled',
+      sale_pending: 'Penjualan Belum Lunas',
+      settlement: 'Pelunasan Net',
+      settlement_fee: 'Biaya Platform',
+      historical_settlement: 'Pelunasan Historis',
+      other_income: 'Pendapatan Lain',
+      cancelled: 'Dibatalkan',
+    };
+    const transactionAoa: any[][] = [
+      ...addHeader('Detail Transaksi Keuangan'),
+      ['No', 'Tanggal', 'Tipe', 'No Invoice', 'Platform', 'Keterangan', 'Debit', 'Kredit', 'Dana Bersih', 'Biaya Platform', 'Saldo Piutang'],
+      ...transactions.map((row: any, index: number) => [
+        index + 1,
+        row.date ? new Date(row.date).toLocaleDateString('id-ID') : '-',
+        typeLabels[row.type] || row.type || '-',
+        row.invoiceNumber || '-',
+        getPlatformDisplayName(row.platform || ''),
+        row.description || '-',
+        Number(row.debit || 0),
+        Number(row.credit || 0),
+        Number(row.netAmount || 0),
+        Number(row.platformFee || 0),
+        row.balance === null || row.balance === undefined ? '' : Number(row.balance || 0),
+      ]),
+    ];
+    appendSheet('03 Detail Transaksi', transactionAoa, [6, 14, 22, 22, 18, 48, 18, 18, 18, 18, 18], ['G', 'H', 'I', 'J', 'K']);
+
+    // ── Sheet 4: Tren Harian ────────────────────────────────────────────────
+    const trendAoa: any[][] = [
+      ...addHeader('Tren Harian Penjualan'),
+      ['Tanggal', 'Pendapatan', 'Total Unit', 'Produk Teratas'],
+      ...chartData.map((row: any) => [
+        new Date(row.date).toLocaleDateString('id-ID'),
+        Number(row.revenue || 0),
+        Number(row.totalUnits || 0),
+        (row.productList || []).slice(0, 5).map((product: any) => `${product.name} (${product.quantity})`).join(', '),
+      ]),
+    ];
+    appendSheet('04 Tren Harian', trendAoa, [16, 22, 12, 70], ['B']);
+
+    // ── Sheet 5: Penjualan Mentah ───────────────────────────────────────────
+    const salesAoa: any[][] = [
+      ...addHeader('Data Penjualan Periode'),
+      ['No', 'Tanggal', 'No Penjualan', 'Customer', 'No HP', 'Platform', 'Status', 'Total', 'Dibuat Oleh'],
+      ...sales.map((sale: any, index: number) => [
+        index + 1,
+        sale.saleDate ? new Date(sale.saleDate).toLocaleDateString('id-ID') : '-',
+        sale.saleNumber || '-',
+        sale.customerName || '-',
+        sale.customerPhone || '-',
+        getPlatformDisplayName(sale.platform),
+        sale.status || '-',
+        Number(sale.totalAmount || 0),
+        sale.creator?.fullName || '-',
+      ]),
+    ];
+    appendSheet('05 Data Penjualan', salesAoa, [6, 14, 24, 28, 18, 18, 16, 18, 24], ['H']);
+
+    XLSX.writeFile(wb, `Laporan_Keuangan_Lunarea_${fileSafePeriod}.xlsx`);
   };
 
   const handleReset = () => {
-    setStartDate(firstDay);
-    setEndDate(lastDay);
+    setDateRange('this_month');
   };
 
   return (
@@ -278,22 +415,35 @@ export default function FinancialSummaryPage() {
           <h1 className="text-3xl font-bold tracking-tight text-gradient">Ringkasan Keuangan</h1>
           <p className="text-muted-foreground mt-1">Ringkasan saldo, tren, dan kontribusi per platform</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 bg-card p-3 rounded-xl border border-border/50 shadow-sm">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col xl:flex-row gap-3 bg-card p-3 rounded-xl border border-border/50 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
+            <Select value={periodPreset} onValueChange={(value) => setDateRange(value as PeriodPreset)}>
+              <SelectTrigger className="h-9 w-full sm:w-44 text-sm">
+                <SelectValue placeholder="Pilih periode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Hari Ini</SelectItem>
+                <SelectItem value="this_week">Minggu Ini</SelectItem>
+                <SelectItem value="this_month">Bulan Ini</SelectItem>
+                <SelectItem value="last_month">Bulan Lalu</SelectItem>
+                <SelectItem value="this_year">Tahun Ini</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="flex items-center gap-2">
               <Input
                 type="date"
                 className="w-36 h-9 text-sm"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => handleDateChange('start', e.target.value)}
               />
               <span className="text-muted-foreground">-</span>
               <Input
                 type="date"
                 className="w-36 h-9 text-sm"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => handleDateChange('end', e.target.value)}
               />
             </div>
           </div>
