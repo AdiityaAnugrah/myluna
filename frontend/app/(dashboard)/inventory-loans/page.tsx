@@ -542,7 +542,7 @@ export default function InventoryLoansPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex h-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="mb-1 text-sm font-bold text-slate-900">Retur Pinjaman</div>
+                <div className="mb-1 text-sm font-bold text-slate-900">Barang dipinjam</div>
                 <p className="text-sm text-muted-foreground">Dipakai saat barang pinjaman dikembalikan lagi ke Pusat/TCP. Sistem akan menampilkan data yang masih dipinjam untuk ditandai kembali.</p>
               </div>
               <Button
@@ -557,7 +557,7 @@ export default function InventoryLoansPage() {
                 }}
               >
                 <RotateCcw className="mr-2 h-4 w-4" />
-                Retur Pinjaman
+                Barang dipinjam
               </Button>
             </div>
           </div>
