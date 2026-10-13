@@ -25,7 +25,6 @@ import {
   ShieldCheck,
   ShoppingCart,
   Store,
-  Ticket,
   WalletCards,
 } from 'lucide-react';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -371,7 +370,7 @@ export default function AnalyticsPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Analisa & Operasional</h1>
         <p className="mt-1 text-muted-foreground">
-          Pantau performa penjualan, komplain, retur, tiket bantuan, dan pinjaman barang dalam satu periode.
+          Pantau performa penjualan, komplain, retur, stok, pelunasan, dan pinjaman barang dalam satu periode.
         </p>
       </div>
 
@@ -478,20 +477,6 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="flex items-start justify-between gap-4 p-5">
-            <div>
-              <p className="text-sm text-muted-foreground">Tiket Bantuan Aktif</p>
-              <p className="mt-1 text-2xl font-bold tabular-nums">
-                {operationsQuery.isLoading ? '...' : (operations?.tickets.active || 0)}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Diskusi: {operations?.tickets.inDiscussion || 0} • Tunggu PUSAT: {operations?.tickets.waitingTcpExecution || 0} • Dieksekusi: {operations?.tickets.tcpExecuting || 0}
-              </p>
-            </div>
-            <Ticket className="h-6 w-6 shrink-0 text-primary" />
-          </CardContent>
-        </Card>
 
         <Card>
           <CardContent className="flex items-start justify-between gap-4 p-5">
@@ -642,7 +627,7 @@ export default function AnalyticsPage() {
 
             <OperationalBreakdownCard
               title="Retur Penjualan"
-              description="Retur penjualan utama, bukan retur pinjaman barang."
+              description="Retur penjualan dari proses order pelanggan."
               icon={ClipboardList}
               rows={[
                 { label: 'Total retur', value: formatNumber(operations.returns.total) },
@@ -658,23 +643,6 @@ export default function AnalyticsPage() {
               ]}
             />
 
-            <OperationalBreakdownCard
-              title="Tiket Bantuan"
-              description="Tiket lanjutan dari retur/komplain yang perlu eksekusi PUSAT."
-              icon={Ticket}
-              rows={[
-                { label: 'Total tiket', value: formatNumber(operations.tickets.total) },
-                { label: 'Aktif', value: formatNumber(operations.tickets.active) },
-                { label: 'Open', value: formatNumber(operations.tickets.open) },
-                { label: 'Diskusi', value: formatNumber(operations.tickets.inDiscussion) },
-                { label: 'Keputusan final', value: formatNumber(operations.tickets.decisionFinalized) },
-                { label: 'Menunggu eksekusi PUSAT', value: formatNumber(operations.tickets.waitingTcpExecution) },
-                { label: 'PUSAT proses', value: formatNumber(operations.tickets.tcpExecuting) },
-                { label: 'Overdue', value: formatNumber(operations.tickets.overdue) },
-                { label: 'Selesai', value: formatNumber(operations.tickets.completed) },
-                { label: 'Ditolak', value: formatNumber(operations.tickets.rejected) },
-              ]}
-            />
 
             <OperationalBreakdownCard
               title="Pinjaman Barang"
@@ -811,7 +779,7 @@ export default function AnalyticsPage() {
               <EmptyState
                 icon={BarChart3}
                 title="Ringkasan operasional sudah ditampilkan"
-                description="Analisa penjualan detail hanya ditampilkan untuk role admin, super admin, dan dev. Role operasional tetap bisa melihat komplain, retur, tiket bantuan, dan pinjaman barang aktif."
+                description="Analisa penjualan detail hanya ditampilkan untuk role admin, super admin, dan dev. Role operasional tetap bisa melihat komplain, retur, stok, pelunasan, dan pinjaman barang aktif."
               />
             </CardContent>
           </Card>
