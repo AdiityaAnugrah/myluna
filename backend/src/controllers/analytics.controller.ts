@@ -85,12 +85,22 @@ function buildCreatedAtFilter(startDate?: string, endDate?: string) {
   return filter;
 }
 
+function buildDateOnlyFilter(startDate?: string, endDate?: string) {
+  if (!startDate && !endDate) return undefined;
+
+  return {
+    ...(startDate ? { [Op.gte]: startDate } : {}),
+    ...(endDate ? { [Op.lte]: endDate } : {}),
+  };
+}
+
 export const analyticsController = {
   async getOperationalSummary(req: Request, res: Response, next: NextFunction) {
     try {
       const startDate = typeof req.query.startDate === 'string' ? req.query.startDate : undefined;
       const endDate = typeof req.query.endDate === 'string' ? req.query.endDate : undefined;
       const createdAt = buildCreatedAtFilter(startDate, endDate);
+      const dateOnly = buildDateOnlyFilter(startDate, endDate);
       const roleName = req.user?.roleName || '';
       const isUserRole = isUserLikeRole(roleName);
 
@@ -108,8 +118,8 @@ export const analyticsController = {
       const stockMovementWhere: any = {};
 
       if (createdAt) {
-        complaintWhere.createdAt = createdAt;
-        returnWhere.createdAt = createdAt;
+        complaintWhere.complaintDate = dateOnly;
+        returnWhere.requestDate = dateOnly;
         ticketWhere.createdAt = createdAt;
         approvalWhere.createdAt = createdAt;
         stockMovementWhere.createdAt = createdAt;

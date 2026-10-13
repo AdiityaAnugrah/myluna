@@ -52,7 +52,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
           { path: '/users', roles: ['SUPER_ADMIN', 'DEV'] },
           { path: '/platforms', roles: ['SUPER_ADMIN', 'DEV'] },
           { path: '/finance', roles: ['SUPER_ADMIN', 'ADMIN', 'DEV'] },
-          { path: '/analytics', roles: ['SUPER_ADMIN', 'ADMIN', 'DEV'] },
+          { path: '/analytics', roles: ['SUPER_ADMIN', 'ADMIN', 'ADMIN_ORDER', 'TCP', 'USER', 'DEV'] },
           { path: '/display', roles: ['SUPER_ADMIN', 'ADMIN', 'USER', 'ADMIN_ORDER', 'TCP', 'DEV'] },
           // { path: '/products', roles: ['SUPER_ADMIN', 'ADMIN', 'USER'] }, // Temporarily disable product restriction for debugging
         ];
