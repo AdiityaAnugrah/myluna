@@ -165,6 +165,7 @@ export const analyticsController = {
         purchaseRows,
         purchaseCount,
         purchaseAmount,
+        purchaseUnitRows,
         settlementRequestRows,
         settlementCount,
         settlementNetAmount,
@@ -229,6 +230,24 @@ export const analyticsController = {
         }),
         Purchase.count({ where: purchaseWhere }),
         Purchase.sum('totalAmount', { where: purchaseWhere }),
+        sequelize.query(
+          `
+            SELECT
+              COALESCE(SUM(pi.quantity), 0) AS totalUnits,
+              COUNT(pi.id) AS itemLines,
+              COUNT(DISTINCT pi.productId) AS productCount
+            FROM purchase_items pi
+            INNER JOIN purchases p ON p.id = pi.purchaseId
+            WHERE 1 = 1
+              ${startDate ? 'AND DATE(p.purchaseDate) >= :startDate' : ''}
+              ${endDate ? 'AND DATE(p.purchaseDate) <= :endDate' : ''}
+              ${isUserRole && req.user?.id ? 'AND p.createdBy = :userId' : ''}
+          `,
+          {
+            type: QueryTypes.SELECT,
+            replacements: { startDate, endDate, userId: req.user?.id },
+          }
+        ),
         SettlementRequest.findAll({
           attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
           where: settlementRequestWhere,
@@ -485,10 +504,18 @@ export const analyticsController = {
       const purchases = {
         total: Number(purchaseCount || 0),
         amount: Number(purchaseAmount || 0),
+        totalUnits: 0,
+        itemLines: 0,
+        productCount: 0,
         pending: 0,
         completed: 0,
         cancelled: 0,
       };
+
+      const purchaseUnits = (purchaseUnitRows as any[])[0] || {};
+      purchases.totalUnits = Number(purchaseUnits.totalUnits || 0);
+      purchases.itemLines = Number(purchaseUnits.itemLines || 0);
+      purchases.productCount = Number(purchaseUnits.productCount || 0);
 
       for (const row of purchaseRows as any[]) {
         const count = Number(row.count || 0);

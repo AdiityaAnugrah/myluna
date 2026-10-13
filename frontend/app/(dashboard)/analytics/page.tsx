@@ -515,10 +515,10 @@ export default function AnalyticsPage() {
             <div>
               <p className="text-sm text-muted-foreground">Pembelian</p>
               <p className="mt-1 text-2xl font-bold tabular-nums">
-                {operationsQuery.isLoading ? '...' : formatCurrency(operations?.purchases?.amount || 0)}
+                {operationsQuery.isLoading ? '...' : formatNumber(operations?.purchases?.total || 0)}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Pending: {operations?.purchases?.pending || 0} • Selesai: {operations?.purchases?.completed || 0} • Batal: {operations?.purchases?.cancelled || 0}
+                Unit masuk: {operations?.purchases?.totalUnits || 0} • Produk: {operations?.purchases?.productCount || 0} • Selesai: {operations?.purchases?.completed || 0}
               </p>
             </div>
             <ShoppingCart className="h-6 w-6 shrink-0 text-emerald-600" />
@@ -689,14 +689,17 @@ export default function AnalyticsPage() {
 
             <OperationalBreakdownCard
               title="Pembelian"
-              description="Pembelian barang ke supplier pada periode terpilih."
+              description="Pengajuan stok / pembelian barang yang menambah stok pada periode terpilih."
               icon={ShoppingCart}
               rows={[
-                { label: 'Total pembelian', value: formatNumber(operations.purchases.total) },
-                { label: 'Nilai pembelian', value: formatCurrency(operations.purchases.amount) },
+                { label: 'Total form pembelian', value: formatNumber(operations.purchases.total) },
+                { label: 'Total unit masuk', value: formatNumber(operations.purchases.totalUnits) },
+                { label: 'Produk berbeda', value: formatNumber(operations.purchases.productCount) },
+                { label: 'Baris item', value: formatNumber(operations.purchases.itemLines) },
                 { label: 'Pending', value: formatNumber(operations.purchases.pending) },
                 { label: 'Selesai', value: formatNumber(operations.purchases.completed) },
                 { label: 'Batal', value: formatNumber(operations.purchases.cancelled) },
+                { label: 'Nilai tercatat', value: formatCurrency(operations.purchases.amount), helper: 'Terisi jika harga pembelian diinput.' },
               ]}
             />
 

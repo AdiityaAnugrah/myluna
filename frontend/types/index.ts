@@ -511,6 +511,9 @@ export interface OperationalAnalytics {
   purchases: {
     total: number;
     amount: number;
+    totalUnits: number;
+    itemLines: number;
+    productCount: number;
     pending: number;
     completed: number;
     cancelled: number;
