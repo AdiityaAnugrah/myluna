@@ -21,6 +21,7 @@ import { AppError } from '../utils/errors';
 import { socketService } from '../services/socket.service';
 import { auditService } from '../services/audit.service';
 import { parseBoolean, postJsonToLunareaWebsite } from '../services/lunareaWebsiteHttp.service';
+import { websiteShippingNotes } from '../utils/websiteShipping';
 
 function cleanText(value: unknown) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -363,6 +364,24 @@ export const webOrderIntegrationController = {
 
       if (!orderId || !orderId.toUpperCase().startsWith('L')) {
         throw new AppError('Order Lunarea tidak valid', 400);
+      }
+      if (body.event_type === 'shipping_update') {
+        const existing = await Sale.findOne({ where: { saleNumber: orderId, platform: 'WEBSITE' }, transaction, lock: transaction.LOCK.UPDATE });
+        if (!existing) throw new AppError('Order website belum terdaftar di MyLuna. Sinkronkan order pembayaran terlebih dahulu.', 404);
+        if (['CANCELLED', 'REJECTED'].includes(existing.status)) throw new AppError('Penjualan sudah dibatalkan atau ditolak', 409);
+        const notes = websiteShippingNotes(body, existing.notes);
+        const dryShipping = String(req.headers['x-luna-dry-run'] || body.dry_run || '').toLowerCase() === 'true';
+        if (dryShipping) {
+          await transaction.rollback();
+          return successResponse(res, { dryRun: true, shipping_updated: false, saleNumber: orderId }, 'Validasi pengiriman berhasil; data tidak disimpan');
+        }
+        // This branch never creates a Sale/StockMovement or changes sale totals/workflow.
+        if (notes !== existing.notes) {
+          await existing.update({ notes }, { transaction });
+        }
+        await transaction.commit();
+        socketService.broadcastDataRefresh('sales');
+        return successResponse(res, { shipping_updated: true, saleNumber: orderId }, 'Pengiriman website diperbarui');
       }
       if (isGuestOrder || (!customerId && !customerEmail)) {
         throw new AppError('Order website wajib berasal dari akun customer', 400);
