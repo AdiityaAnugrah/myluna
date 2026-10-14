@@ -1,4 +1,4 @@
-import { websiteShippingNotes } from '../src/utils/websiteShipping';
+import { websiteShippingNotes, websiteShippingPricingNotes } from '../src/utils/websiteShipping';
 
 const shipment = { status: 'Dikirim', shipping_status: 'Dalam Pengiriman', courier: 'JNE', tracking_number: 'TEST12345', shipping_cost: 25000 };
 
@@ -29,5 +29,14 @@ describe('website shipping updates', () => {
     expect(updated).toContain('TEST67890');
     expect(updated).not.toContain('TEST12345');
     expect(updated).toContain('Catatan admin');
+  });
+  test('subsidy breakdown is recorded independently and remains immutable', () => {
+    const pricing = { currency: 'IDR', original_cost: 100000, subsidy_amount: 10000, payable_cost: 90000 };
+    const notes = websiteShippingPricingNotes(pricing, 'Catatan admin');
+    expect(notes).toContain('Subsidi ditanggung toko: Rp 10.000');
+    expect(websiteShippingPricingNotes(pricing, notes)).toBe(notes);
+    expect(() => websiteShippingPricingNotes({ ...pricing, subsidy_amount: 20000, payable_cost: 80000 }, notes)).toThrow();
+    expect(() => websiteShippingPricingNotes({ ...pricing, subsidy_amount: -1 }, null)).toThrow();
+    expect(() => websiteShippingNotes({ ...shipment, shipping_cost: 90000, shipping_pricing: { ...pricing, payable_cost: 123 } }, null)).toThrow();
   });
 });

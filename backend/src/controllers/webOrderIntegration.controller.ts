@@ -21,7 +21,7 @@ import { AppError } from '../utils/errors';
 import { socketService } from '../services/socket.service';
 import { auditService } from '../services/audit.service';
 import { parseBoolean, postJsonToLunareaWebsite } from '../services/lunareaWebsiteHttp.service';
-import { websiteShippingNotes } from '../utils/websiteShipping';
+import { websiteShippingNotes, websiteShippingPricingNotes } from '../utils/websiteShipping';
 
 function cleanText(value: unknown) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -381,7 +381,7 @@ export const webOrderIntegrationController = {
         }
         await transaction.commit();
         socketService.broadcastDataRefresh('sales');
-        return successResponse(res, { shipping_updated: true, saleNumber: orderId }, 'Pengiriman website diperbarui');
+        return successResponse(res, { shipping_updated: true, saleNumber: orderId, shipping_pricing_recorded: !!body.shipping_pricing }, 'Pengiriman website diperbarui');
       }
       if (isGuestOrder || (!customerId && !customerEmail)) {
         throw new AppError('Order website wajib berasal dari akun customer', 400);
@@ -415,10 +415,12 @@ export const webOrderIntegrationController = {
         );
       }
 
-      const existingSale = await Sale.findOne({ where: { saleNumber: orderId }, transaction });
+      const existingSale = await Sale.findOne({ where: { saleNumber: orderId }, transaction, lock: transaction.LOCK.UPDATE });
       if (existingSale) {
+        const notes = websiteShippingPricingNotes(body.shipping_pricing, existingSale.notes);
+        if (notes !== existingSale.notes) await existingSale.update({ notes }, { transaction });
         await transaction.commit();
-        return successResponse(res, existingSale, 'Order website sudah pernah masuk sistem', 200);
+        return successResponse(res, { ...existingSale.toJSON(), shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website sudah pernah masuk sistem', 200);
       }
 
       const createdBy = await resolveCreatedBy();
@@ -515,7 +517,7 @@ export const webOrderIntegrationController = {
           platform: 'WEBSITE' as any,
           saleType: 'PRODUCT' as any,
           status: 'WAITING_APPROVAL' as any,
-          notes: `Order otomatis dari lunareafurniture.com | Akun website: ${customerEmail || customerId || '-'} | Login: ${customerAuthProvider || 'email'}${body.note ? ` | Catatan: ${cleanText(body.note)}` : ''}`,
+          notes: websiteShippingPricingNotes(body.shipping_pricing, `Order otomatis dari lunareafurniture.com | Akun website: ${customerEmail || customerId || '-'} | Login: ${customerAuthProvider || 'email'}${body.note ? ` | Catatan: ${cleanText(body.note)}` : ''}`),
           shippingService,
           shippingAddress,
           shippingAddressDetail: shippingAddress || null,
@@ -571,7 +573,7 @@ export const webOrderIntegrationController = {
       });
       socketService.broadcastDataRefresh('sales');
 
-      return successResponse(res, sale, 'Order website Lunarea berhasil masuk sistem', 201);
+      return successResponse(res, { ...sale.toJSON(), shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website Lunarea berhasil masuk sistem', 201);
     } catch (error) {
       await transaction.rollback();
       return next(error);

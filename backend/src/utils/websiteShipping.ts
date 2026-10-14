@@ -4,6 +4,25 @@ const START = '[Pengiriman Website]';
 const END = '[/Pengiriman Website]';
 const blockPattern = /\[Pengiriman Website\][\s\S]*?\[\/Pengiriman Website\]/g;
 
+export function websiteShippingPricingNotes(raw: unknown, oldNotes: string | null): string {
+  if (raw === null || raw === undefined) return oldNotes || '';
+  if (typeof raw !== 'object' || Array.isArray(raw)) throw new AppError('Rincian ongkir tidak valid', 400);
+  const p = raw as Record<string, unknown>;
+  const amounts = [p.original_cost, p.subsidy_amount, p.payable_cost];
+  if (p.currency !== 'IDR' || amounts.some(v => typeof v !== 'number' || !Number.isSafeInteger(v) || v < 0 || v > 2000000000)
+      || Number(p.subsidy_amount) + Number(p.payable_cost) !== p.original_cost) {
+    throw new AppError('Tarif asli, subsidi, dan ongkir pembeli tidak sesuai', 400);
+  }
+  const block = ['[Rincian Ongkir Website]',
+    `Tarif ekspedisi asli: Rp ${Number(p.original_cost).toLocaleString('id-ID')}`,
+    `Subsidi ditanggung toko: Rp ${Number(p.subsidy_amount).toLocaleString('id-ID')}`,
+    `Ongkir dibayar pembeli: Rp ${Number(p.payable_cost).toLocaleString('id-ID')}`,
+    '[/Rincian Ongkir Website]'].join('\n');
+  const previous = (oldNotes || '').match(/\[Rincian Ongkir Website\][\s\S]*?\[\/Rincian Ongkir Website\]/)?.[0];
+  if (previous && previous !== block) throw new AppError('Rincian ongkir pesanan sudah tercatat dan tidak boleh berubah lewat sinkronisasi', 409);
+  return previous ? oldNotes || '' : [oldNotes?.trim(), block].filter(Boolean).join('\n\n');
+}
+
 export function websiteShippingNotes(body: Record<string, unknown>, oldNotes: string | null): string {
   const status = String(body.status || '');
   const shippingStatus = String(body.shipping_status || '');
@@ -38,5 +57,8 @@ export function websiteShippingNotes(body: Record<string, unknown>, oldNotes: st
   if (typeof cost === 'number') lines.push(`Ongkir: Rp ${cost.toLocaleString('id-ID')}`);
   lines.push(END);
   const original = (oldNotes || '').replace(blockPattern, '').trim();
-  return [original, lines.join('\n')].filter(Boolean).join('\n\n');
+  if (body.shipping_pricing && Number((body.shipping_pricing as Record<string, unknown>).payable_cost) !== cost) {
+    throw new AppError('Ongkir pengiriman berbeda dengan rincian pesanan', 400);
+  }
+  return websiteShippingPricingNotes(body.shipping_pricing, [original, lines.join('\n')].filter(Boolean).join('\n\n'));
 }

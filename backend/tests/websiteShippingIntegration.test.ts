@@ -50,7 +50,7 @@ describe('shipping-only webhook isolation', () => {
     expect(SaleItem.create).not.toHaveBeenCalled();
     expect(Product.findByPk).not.toHaveBeenCalled();
     expect(StockMovement.create).not.toHaveBeenCalled();
-    expect(response.json).toHaveBeenCalledWith(expect.objectContaining({ success: true, data: { shipping_updated: true, saleNumber: 'LTEST' } }));
+    expect(response.json).toHaveBeenCalledWith(expect.objectContaining({ success: true, data: expect.objectContaining({ shipping_updated: true, saleNumber: 'LTEST' }) }));
     expect(sale.status).toBe('PROCESSED');
   });
 
@@ -75,5 +75,20 @@ describe('shipping-only webhook isolation', () => {
     await webOrderIntegrationController.importLunareaOrder(req as any, response, next);
     expect(response.status).toHaveBeenCalledWith(401);
     expect(sequelize.transaction).not.toHaveBeenCalled();
+  });
+
+  test('paid-order replay adds pricing audit without repeating sale or stock', async () => {
+    sale.toJSON = () => ({ saleNumber: 'LTEST', notes: sale.notes });
+    const req = { headers: { 'x-luna-webhook-token': 'unit-test-token' }, body: {
+      order_id: 'LTEST', status: 'Proses', customer_email: 'buyer@test.invalid',
+      shipping_pricing: { currency: 'IDR', original_cost: 100000, subsidy_amount: 10000, payable_cost: 90000 },
+    } };
+    await webOrderIntegrationController.importLunareaOrder(req as any, response, next);
+    await webOrderIntegrationController.importLunareaOrder(req as any, response, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(sale.update).toHaveBeenCalledTimes(1);
+    expect(sale.notes).toContain('Subsidi ditanggung toko: Rp 10.000');
+    expect(Sale.create).not.toHaveBeenCalled();
+    expect(StockMovement.create).not.toHaveBeenCalled();
   });
 });
