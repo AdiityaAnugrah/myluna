@@ -131,7 +131,7 @@ export function useProcessSale() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => salesApi.process(id),
+    mutationFn: (input: string | { id: string; printConfirmed: boolean; expectedWebsiteShipping?: string }) => typeof input === 'string' ? salesApi.process(input) : salesApi.process(input.id, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       // toast.success('Penjualan diproses'); // Toast handled in component for better UX with print

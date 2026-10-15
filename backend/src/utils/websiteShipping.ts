@@ -32,13 +32,13 @@ export function websiteShippingNotes(body: Record<string, unknown>, oldNotes: st
     Dikirim: ['Dalam Pengiriman', 'Gagal Kirim'],
     Selesai: ['Terkirim'],
   };
-  if (!allowed[status]?.includes(shippingStatus) || (!internal && shippingStatus === 'Disiapkan')) {
+  if (!allowed[status]?.includes(shippingStatus)) {
     throw new AppError('Status pengiriman website tidak valid', 400);
   }
   const courier = String(body.courier || '').trim();
   const awb = String(body.tracking_number || '').trim();
-  if (!courier || courier.length > 255 || awb.length > 120 || /[\x00-\x1F\x7F]/.test(courier + awb)
-    || (internal && awb !== '') || (!internal && (!awb || /^(kosong|menunggu)/i.test(awb)))) {
+  if (!courier || courier.length > 255 || awb.length > 120 || /[<>\[\]\x00-\x1F\x7F]/.test(courier + awb)
+    || !awb || /menunggu|^(kosong|none|null|n\/a|-)$/i.test(awb)) {
     throw new AppError('Kurir atau nomor resi tidak valid', 400);
   }
   const previous = (oldNotes || '').match(blockPattern)?.[0] || '';
@@ -53,7 +53,13 @@ export function websiteShippingNotes(body: Record<string, unknown>, oldNotes: st
   }
   const clean = (text: string) => text.replace(/[\[\]]/g, ' ');
   const lines = [START, `Status: ${shippingStatus}`, `Kurir: ${internal ? 'Jasa Kirim Toko' : clean(courier)}`,
-    `Resi: ${internal ? 'Tanpa resi eksternal' : clean(awb)}`];
+    `${internal ? 'Resi internal toko' : 'Resi'}: ${clean(awb)}`];
+  if (body.shipping_revision !== null && body.shipping_revision !== undefined && body.shipping_revision !== '') {
+    const revision = String(body.shipping_revision);
+    if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(revision)) throw new AppError('Revisi pengiriman tidak valid', 400);
+    lines.push(`Revisi website: ${revision}`);
+  }
+  if (body.service_name) lines.push(`Layanan: ${clean(String(body.service_name))}`);
   if (typeof cost === 'number') lines.push(`Ongkir: Rp ${cost.toLocaleString('id-ID')}`);
   lines.push(END);
   const original = (oldNotes || '').replace(blockPattern, '').trim();
@@ -61,4 +67,51 @@ export function websiteShippingNotes(body: Record<string, unknown>, oldNotes: st
     throw new AppError('Ongkir pengiriman berbeda dengan rincian pesanan', 400);
   }
   return websiteShippingPricingNotes(body.shipping_pricing, [original, lines.join('\n')].filter(Boolean).join('\n\n'));
+}
+
+
+export function websiteShippingReference(notes: string | null) {
+  const block = (notes || '').match(blockPattern)?.[0] || '';
+  const field = (name: string) => block.match(new RegExp('(?:^|\\n)' + name + ':[ \\t]*([^\\n]+)'))?.[1]?.trim() || '';
+  return { awb: field('Resi(?: internal toko)?'), courier: field('Kurir'), service: field('Layanan'), revision: field('Revisi website') };
+}
+
+/** Lock the Sale before calling. A stale resend must never silently overwrite a newer AWB. */
+export function assertWebsiteShippingReferenceChange(body: Record<string, unknown>, saleStatus: string, oldNotes: string | null): boolean {
+  const previous = websiteShippingReference(oldNotes);
+  const awb = String(body.tracking_number || '').trim();
+  const courier = body.shipping_method_code === 'internal_delivery' ? 'Jasa Kirim Toko' : String(body.courier || '').trim();
+  const serviceChanged = body.service_name !== undefined && String(body.service_name || '').trim() !== previous.service;
+  const changed = !previous.awb || previous.awb !== awb || previous.courier !== courier || serviceChanged;
+  const incomingRevision = String(body.shipping_revision || '');
+  if (previous.revision && incomingRevision && incomingRevision < previous.revision) throw new AppError('Revisi pengiriman lama ditolak.', 409);
+  if (!changed) return false;
+  if (!['WAITING_APPROVAL', 'APPROVED'].includes(saleStatus)) throw new AppError('Resi/ekspedisi pesanan yang sudah diproses TCP tidak boleh diganti melalui sinkron ulang.', 409);
+  if (previous.awb) {
+    const revision = String(body.shipping_revision || '');
+    if (!previous.revision || !revision || revision <= previous.revision) throw new AppError('Revisi pengiriman lama atau tidak tersedia. Simpan ulang resi terbaru sebelum sinkron.', 409);
+  }
+  return true;
+}
+
+export function websitePreparedResyncNotes(body: Record<string, unknown>, saleStatus: string, oldNotes: string | null): string {
+  if (!assertWebsiteShippingReferenceChange(body, saleStatus, oldNotes)) {
+    const previous = websiteShippingReference(oldNotes);
+    const incomingRevision = String(body.shipping_revision || '');
+    const prepared = (oldNotes || '').match(blockPattern)?.[0]?.includes('Status: Disiapkan');
+    if (['WAITING_APPROVAL', 'APPROVED'].includes(saleStatus) && prepared && incomingRevision > previous.revision) {
+      return websiteShippingNotes({ ...body, status: 'Proses', shipping_status: 'Disiapkan' }, oldNotes);
+    }
+    return websiteShippingPricingNotes(body.shipping_pricing, oldNotes);
+  }
+  return websiteShippingNotes({ ...body, status: 'Proses', shipping_status: 'Disiapkan' }, oldNotes);
+}
+
+
+export function assertWebsitePrintConfirmation(platform: string, notes: string | null, input: Record<string, unknown>) {
+  if (platform !== 'WEBSITE') return;
+  const block = (notes || '').match(blockPattern)?.[0] || '';
+  if (!websiteShippingReference(notes).awb) throw new AppError('Resi website belum tersedia; sinkronkan sebelum memproses.', 409);
+  if (input.printConfirmed !== true) throw new AppError('Konfirmasi hasil cetak diperlukan sebelum memproses pesanan website.', 422);
+  if (!block || input.expectedWebsiteShipping !== block) throw new AppError('Resi atau rincian pengiriman berubah sejak cetak dibuka. Muat ulang dan cetak ulang sebelum konfirmasi.', 409);
 }

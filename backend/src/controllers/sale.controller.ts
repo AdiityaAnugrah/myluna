@@ -8,6 +8,7 @@ import { sequelize } from '../config/database';
 import { Op } from 'sequelize';
 import { assertUserDateIsToday } from '../utils/dateGuard';
 import { formatRegionLabel } from '../utils/regionLabel';
+import { assertWebsitePrintConfirmation } from '../utils/websiteShipping';
 import { isUserLikeRole } from '../utils/roles';
 
 const COMPONENT_SALE_TYPE = 'COMPONENT';
@@ -963,9 +964,10 @@ export const saleController = {
     const transaction = await sequelize.transaction();
     try {
       const { id } = req.params;
-      const sale = await Sale.findByPk(id, { transaction });
+      const sale = await Sale.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
 
       if (!sale) throw new AppError('Sale not found', 404);
+      assertWebsitePrintConfirmation(String(sale.platform), sale.notes, req.body || {});
       
       // Allow processing from both WAITING_APPROVAL (auto-approve for TCP) and APPROVED status
       if (!['WAITING_APPROVAL', 'APPROVED'].includes(sale.status as string)) {

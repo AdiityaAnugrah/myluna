@@ -59,8 +59,8 @@ export const salesApi = {
     return response.data;
   },
 
-  process: async (id: string) => {
-    const response = await apiClient.post<ApiResponse<Sale>>(`/sales/${id}/process`);
+  process: async (id: string, confirmation?: { printConfirmed: boolean; expectedWebsiteShipping?: string }) => {
+    const response = await apiClient.post<ApiResponse<Sale>>(`/sales/${id}/process`, confirmation);
     return response.data;
   },
 

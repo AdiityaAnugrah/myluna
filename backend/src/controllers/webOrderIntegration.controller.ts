@@ -22,7 +22,7 @@ import { AppError } from '../utils/errors';
 import { socketService } from '../services/socket.service';
 import { auditService } from '../services/audit.service';
 import { parseBoolean, postJsonToLunareaWebsite } from '../services/lunareaWebsiteHttp.service';
-import { websiteShippingNotes, websiteShippingPricingNotes } from '../utils/websiteShipping';
+import { websiteShippingNotes, websitePreparedResyncNotes, websiteShippingReference, assertWebsiteShippingReferenceChange } from '../utils/websiteShipping';
 
 function cleanText(value: unknown) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -376,6 +376,7 @@ export const webOrderIntegrationController = {
         const existing = await Sale.findOne({ where: { saleNumber: orderId, platform: 'WEBSITE' }, transaction, lock: transaction.LOCK.UPDATE });
         if (!existing) throw new AppError('Order website belum terdaftar di MyLuna. Sinkronkan order pembayaran terlebih dahulu.', 404);
         if (['CANCELLED', 'REJECTED'].includes(existing.status)) throw new AppError('Penjualan sudah dibatalkan atau ditolak', 409);
+        assertWebsiteShippingReferenceChange(body, String(existing.status), existing.notes);
         const notes = websiteShippingNotes(body, existing.notes);
         const dryShipping = String(req.headers['x-luna-dry-run'] || body.dry_run || '').toLowerCase() === 'true';
         if (dryShipping) {
@@ -399,6 +400,9 @@ export const webOrderIntegrationController = {
         return successResponse(res, { skipped: true, reason: 'Status belum dibayar' }, 'Order belum masuk proses', 200);
       }
 
+      // Require a real admin-saved AWB, including internal store delivery, before any new Sale.
+      const preparedShipping = { ...body, status: 'Proses', shipping_status: 'Disiapkan', courier: body.courier || body.kurir };
+      websiteShippingNotes(preparedShipping, null);
       const dryRun = String(req.headers['x-luna-dry-run'] || body.dry_run || '').toLowerCase() === 'true';
       if (dryRun) {
         await transaction.rollback();
@@ -424,10 +428,27 @@ export const webOrderIntegrationController = {
 
       const existingSale = await Sale.findOne({ where: { saleNumber: orderId }, transaction, lock: transaction.LOCK.UPDATE });
       if (existingSale) {
-        const notes = websiteShippingPricingNotes(body.shipping_pricing, existingSale.notes);
-        if (notes !== existingSale.notes) await existingSale.update({ notes }, { transaction });
+        if (['CANCELLED', 'REJECTED'].includes(existingSale.status) || (existingSale.platform && String(existingSale.platform) !== 'WEBSITE')) {
+          throw new AppError('Order sudah dibatalkan/ditolak atau nomor pesanan dipakai transaksi lain. Perlu rekonsiliasi operator.', 409);
+        }
+        const notes = websitePreparedResyncNotes(preparedShipping, String(existingSale.status), existingSale.notes);
+        if (notes !== existingSale.notes) await existingSale.update({ notes, shippingService: cleanText(preparedShipping.courier) }, { transaction });
         await transaction.commit();
-        return successResponse(res, { ...existingSale.toJSON(), shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website sudah pernah masuk sistem', 200);
+        return successResponse(res, { ...existingSale.toJSON(), tracking_number: websiteShippingReference(notes).awb, shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website sudah pernah masuk sistem', 200);
+      }
+
+      // Sale hooks rename cancelled/rejected numbers. Never silently import those orders again.
+      const archivedSale = await Sale.findOne({
+        where: {
+          platform: 'WEBSITE', status: { [Op.in]: ['CANCELLED', 'REJECTED'] },
+          [Op.or]: [
+            { saleNumber: { [Op.startsWith]: `${orderId}-CANCELLED-` } },
+            { saleNumber: { [Op.startsWith]: `${orderId}-REJECTED-` } },
+          ],
+        }, transaction, lock: transaction.LOCK.UPDATE,
+      });
+      if (archivedSale && (archivedSale.saleNumber.startsWith(`${orderId}-CANCELLED-`) || archivedSale.saleNumber.startsWith(`${orderId}-REJECTED-`))) {
+        throw new AppError('Order pernah dibatalkan/ditolak di MyLuna. Sinkron ulang memerlukan rekonsiliasi operator.', 409);
       }
 
       const createdBy = await resolveCreatedBy();
@@ -438,7 +459,7 @@ export const webOrderIntegrationController = {
 
       const saleDate = body.transaction_time ? new Date(String(body.transaction_time)) : new Date();
       const shippingAddress = cleanText(normalizeAddress(body.alamat_pen));
-      const shippingService = cleanText(body.kurir) || 'Website Lunarea';
+      const shippingService = cleanText(body.courier || body.kurir);
       const dataMid = body.data_mid || {};
       const grossAmount = Number(dataMid.gross_amount || body.total || 0);
 
@@ -524,7 +545,7 @@ export const webOrderIntegrationController = {
           platform: 'WEBSITE' as any,
           saleType: 'PRODUCT' as any,
           status: 'WAITING_APPROVAL' as any,
-          notes: websiteShippingPricingNotes(body.shipping_pricing, `Order otomatis dari lunareafurniture.com | Akun website: ${customerEmail || customerId || '-'} | Login: ${customerAuthProvider || 'email'}${body.note ? ` | Catatan: ${cleanText(body.note)}` : ''}`),
+          notes: websiteShippingNotes(preparedShipping, `Order otomatis dari lunareafurniture.com | Akun website: ${customerEmail || customerId || '-'} | Login: ${customerAuthProvider || 'email'}${body.note ? ` | Catatan: ${cleanText(body.note)}` : ''}`),
           shippingService,
           shippingAddress,
           shippingAddressDetail: shippingAddress || null,
@@ -580,7 +601,7 @@ export const webOrderIntegrationController = {
       });
       socketService.broadcastDataRefresh('sales');
 
-      return successResponse(res, { ...sale.toJSON(), shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website Lunarea berhasil masuk sistem', 201);
+      return successResponse(res, { ...sale.toJSON(), tracking_number: websiteShippingReference(sale.notes).awb, shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website Lunarea berhasil masuk sistem', 201);
     } catch (error) {
       await transaction.rollback();
       return next(error);

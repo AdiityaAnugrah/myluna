@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils';
 import { useSales, useProcessSale } from '@/lib/hooks/useSales';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
+import { websiteAwb, receiptTransactionDate, canPrintAwbBarcode, needsProcessingConfirmation, websiteShippingBlock } from '@/lib/utils/orderReceipt';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import {
   Table,
@@ -144,7 +146,7 @@ const MobileSalesCard = ({ sale, userRole, onPrint, getStatusBadge, copiedInvoic
                 )}
                 <div className="flex justify-between text-[11px]">
                     <span className="text-muted-foreground">Ekspedisi:</span>
-                    <ShippingServiceBadge service={sale.shippingService} compact alignRight />
+                    <div className="text-right"><ShippingServiceBadge service={sale.shippingService} compact alignRight />{websiteAwb(sale) && <p className="mt-1 text-xs font-medium break-all">Resi website: {websiteAwb(sale)}</p>}</div>
                 </div>
                  {sale.shippingDocument && (
                     <div className="flex justify-end mt-0.5">
@@ -380,7 +382,7 @@ const SalesTable = ({
                   </TableCell>
 
                   <TableCell>
-                    <ShippingServiceBadge service={sale.shippingService} />
+                    <><ShippingServiceBadge service={sale.shippingService} />{websiteAwb(sale) && <p className="mt-1 text-xs font-medium break-all">Resi website: {websiteAwb(sale)}</p>}</>
                     {sale.shippingDocument && (
                          <div className="mt-1">
                             <a
@@ -489,30 +491,35 @@ export default function SalesProcessPage() {
   const printRef = useRef(null);
   const isPrintingRef = useRef(false);
 
+  const [printConfirmation, setPrintConfirmation] = useState<Sale | null>(null);
+  const printCycleFinishedRef = useRef(false);
+  const confirmingPrintRef = useRef(false);
+
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     onAfterPrint: () => {
-        if (printSale) {
-            // Only process if it needs processing (WAITING_APPROVAL or APPROVED)
-            if (['WAITING_APPROVAL', 'APPROVED'].includes(printSale.status)) {
-              processMutation.mutate(printSale.id, {
-                  onSuccess: () => {
-                      toast.success('Penjualan berhasil diproses');
-                      setPrintSale(null);
-                  },
-                  onError: (error: any) => {
-                      const message = error.response?.data?.message || 'Gagal memproses penjualan';
-                      toast.error(message);
-                      setPrintSale(null);
-                  }
-              });
-            } else {
-              // Just clear printSale if already processed
-              setPrintSale(null);
-            }
-        }
+      // The browser cannot prove physical printing. Closing/cancelling only opens a question.
+      if (printCycleFinishedRef.current) return;
+      printCycleFinishedRef.current = true;
+      if (printSale && needsProcessingConfirmation(printSale)) setPrintConfirmation(printSale);
+      setPrintSale(null);
+    },
+    onPrintError: () => {
+      printCycleFinishedRef.current = true;
+      setPrintSale(null);
+      toast.error('Dialog cetak belum berhasil dibuka. Status pesanan tidak diubah.');
     },
   });
+
+  const confirmPrinted = () => {
+    if (!printConfirmation || !needsProcessingConfirmation(printConfirmation) || confirmingPrintRef.current) return;
+    confirmingPrintRef.current = true;
+    processMutation.mutate({ id: printConfirmation.id, printConfirmed: true, expectedWebsiteShipping: websiteShippingBlock(printConfirmation) }, {
+      onSuccess: () => { toast.success('Cetak dikonfirmasi; pesanan ditandai diproses.'); setPrintConfirmation(null); },
+      onError: (error: any) => { toast.error(error.response?.data?.message || 'Konfirmasi proses belum berhasil. Periksa status lalu coba lagi.'); },
+      onSettled: () => { confirmingPrintRef.current = false; },
+    });
+  };
 
   // Trigger print when printSale is set - guarded with ref to prevent double trigger
   useEffect(() => {
@@ -591,27 +598,20 @@ export default function SalesProcessPage() {
   }, [startDate, endDate, paymentMethod, statusFilter, searchQuery, data]);
 
   const handlePrintClick = useCallback((sale: Sale) => {
-    if (sale.shippingDocument) {
-        // Open PDF in a reusable tab to prevent clutter
-        window.open(getPdfUrl(sale.shippingDocument), 'LunaPDFViewer');
-
-        // Only process if it needs processing (WAITING_APPROVAL or APPROVED)
-        if (['WAITING_APPROVAL', 'APPROVED'].includes(sale.status)) {
-          processMutation.mutate(sale.id, {
-              onSuccess: () => {
-                  toast.success('Penjualan berhasil diproses');
-              },
-              onError: (error: any) => {
-                  const message = error.response?.data?.message || 'Gagal memproses penjualan';
-                  toast.error(message);
-              }
-          });
-        }
-    } else {
-        // Set sale for printing - useEffect will handle the print and auto-process
-        setPrintSale(sale);
+    if (isPrintingRef.current || printConfirmation || processMutation.isPending) return;
+    if (sale.isCancelPending) { toast.error('Pesanan sedang menunggu keputusan pembatalan.'); return; }
+    if (String(sale.platform) === 'WEBSITE' && !websiteAwb(sale)) {
+      toast.error('Resi website belum tersedia. Sinkronkan resi sebelum mencetak.'); return;
     }
-  }, [processMutation]);
+    printCycleFinishedRef.current = false;
+    if (sale.shippingDocument) {
+      const viewer = window.open(getPdfUrl(sale.shippingDocument), 'LunaPDFViewer');
+      if (!viewer) { toast.error('Izinkan popup dokumen untuk mencetak. Status tidak diubah.'); return; }
+      if (needsProcessingConfirmation(sale)) setPrintConfirmation(sale);
+    } else {
+      setPrintSale(sale);
+    }
+  }, [printConfirmation, processMutation.isPending]);
 
   const getStatusBadge = useCallback((status: SaleStatus, isCancelPending?: boolean) => {
     if (isCancelPending) {
@@ -835,11 +835,31 @@ export default function SalesProcessPage() {
         </TabsContent>
       </Tabs>
 
+        <AlertDialog open={!!printConfirmation} onOpenChange={(open) => { if (!open && !confirmingPrintRef.current) setPrintConfirmation(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Hasil cetak sudah benar?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Pastikan dokumen pesanan {printConfirmation?.saleNumber} sudah tercetak atau tersimpan dengan benar.
+                Jika cetak dibatalkan atau gagal, pilih Belum. Membuka dokumen saja tidak mengubah status pesanan.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={processMutation.isPending}>Belum / Batal</AlertDialogCancel>
+              <AlertDialogAction disabled={processMutation.isPending} onClick={(event) => { event.preventDefault(); confirmPrinted(); }}>
+                {processMutation.isPending ? 'Menyimpan...' : 'Sudah benar, proses pesanan'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* ===== AREA CETAK (TERSEMBUNYI DI LAYAR, MUNCUL SAAT PRINT) ===== */}
         <div className="absolute top-0 left-0 w-0 h-0 overflow-hidden opacity-0 pointer-events-none">
             <div ref={printRef} style={{ fontFamily: '"Arial", sans-serif', color: '#111', background: '#fff', padding: '0' }}>
                 {printSale && (() => {
                     const isIndahCargoPrint = isIndahCargoService(printSale.shippingService);
+                    const awb = websiteAwb(printSale);
+                    const transactionDate = receiptTransactionDate(printSale);
                     // Receipt content
                     const renderReceipt = () => (
                     <div style={{ padding: '20px 25px', border: '2px solid #000', pageBreakInside: 'avoid', background: '#fff' }}>
@@ -894,13 +914,21 @@ export default function SalesProcessPage() {
                             </div>
                         </div>
 
+                        {awb && (
+                          <div style={{ border: '2px solid #111', padding: '10px 12px', marginBottom: '16px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '10px', fontWeight: '800' }}>NOMOR RESI PENGIRIMAN</div>
+                            <div style={{ fontSize: '19px', fontWeight: '900', fontFamily: 'monospace', overflowWrap: 'anywhere' }}>{awb}</div>
+                            {canPrintAwbBarcode(awb) && <div style={{ marginTop: '6px' }}><Barcode value={awb} format="CODE128" width={1} height={36} fontSize={11} margin={0} /></div>}
+                          </div>
+                        )}
                         {/* ── BARCODE & TANGGAL ── */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '0 10px' }}>
                              <div style={{ textAlign: 'left' }}>
-                                <div style={{ fontSize: '9px', color: '#555', fontWeight: '800', textTransform: 'uppercase', marginBottom: '2px' }}>TANGGAL TRANSAKSI</div>
-                                <div style={{ fontSize: '12px', fontWeight: '700' }}>{format(new Date(printSale.createdAt || new Date()), "dd MMMM yyyy, HH:mm 'WIB'")}</div>
+                                <div style={{ fontSize: '9px', color: '#555', fontWeight: '800', textTransform: 'uppercase', marginBottom: '2px' }}>{transactionDate.label.toUpperCase()}</div>
+                                <div style={{ fontSize: '12px', fontWeight: '700' }}>{transactionDate.value}</div>
                              </div>
                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <span style={{ fontSize: '9px', fontWeight: '700' }}>BARCODE NOMOR PESANAN</span>
                                 <Barcode value={printSale.saleNumber} format="CODE128" width={2} height={40} fontSize={12} font="monospace" margin={0} />
                              </div>
                         </div>
@@ -992,7 +1020,7 @@ export default function SalesProcessPage() {
                                 {printSale.notes && (
                                     <div style={{ border: '1.5px dashed #000', padding: '10px', marginBottom: '10px' }}>
                                         <div style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', marginBottom: '3px' }}>CATATAN PESANAN:</div>
-                                        <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>{printSale.notes}</div>
+                                        <div style={{ fontSize: '11px', fontWeight: '700', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{printSale.notes}</div>
                                     </div>
                                 )}
                                 <div style={{ border: '2px solid #000', padding: '10px', textAlign: 'center', background: '#ffff00' }}>
