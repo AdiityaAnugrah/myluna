@@ -1,3 +1,4 @@
+import { websitePaymentEnvironment } from '../utils/websitePaymentEnvironment';
 import { Request, Response, NextFunction } from 'express';
 import { Op } from 'sequelize';
 import {
@@ -349,6 +350,12 @@ export const webOrderIntegrationController = {
       return res.status(401).json({ success: false, message: 'Invalid webhook token' });
     }
 
+    const paymentLane = websitePaymentEnvironment(req.body || {});
+    if (paymentLane === 'invalid') return res.status(400).json({ success: false, message: 'Invalid payment environment' });
+    if (paymentLane === 'sandbox') {
+      return successResponse(res, { skipped: true, reason: 'sandbox_order' }, 'Order uji tidak masuk operasional produksi');
+    }
+
     const transaction = await sequelize.transaction();
 
     try {
@@ -586,6 +593,12 @@ export const webOrderIntegrationController = {
 
     if (!expectedToken || token !== expectedToken) {
       return res.status(401).json({ success: false, message: 'Invalid webhook token' });
+    }
+
+    const paymentLane = websitePaymentEnvironment(req.body || {});
+    if (paymentLane === 'invalid') return res.status(400).json({ success: false, message: 'Invalid payment environment' });
+    if (paymentLane === 'sandbox') {
+      return successResponse(res, { skipped: true, reason: 'sandbox_order' }, 'Order uji tidak masuk operasional produksi');
     }
 
     const transaction = await sequelize.transaction();

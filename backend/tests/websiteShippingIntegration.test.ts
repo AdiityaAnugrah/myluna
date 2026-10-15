@@ -91,4 +91,26 @@ describe('shipping-only webhook isolation', () => {
     expect(Sale.create).not.toHaveBeenCalled();
     expect(StockMovement.create).not.toHaveBeenCalled();
   });
+  test.each([
+    { payment_environment: 'sandbox' },
+    { is_test: true },
+    { is_test: 'true' },
+    { data_mid: { _app_payment_environment: 'sandbox' } },
+    { customer_email: ' LUNAREAFURNITURE@gmail.com ' },
+  ])('sandbox lane cannot reach production stock: %j', async lane => {
+    const req = request(); Object.assign(req.body, lane);
+    await webOrderIntegrationController.importLunareaOrder(req as any, response, next);
+    expect(response.json).toHaveBeenCalledWith(expect.objectContaining({ success: true, data: expect.objectContaining({ skipped: true, reason: 'sandbox_order' }) }));
+    expect(sequelize.transaction).not.toHaveBeenCalled();
+    expect(Sale.create).not.toHaveBeenCalled();
+    expect(StockMovement.create).not.toHaveBeenCalled();
+  });
+
+  test('unknown environment fails before opening transaction', async () => {
+    const req = request(); Object.assign(req.body, { payment_environment: 'unknown' });
+    await webOrderIntegrationController.importLunareaOrder(req as any, response, next);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(sequelize.transaction).not.toHaveBeenCalled();
+  });
+
 });
