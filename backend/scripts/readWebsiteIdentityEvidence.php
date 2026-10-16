@@ -41,7 +41,7 @@ try {
     $data = [
         'context' => $select($db, "SELECT DATABASE() AS database_name, VERSION() AS server_version, DATE_FORMAT(UTC_TIMESTAMP(6), '%Y-%m-%dT%H:%i:%s.%fZ') AS observed_at, @@session.time_zone AS session_time_zone, @@system_time_zone AS server_system_time_zone"),
         'schema' => $select($db, 'SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND ((TABLE_NAME = ? AND COLUMN_NAME = ?) OR (TABLE_NAME = ? AND COLUMN_NAME = ?)) ORDER BY TABLE_NAME, COLUMN_NAME', 'ssss', ['konstanta', 'value', 'stok', 'nama']),
-        'products' => $select($db, 'SELECT id, nama, active, varian FROM barang ORDER BY id'),
+        'products' => $select($db, 'SELECT id, nama, active, varian, shopee, tokped, tiktok FROM barang ORDER BY id'),
         'identities' => $select($db, 'SELECT label, value FROM konstanta WHERE LEFT(label, ?) = ? ORDER BY id', 'is', [strlen($prefix), $prefix]),
         'orders' => $select($db, 'SELECT id_midtrans, status, items, data_mid FROM pemesanan WHERE id_midtrans = ? ORDER BY id', 's', ['L00000227']),
     ];

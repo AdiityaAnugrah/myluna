@@ -1,4 +1,6 @@
 import { buildWebsiteProductPayload } from '../services/websiteProductSync.service';
+import { resolveWebsiteOrder } from '../services/websiteOrderResolver.service';
+import { appendWebsiteOrderReference, websiteInternalSaleNumber } from '../utils/websiteOrderReference';
 import { resolveWebsiteProduct, resolveWebsiteVariant, appendWebsiteIdentities, readWebsiteIdentities, WebsiteItemIdentity } from '../services/websiteProductIdentity.service';
 import { websitePaymentEnvironment } from '../utils/websitePaymentEnvironment';
 import { websiteFulfillment } from '../services/websiteFulfillment.service';
@@ -265,6 +267,7 @@ export const webOrderIntegrationController = {
       transaction = await sequelize.transaction();
       const body = req.body || {};
       const orderId = cleanText(body.order_id);
+      const internalSaleNumber = websiteInternalSaleNumber(orderId);
       const status = cleanText(body.status);
       const customerId = cleanText(body.customer_id);
       const customerEmail = cleanText(body.customer_email || body.email_cus);
@@ -277,7 +280,7 @@ export const webOrderIntegrationController = {
         throw new AppError('Order Lunarea tidak valid', 400);
       }
       if (body.event_type === 'shipping_update') {
-        const existing = await Sale.findOne({ where: { saleNumber: orderId, platform: 'WEBSITE' }, transaction, lock: transaction.LOCK.UPDATE });
+        const existing = await resolveWebsiteOrder(orderId, transaction);
         if (!existing) throw new AppError('Order website belum terdaftar di MyLuna. Sinkronkan order pembayaran terlebih dahulu.', 404);
         if (['CANCELLED', 'REJECTED'].includes(existing.status)) throw new AppError('Penjualan sudah dibatalkan atau ditolak', 409);
         assertWebsiteShippingReferenceChange(body, String(existing.status), existing.notes);
@@ -308,7 +311,7 @@ export const webOrderIntegrationController = {
       const preparedShipping = { ...body, status: 'Proses', shipping_status: 'Disiapkan', courier: body.courier || body.kurir };
       websiteShippingNotes(preparedShipping, null);
       const dryRun = String(req.headers['x-luna-dry-run'] || body.dry_run || '').toLowerCase() === 'true';
-      const existingSale = await Sale.findOne({ where: { saleNumber: orderId }, transaction, lock: transaction.LOCK.UPDATE });
+      const existingSale = await resolveWebsiteOrder(orderId, transaction);
       if (existingSale) {
         if (['CANCELLED', 'REJECTED'].includes(existingSale.status) || (existingSale.platform && String(existingSale.platform) !== 'WEBSITE')) {
           throw new AppError('Order sudah dibatalkan/ditolak atau nomor pesanan dipakai transaksi lain. Perlu rekonsiliasi operator.', 409);
@@ -332,7 +335,7 @@ export const webOrderIntegrationController = {
         const notes = websitePreparedResyncNotes(preparedShipping, String(existingSale.status), existingSale.notes);
         if (!dryRun && notes !== existingSale.notes) await existingSale.update({ notes, shippingService: cleanText(preparedShipping.courier) }, { transaction });
         if (dryRun) await transaction.rollback(); else await transaction.commit();
-        return successResponse(res, { ...existingSale.toJSON(), dryRun, fulfillment: websiteFulfillment(existingSale), tracking_number: websiteShippingReference(notes).awb, shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website sudah pernah masuk sistem', 200);
+        return successResponse(res, { ...existingSale.toJSON(), website_order_id: orderId, dryRun, fulfillment: websiteFulfillment(existingSale), tracking_number: websiteShippingReference(notes).awb, shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website sudah pernah masuk sistem', 200);
       }
 
       // Sale hooks rename cancelled/rejected numbers. Never silently import those orders again.
@@ -342,10 +345,12 @@ export const webOrderIntegrationController = {
           [Op.or]: [
             { saleNumber: { [Op.startsWith]: `${orderId}-CANCELLED-` } },
             { saleNumber: { [Op.startsWith]: `${orderId}-REJECTED-` } },
+            { saleNumber: { [Op.startsWith]: `${internalSaleNumber}-CANCELLED-` } },
+            { saleNumber: { [Op.startsWith]: `${internalSaleNumber}-REJECTED-` } },
           ],
         }, transaction, lock: transaction.LOCK.UPDATE,
       });
-      if (archivedSale && (archivedSale.saleNumber.startsWith(`${orderId}-CANCELLED-`) || archivedSale.saleNumber.startsWith(`${orderId}-REJECTED-`))) {
+      if (archivedSale && [orderId, internalSaleNumber].some(id => archivedSale.saleNumber.startsWith(`${id}-CANCELLED-`) || archivedSale.saleNumber.startsWith(`${id}-REJECTED-`))) {
         throw new AppError('Order pernah dibatalkan/ditolak di MyLuna. Sinkron ulang memerlukan rekonsiliasi operator.', 409);
       }
 
@@ -438,7 +443,7 @@ export const webOrderIntegrationController = {
       const identities: WebsiteItemIdentity[] = [];
       const sale = await Sale.create(
         {
-          saleNumber: orderId,
+          saleNumber: internalSaleNumber,
           saleDate,
           customerName: customerName || null,
           customerPhone: customerPhone || null,
@@ -447,13 +452,13 @@ export const webOrderIntegrationController = {
           platform: 'WEBSITE' as any,
           saleType: 'PRODUCT' as any,
           status: 'WAITING_APPROVAL' as any,
-          notes: websiteShippingNotes(preparedShipping, `Order otomatis dari lunareafurniture.com | Akun website: ${customerEmail || customerId || '-'} | Login: ${customerAuthProvider || 'email'}${body.note ? ` | Catatan: ${cleanText(body.note)}` : ''}`),
+          notes: appendWebsiteOrderReference(websiteShippingNotes(preparedShipping, `Order otomatis dari lunareafurniture.com | Akun website: ${customerEmail || customerId || '-'} | Login: ${customerAuthProvider || 'email'}${body.note ? ` | Catatan: ${cleanText(body.note)}` : ''}`), orderId),
           shippingService,
           shippingAddress,
           shippingAddressDetail: shippingAddress || null,
           createdBy,
         },
-        { transaction }
+        { transaction, websiteOrderIdentity: true } as { transaction: any; websiteOrderIdentity: boolean }
       );
 
       for (const [index, item] of mappedItems.entries()) {
@@ -504,7 +509,7 @@ export const webOrderIntegrationController = {
       socketService.broadcastDataRefresh('sales');
       } catch (_) { /* Committed order remains acknowledged even when live notifications fail. */ }
 
-      return successResponse(res, { ...sale.toJSON(), fulfillment: websiteFulfillment(sale), tracking_number: websiteShippingReference(sale.notes).awb, shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website Lunarea berhasil masuk sistem', 201);
+      return successResponse(res, { ...sale.toJSON(), website_order_id: orderId, fulfillment: websiteFulfillment(sale), tracking_number: websiteShippingReference(sale.notes).awb, shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website Lunarea berhasil masuk sistem', 201);
     } catch (error) {
       if (transaction && !transaction.finished) await transaction.rollback();
       return next(error);
@@ -552,17 +557,13 @@ export const webOrderIntegrationController = {
         throw new AppError('Minimal 1 item retur wajib dipilih', 400);
       }
 
-      const sale = await Sale.findOne({
-        where: { saleNumber: orderId },
-        include: [
+      const sale = await resolveWebsiteOrder(orderId, transaction, [
           {
             model: SaleItem,
             as: 'items',
             include: [{ model: Product, as: 'product' }],
           },
-        ],
-        transaction,
-      });
+        ]);
 
       if (!sale) {
         throw new AppError('Order website belum ditemukan di Luna Sistem', 404);

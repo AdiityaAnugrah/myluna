@@ -1,5 +1,5 @@
 jest.mock('../src/models', () => ({
-  Sale: { findOne: jest.fn(), create: jest.fn() }, SaleItem: { create: jest.fn(), findAll: jest.fn() },
+  Sale: { findOne: jest.fn(), findAll: jest.fn(), create: jest.fn() }, SaleItem: { create: jest.fn(), findAll: jest.fn() },
   Product: { findAll: jest.fn(), findByPk: jest.fn() }, ProductVariant: { findAll: jest.fn() },
   StockMovement: { create: jest.fn() }, User: { findOne: jest.fn() }, MovementType: { OUT: 'OUT' },
 }));
@@ -26,6 +26,7 @@ describe('physical website order import atomic safety', () => {
     transaction = { LOCK: { UPDATE: 'UPDATE' }, commit: jest.fn(), rollback: jest.fn() };
     (sequelize.transaction as jest.Mock).mockResolvedValue(transaction);
     (Sale.findOne as jest.Mock).mockResolvedValue(null);
+    (Sale.findAll as jest.Mock).mockResolvedValue([]);
     (User.findOne as jest.Mock).mockResolvedValue({ id: 'operator' });
     product = { id: '7ef42be0-9851-4d75-ab2b-13e9acd58990', name: 'MT 120', stock: 23 };
     product.update = jest.fn(async patch => Object.assign(product, patch));
@@ -48,8 +49,19 @@ describe('physical website order import atomic safety', () => {
     expect(next).not.toHaveBeenCalled(); expect(product.stock).toBe(16); expect(variant.stock).toBe(26);
     expect(SaleItem.create).toHaveBeenCalledWith(expect.objectContaining({ productId: product.id, itemType: 'PRODUCT', quantity: 7, price: 445550 }), { transaction });
     expect(saved.totalAmount).toBe(3118850); expect(saved.saleDate).toEqual(new Date('2026-10-15T14:32:09+07:00'));
+    expect(saved.saleNumber).toBe('LWEB-L00000227');
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ website_order_id: 'L00000227', saleNumber: 'LWEB-L00000227' }) }));
     expect(readWebsiteIdentities(saved.notes)?.[0]).toMatchObject({ websiteId: 'B20240116151233', productId: product.id, variantId: variant.id });
     expect(transaction.commit).toHaveBeenCalledTimes(1); expect(transaction.rollback).not.toHaveBeenCalled();
+  });
+  test('manual invoice collision never creates, relabels or deducts anything', async () => {
+    const manual = { id: 'manual', saleNumber: 'L00000227', platform: 'WHATSAPP' };
+    (Sale.findAll as jest.Mock).mockResolvedValue([manual]);
+    await webOrderIntegrationController.importLunareaOrder(request() as any, res, next);
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 409 }));
+    expect(Sale.create).not.toHaveBeenCalled(); expect(StockMovement.create).not.toHaveBeenCalled();
+    expect(product.update).not.toHaveBeenCalled(); expect(variant.update).not.toHaveBeenCalled();
+    expect(manual.platform).toBe('WHATSAPP');
   });
   test('unmatched master rejects before creating sale or mutating inventory', async () => {
     (Product.findAll as jest.Mock).mockResolvedValue([]);
@@ -96,7 +108,7 @@ describe('physical website order import atomic safety', () => {
   });
   test('retry confirms the same immutable order without deducting stock twice', async () => {
     await webOrderIntegrationController.importLunareaOrder(request() as any, res, next);
-    (Sale.findOne as jest.Mock).mockResolvedValue(saved);
+    (Sale.findAll as jest.Mock).mockResolvedValue([saved]);
     (SaleItem.findAll as jest.Mock).mockResolvedValue([{ id: '22222222-2222-4222-8222-222222222222', quantity: 7, price: 445550 }]);
     await webOrderIntegrationController.importLunareaOrder(request() as any, res, next);
     expect(next).not.toHaveBeenCalled(); expect(Sale.create).toHaveBeenCalledTimes(1);
@@ -104,7 +116,7 @@ describe('physical website order import atomic safety', () => {
   });
   test('retry with changed amount rejects and does not modify the original order', async () => {
     await webOrderIntegrationController.importLunareaOrder(request() as any, res, next);
-    (Sale.findOne as jest.Mock).mockResolvedValue(saved);
+    (Sale.findAll as jest.Mock).mockResolvedValue([saved]);
     (SaleItem.findAll as jest.Mock).mockResolvedValue([{ id: '22222222-2222-4222-8222-222222222222', quantity: 7, price: 445550 }]);
     const req = request(); req.body.total = 1;
     await webOrderIntegrationController.importLunareaOrder(req as any, res, next);

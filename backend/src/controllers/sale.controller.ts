@@ -655,6 +655,7 @@ export const saleController = {
       const saleNumber = normalizedSaleType === COMPONENT_SALE_TYPE && (!invoiceNumber || !invoiceNumber.trim())
         ? await generateComponentSaleNumber(saleDate, transaction)
         : invoiceNumber.trim();
+      if (saleNumber.toUpperCase().startsWith('LWEB-')) throw new AppError('Prefix LWEB- khusus integrasi website. Gunakan nomor invoice manual lain.', 422);
 
       // Check if sale number already exists
       const existingSale = await Sale.findOne({ where: { saleNumber }, transaction });

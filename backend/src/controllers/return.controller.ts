@@ -1,4 +1,5 @@
 import { originalReturnVariant } from '../services/websiteProductIdentity.service';
+import { websiteExternalOrderId } from '../utils/websiteOrderReference';
 import path from 'path';
 import sharp from 'sharp';
 import { NextFunction, Request, Response } from 'express';
@@ -204,8 +205,10 @@ async function notifyWebsiteReturnStatus(record: SaleReturn, note = '') {
     const payloadRecord = record.sale
       ? record
       : await SaleReturn.findByPk(record.id, { include: [{ model: Sale, as: 'sale' }] });
-    const saleNumber = payloadRecord?.sale?.saleNumber;
-    if (!saleNumber || !saleNumber.toUpperCase().startsWith('L')) return;
+    let linkedSale = payloadRecord?.sale;
+    if (linkedSale && (linkedSale.platform === undefined || linkedSale.notes === undefined)) linkedSale = await Sale.findByPk(linkedSale.id) || undefined;
+    if (!linkedSale || String(linkedSale.platform) !== 'WEBSITE') return;
+    const externalOrderId = websiteExternalOrderId(linkedSale);
 
     await fetch(url, {
       method: 'POST',
@@ -214,7 +217,7 @@ async function notifyWebsiteReturnStatus(record: SaleReturn, note = '') {
         'X-Luna-Webhook-Token': token,
       },
       body: JSON.stringify({
-        order_id: saleNumber,
+        order_id: externalOrderId,
         return_number: payloadRecord?.returnNumber || record.returnNumber,
         status: record.status,
         status_label: returnStatusLabel(record.status),

@@ -2,14 +2,15 @@ import { Op } from 'sequelize';
 import { Sale } from '../models';
 import { sequelize } from '../config/database';
 import { postJsonToLunareaWebsite } from './lunareaWebsiteHttp.service';
+import { websiteExternalOrderId } from '../utils/websiteOrderReference';
 
-type FulfillmentSale = { id: string; saleNumber: string; platform: unknown; processedAt: Date | null };
+type FulfillmentSale = { id: string; saleNumber: string; platform: unknown; processedAt: Date | null; notes?: string | null };
 const ACK = '[Lunarea Process Acknowledged]';
 const processTime = (value: Date) => new Date(Math.floor(new Date(value).getTime() / 1000) * 1000).toISOString();
 
 export function websiteFulfillment(sale: FulfillmentSale) {
   return {
-    order_id: sale.saleNumber, sale_id: sale.id,
+    order_id: websiteExternalOrderId(sale), sale_id: sale.id,
     stage: sale.processedAt ? 'processed' : 'received',
     processed_at: sale.processedAt ? processTime(sale.processedAt) : null,
   };
@@ -31,7 +32,7 @@ export async function notifyWebsiteProcessed(sale: FulfillmentSale): Promise<boo
     const event = websiteFulfillment(sale);
     const response = await postJsonToLunareaWebsite(url, event, { token, timeoutMs: 8000 });
     const body = JSON.parse(response.text);
-    if (!response.ok || body.success !== true || body.order_id !== sale.saleNumber || body.stage !== 'processed') throw new Error('Callback not acknowledged');
+    if (!response.ok || body.success !== true || body.order_id !== event.order_id || body.stage !== 'processed') throw new Error('Callback not acknowledged');
     // Lock and re-read notes so concurrent AWB edits are never overwritten by an old snapshot.
     await sequelize.transaction(async transaction => {
       const current = await Sale.findByPk(sale.id, { transaction, lock: transaction.LOCK.UPDATE });

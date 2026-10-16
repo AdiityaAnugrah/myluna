@@ -6,6 +6,7 @@ import { Sale } from '../src/models';
 import { sequelize } from '../src/config/database';
 import { postJsonToLunareaWebsite } from '../src/services/lunareaWebsiteHttp.service';
 import { notifyWebsiteProcessed, retryWebsiteProcessed, websiteFulfillment } from '../src/services/websiteFulfillment.service';
+import { appendWebsiteOrderReference, websiteInternalSaleNumber } from '../src/utils/websiteOrderReference';
 
 describe('TCP process acknowledgement', () => {
   const original = { ...process.env };
@@ -30,6 +31,12 @@ describe('TCP process acknowledgement', () => {
     expect(postJsonToLunareaWebsite).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({stage:'processed',order_id:'LTEST',sale_id:'sale-test'}),expect.objectContaining({timeoutMs:8000}));
     expect(sale.notes).toContain('Operator notes');
     expect(sale.notes).toContain('[Lunarea Process Acknowledged]');
+  });
+  test('namespaced sale calls back with the original customer order number', async () => {
+    sale.saleNumber = websiteInternalSaleNumber('LTEST');
+    sale.notes = appendWebsiteOrderReference('Operator notes', 'LTEST');
+    expect(await notifyWebsiteProcessed(sale)).toBe(true);
+    expect(postJsonToLunareaWebsite).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ order_id: 'LTEST' }), expect.any(Object));
   });
   test('failed callbacks remain unacknowledged for retry, never roll back TCP', async () => {
     (postJsonToLunareaWebsite as jest.Mock).mockRejectedValue(new Error('timeout'));

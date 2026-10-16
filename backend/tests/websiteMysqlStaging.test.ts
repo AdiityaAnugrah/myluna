@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { randomUUID } from 'crypto';
+import { websiteInternalSaleNumber, websiteExternalOrderId, appendWebsiteOrderReference } from '../src/utils/websiteOrderReference';
 
 // Opt-in only: never use the application .env or a default database for this suite.
 const enabled = Boolean(process.env.LUNA_IDENTITY_STAGING_CONNECTION);
@@ -70,7 +71,7 @@ const enabled = Boolean(process.env.LUNA_IDENTITY_STAGING_CONNECTION);
     expect(first.next).not.toHaveBeenCalled(); expect(first.res.status).toHaveBeenCalledWith(201);
     const second = await invoke(integration.importLunareaOrder, body);
     expect(second.next).not.toHaveBeenCalled(); expect(await stock()).toEqual([98, 98]);
-    const sale = await models.Sale.findOne({ where: { saleNumber: body.order_id } });
+    const sale = await models.Sale.findOne({ where: { saleNumber: websiteInternalSaleNumber(body.order_id) } });
     expect(Number(sale.totalAmount)).toBe(1000000);
     expect(await models.SaleItem.count({ where: { saleId: sale.id } })).toBe(1);
   });
@@ -79,7 +80,7 @@ const enabled = Boolean(process.env.LUNA_IDENTITY_STAGING_CONNECTION);
     const spy = jest.spyOn(models.SaleItem, 'create').mockRejectedValueOnce(new Error('Synthetic insertion failure'));
     const result = await invoke(integration.importLunareaOrder, body); spy.mockRestore();
     expect(result.next).toHaveBeenCalled(); expect(await stock()).toEqual(baseline);
-    expect(await models.Sale.count({ where: { saleNumber: body.order_id } })).toBe(0);
+    expect(await models.Sale.count({ where: { saleNumber: websiteInternalSaleNumber(body.order_id) } })).toBe(0);
   });
   test('variant rename preserves UUID and stale form stock cannot overwrite inventory', async () => {
     const baseline = await stock();
@@ -87,14 +88,14 @@ const enabled = Boolean(process.env.LUNA_IDENTITY_STAGING_CONNECTION);
     expect((await models.ProductVariant.findByPk(variant.id)).value).toBe('RENAMED'); expect(await stock()).toEqual(baseline);
   });
   test('concurrent rejection restores original renamed variant only once', async () => {
-    const sale = await models.Sale.findOne({ where: { saleNumber: ids[1] } });
+    const sale = await models.Sale.findOne({ where: { saleNumber: websiteInternalSaleNumber(ids[1]) } });
     const results = await Promise.all([invoke(sales.reject, {}, { id: sale.id }), invoke(sales.reject, {}, { id: sale.id })]);
     expect(results.filter(r => r.next.mock.calls.length === 0)).toHaveLength(1); expect(await stock()).toEqual([100, 100]);
   });
   test('concurrent return restock uses frozen UUID and only restores once', async () => {
     const body = order(); const imported = await invoke(integration.importLunareaOrder, body);
     expect(imported.next).not.toHaveBeenCalled();
-    const sale = await models.Sale.findOne({ where: { saleNumber: body.order_id } });
+    const sale = await models.Sale.findOne({ where: { saleNumber: websiteInternalSaleNumber(body.order_id) } });
     const line = await models.SaleItem.findOne({ where: { saleId: sale.id } });
     const record = await models.SaleReturn.create({ returnNumber: 'AUDIT-' + randomUUID(), saleId: sale.id,
       requestedBy: operator.id, status: 'ITEM_RECEIVED', reason: 'Synthetic staging return', requestDate: '2026-10-16' });
@@ -110,7 +111,7 @@ const enabled = Boolean(process.env.LUNA_IDENTITY_STAGING_CONNECTION);
     await Promise.all([invoke(integration.importLunareaOrder, body), invoke(integration.importLunareaOrder, body)]);
     const retry = await invoke(integration.importLunareaOrder, body);
     expect(retry.next).not.toHaveBeenCalled();
-    expect(await models.Sale.count({ where: { saleNumber: body.order_id } })).toBe(1);
+    expect(await models.Sale.count({ where: { saleNumber: websiteInternalSaleNumber(body.order_id) } })).toBe(1);
     expect(await stock()).toEqual([98, 98]);
   });
   test('copied L00000227 snapshot validates with the verified MT120 mapping without importing or changing stock', async () => {
@@ -135,5 +136,26 @@ const enabled = Boolean(process.env.LUNA_IDENTITY_STAGING_CONNECTION);
       expect([(await originalProduct.reload()).stock, (await originalVariant.reload()).stock]).toEqual(before);
       expect(await models.Sale.count({ where: { saleNumber: original.id_midtrans } })).toBe(countBefore);
     } finally { delete process.env.LUNA_WEB_PRODUCT_MAP; }
+  });
+  test('manual invoice collision leaves existing row and inventory untouched in MySQL', async () => {
+    const body = order(), baseline = await stock();
+    const manual = await models.Sale.create({ saleNumber: body.order_id, saleDate: new Date(), totalAmount: 999,
+      paymentMethod: 'TRANSFER', platform: 'WHATSAPP', status: 'WAITING_APPROVAL', createdBy: operator.id });
+    const result = await invoke(integration.importLunareaOrder, body);
+    expect(result.next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 409 }));
+    expect(await stock()).toEqual(baseline);
+    expect((await manual.reload()).platform).toBe('WHATSAPP');
+    expect(await models.Sale.count({ where: { saleNumber: websiteInternalSaleNumber(body.order_id) } })).toBe(0);
+  });
+  test('source reference survives ordinary notes edits and cannot be rewritten through ORM', async () => {
+    const body = order();
+    const result = await invoke(integration.importLunareaOrder, body);
+    expect(result.next).not.toHaveBeenCalled();
+    const sale = await models.Sale.findOne({ where: { saleNumber: websiteInternalSaleNumber(body.order_id) } });
+    expect(websiteExternalOrderId(sale)).toBe(body.order_id);
+    await sale.update({ notes: 'Synthetic operator notes update' });
+    expect(websiteExternalOrderId(await sale.reload())).toBe(body.order_id);
+    await expect(sale.update({ notes: appendWebsiteOrderReference('', 'LOTHER') })).rejects.toMatchObject({ statusCode: 409 });
+    expect(websiteExternalOrderId(await sale.reload())).toBe(body.order_id);
   });
 });

@@ -46,7 +46,7 @@ async function collectWebsite(db) {
   return readOnlySnapshot(db, async () => ({
     context: await select(db, CONTEXT_SQL),
     schema: await select(db, 'SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND ((TABLE_NAME = ? AND COLUMN_NAME = ?) OR (TABLE_NAME = ? AND COLUMN_NAME = ?)) ORDER BY TABLE_NAME, COLUMN_NAME', ['konstanta', 'value', 'stok', 'nama']),
-    products: await select(db, 'SELECT id, nama, active, varian FROM barang ORDER BY id'),
+    products: await select(db, 'SELECT id, nama, active, varian, shopee, tokped, tiktok FROM barang ORDER BY id'),
     identities: await select(db, 'SELECT label, value FROM konstanta WHERE LEFT(label, ?) = ? ORDER BY id', [PREFIX.length, PREFIX]),
     orders: await select(db, 'SELECT id_midtrans, status, items, data_mid FROM pemesanan WHERE id_midtrans = ? ORDER BY id', ['L00000227']),
   }));
@@ -130,7 +130,21 @@ function mappingEvidence(web, master, rawMap) {
       name_candidates_not_approved: candidates.map(p => ({ id: p.id, name: p.name })),
     };
   });
+  const referenceKeys = ['websiteId', 'website_id', 'shopee', 'tokped', 'tiktok'];
+  const externalReferences = [];
+  for (const w of web.products) for (const p of master.products) {
+    const links = json(p.marketplaceLinks);
+    for (const key of ['shopee', 'tokped', 'tiktok']) {
+      const left = w[key], right = links?.[key];
+      if (typeof left === 'string' && /^https:\/\//.test(left) && left === right) externalReferences.push({
+        website_id: w.id, master_product_id: p.id, provider_field: key, exact_url_sha256: sha(left),
+        status: 'SHARED_URL_OBSERVED_NOT_AUTOMATIC_ID_APPROVAL' });
+    }
+  }
   return { global_issues: [...new Set(globalIssues)],
+    master_reference_field_counts: Object.fromEntries(referenceKeys.map(key => [key,
+      master.products.filter(p => typeof json(p.marketplaceLinks)?.[key] === 'string' && json(p.marketplaceLinks)[key]).length])),
+    exact_shared_external_references: externalReferences,
     summary: { website_products: web.products.length, active_website_products: rows.filter(r => r.active).length,
       master_products: master.products.length, master_variants: master.variants.length,
       explicit_product_references: rows.filter(r => r.status === 'EXPLICIT_REFERENCE_PRESENT').length,

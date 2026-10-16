@@ -1,4 +1,5 @@
 import { preserveWebsiteIdentities, readWebsiteIdentities } from '../utils/websiteItemIdentities';
+import { preserveWebsiteOrderReference, readWebsiteOrderReference, websiteExternalOrderId } from '../utils/websiteOrderReference';
 import { Model, DataTypes, Optional } from 'sequelize';
 import { sequelize } from '../config/database';
 
@@ -220,7 +221,14 @@ Sale.init(
     sequelize,
     tableName: 'sales',
     hooks: {
+      beforeCreate: (sale: Sale, options) => {
+        if (readWebsiteOrderReference(sale.notes)) {
+          if (!(options as any).websiteOrderIdentity) throw new Error('Website source reference requires trusted integration');
+          websiteExternalOrderId(sale);
+        }
+      },
       beforeUpdate: (sale: Sale, options) => {
+        if (sale.changed('notes')) sale.notes = preserveWebsiteOrderReference(sale.previous('notes') as string | null, sale.notes);
         if (sale.changed('notes') && !readWebsiteIdentities(sale.previous('notes') as string | null) && !(options as any).websiteIdentitySnapshot) {
           preserveWebsiteIdentities(null, sale.notes);
         }
@@ -237,6 +245,7 @@ Sale.init(
             }
           }
         }
+        if (readWebsiteOrderReference(sale.notes)) websiteExternalOrderId(sale);
       },
     },
   }

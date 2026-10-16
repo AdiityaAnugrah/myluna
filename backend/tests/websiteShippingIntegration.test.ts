@@ -1,5 +1,5 @@
 jest.mock('../src/models', () => ({
-  Sale: { findOne: jest.fn(), create: jest.fn() },
+  Sale: { findOne: jest.fn(), findAll: jest.fn(), create: jest.fn() },
   StockMovement: { create: jest.fn() },
   Product: { findByPk: jest.fn(), findAll: jest.fn() },
   ProductVariant: { findOne: jest.fn(), findAll: jest.fn() },
@@ -28,13 +28,14 @@ describe('shipping-only webhook isolation', () => {
   } });
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     process.env.LUNA_WEB_ORDER_TOKEN = 'unit-test-token';
     transaction = { commit: jest.fn(), rollback: jest.fn(), LOCK: { UPDATE: 'UPDATE' } };
     (sequelize.transaction as jest.Mock).mockResolvedValue(transaction);
-    sale = { status: 'PROCESSED', notes: websiteShippingNotes({ status: 'Proses', shipping_status: 'Disiapkan', courier: 'JNE', tracking_number: 'TEST123' }, 'Catatan operator'), update: jest.fn() };
+    sale = { id: 'sale-test', saleNumber: 'LTEST', platform: 'WEBSITE', status: 'PROCESSED', notes: websiteShippingNotes({ status: 'Proses', shipping_status: 'Disiapkan', courier: 'JNE', tracking_number: 'TEST123' }, 'Catatan operator'), update: jest.fn() };
     sale.update.mockImplementation(async (patch: any) => { sale.notes = patch.notes; });
-    (Sale.findOne as jest.Mock).mockResolvedValue(sale);
+    (Sale.findAll as jest.Mock).mockResolvedValue([sale]);
+    (Sale.findOne as jest.Mock).mockResolvedValue(null);
     response = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() };
     next = jest.fn();
   });
@@ -65,7 +66,7 @@ describe('shipping-only webhook isolation', () => {
   });
 
   test('missing sale is not imported by a shipping event', async () => {
-    (Sale.findOne as jest.Mock).mockResolvedValue(null);
+    (Sale.findAll as jest.Mock).mockResolvedValue([]);
     await webOrderIntegrationController.importLunareaOrder(request() as any, response, next);
     expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 404 }));
     expect(transaction.rollback).toHaveBeenCalled();
@@ -118,7 +119,7 @@ describe('shipping-only webhook isolation', () => {
   });
 
   test('cancelled or rejected existing order cannot be re-imported', async () => {
-    sale.status = 'CANCELLED'; sale.platform = 'WEBSITE';
+    sale.status = 'CANCELLED'; sale.platform = 'WEBSITE'; sale.saleNumber = 'L00000227';
     const req = { headers: { 'x-luna-webhook-token': 'unit-test-token' }, body: {
       order_id: 'L00000227', status: 'Proses', courier: 'JNE', tracking_number: 'TEST227', customer_email: 'buyer@test.invalid', payment_environment: 'production',
     } };
@@ -130,7 +131,8 @@ describe('shipping-only webhook isolation', () => {
   });
 
   test('renamed cancelled order cannot create a second sale or stock movement', async () => {
-    (Sale.findOne as jest.Mock).mockResolvedValueOnce(null).mockResolvedValueOnce({ saleNumber: 'L00000227-CANCELLED-123456', status: 'CANCELLED' });
+    (Sale.findAll as jest.Mock).mockResolvedValue([]);
+    (Sale.findOne as jest.Mock).mockResolvedValueOnce({ saleNumber: 'L00000227-CANCELLED-123456', status: 'CANCELLED' });
     const req = { headers: { 'x-luna-webhook-token': 'unit-test-token' }, body: {
       order_id: 'L00000227', status: 'Proses', courier: 'JNE', tracking_number: 'TEST227', customer_email: 'buyer@test.invalid', payment_environment: 'production',
     } };
@@ -147,7 +149,7 @@ describe('shipping-only webhook isolation', () => {
       items: [{ id: 'MT120', name: 'MT 120 (HITAM)', quantity: 7, value: 445550 }], transaction_time: '2026-10-15T14:32:09+07:00', total: 3118850,
       courier: method === 'internal_delivery' ? 'Jasa Kirim Toko' : 'JNE', shipping_method_code: method,
     } };
-    (Sale.findOne as jest.Mock).mockResolvedValue(null);
+    (Sale.findAll as jest.Mock).mockResolvedValue([]);
     (User.findOne as jest.Mock).mockResolvedValue({ id: 'operator' });
     const product = { id: '7ef42be0-9851-4d75-ab2b-13e9acd58990', name: 'MT 120', stock: 23 };
     (Product.findAll as jest.Mock).mockResolvedValue([product]);
