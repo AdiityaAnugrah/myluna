@@ -1,17 +1,18 @@
 jest.mock('../src/models', () => ({
   Sale: { findOne: jest.fn(), create: jest.fn() },
   StockMovement: { create: jest.fn() },
-  Product: { findByPk: jest.fn() },
-  ProductVariant: { findOne: jest.fn() },
-  SaleItem: { create: jest.fn() },
+  Product: { findByPk: jest.fn(), findAll: jest.fn() },
+  ProductVariant: { findOne: jest.fn(), findAll: jest.fn() },
+  SaleItem: { create: jest.fn(), findAll: jest.fn() },
+  User: { findOne: jest.fn() }, MovementType: { OUT: 'OUT' },
 }));
 jest.mock('../src/config/database', () => ({ sequelize: { transaction: jest.fn() } }));
-jest.mock('../src/services/socket.service', () => ({ socketService: { broadcastDataRefresh: jest.fn() } }));
+jest.mock('../src/services/socket.service', () => ({ socketService: { broadcastDataRefresh: jest.fn(), emitToAdmins: jest.fn() } }));
 jest.mock('../src/services/audit.service', () => ({ auditService: {} }));
 jest.mock('../src/services/lunareaWebsiteHttp.service', () => ({ parseBoolean: jest.fn(), postJsonToLunareaWebsite: jest.fn() }));
 
 import { webOrderIntegrationController } from '../src/controllers/webOrderIntegration.controller';
-import { Sale, StockMovement, SaleItem, Product } from '../src/models';
+import { Sale, StockMovement, SaleItem, Product, ProductVariant, User } from '../src/models';
 import { sequelize } from '../src/config/database';
 import { websiteShippingNotes } from '../src/utils/websiteShipping';
 
@@ -143,8 +144,15 @@ describe('shipping-only webhook isolation', () => {
   test.each(['legacy', 'internal_delivery'])('reviewed order without AWB passes import validation for %s', async method => {
     const req = { headers: { 'x-luna-webhook-token': 'unit-test-token' }, body: {
       order_id: 'L00000227', status: 'Proses', customer_email: 'buyer@test.invalid', dry_run: true,
+      items: [{ id: 'MT120', name: 'MT 120 (HITAM)', quantity: 7, value: 445550 }], transaction_time: '2026-10-15T14:32:09+07:00', total: 3118850,
       courier: method === 'internal_delivery' ? 'Jasa Kirim Toko' : 'JNE', shipping_method_code: method,
     } };
+    (Sale.findOne as jest.Mock).mockResolvedValue(null);
+    (User.findOne as jest.Mock).mockResolvedValue({ id: 'operator' });
+    const product = { id: '7ef42be0-9851-4d75-ab2b-13e9acd58990', name: 'MT 120', stock: 23 };
+    (Product.findAll as jest.Mock).mockResolvedValue([product]);
+    (Product.findByPk as jest.Mock).mockResolvedValue(product);
+    (ProductVariant.findAll as jest.Mock).mockResolvedValue([{ id: '11111111-1111-4111-8111-111111111111', value: 'HITAM', stock: 33 }]);
     await webOrderIntegrationController.importLunareaOrder(req as any, response, next);
     expect(next).not.toHaveBeenCalled();
     expect(response.json).toHaveBeenCalledWith(expect.objectContaining({success:true,data:expect.objectContaining({dryRun:true})}));

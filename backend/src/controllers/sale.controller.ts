@@ -1,3 +1,4 @@
+import { originalSaleVariant } from '../services/websiteProductIdentity.service';
 import { Request, Response, NextFunction } from 'express';
 import { Sale, SaleItem, Product, ProductVariant, User, StockMovement, MovementType, ChangeRequest, Settlement, ShippingService, Province, Regency, District, Village } from '../models';
 import { auditService } from '../services/audit.service';
@@ -782,7 +783,7 @@ export const saleController = {
         if (itemType === COMPONENT_SALE_TYPE) continue;
 
         // Update stock: main product stock - quantity
-        const product = await Product.findByPk(item.productId, { transaction });
+        const product = await Product.findByPk(item.productId, { transaction, lock: transaction.LOCK.UPDATE });
         const stockBeforeSale = product!.stock;
         await product!.update(
           { stock: product!.stock - item.quantity },
@@ -870,7 +871,7 @@ export const saleController = {
     const transaction = await sequelize.transaction();
     try {
       const { id } = req.params;
-      const sale = await Sale.findByPk(id, { transaction });
+      const sale = await Sale.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
 
       if (!sale) throw new AppError('Sale not found', 404);
       if (sale.status !== 'WAITING_APPROVAL' as any) throw new AppError('Sale is not waiting for approval', 400);
@@ -900,7 +901,7 @@ export const saleController = {
     const transaction = await sequelize.transaction();
     try {
       const { id } = req.params;
-      const sale = await Sale.findByPk(id, { include: [{ model: SaleItem, as: 'items' }], transaction });
+      const sale = await Sale.findByPk(id, { include: [{ model: SaleItem, as: 'items' }], transaction, lock: transaction.LOCK.UPDATE });
 
       if (!sale) throw new AppError('Sale not found', 404);
       if (sale.status !== 'WAITING_APPROVAL' as any) throw new AppError('Sale is not waiting for approval', 400);
@@ -909,17 +910,14 @@ export const saleController = {
       if (sale.items) {
           for (const item of sale.items) {
               if ((item as any).itemType === COMPONENT_SALE_TYPE || !item.productId) continue;
-              const product = await Product.findByPk(item.productId, { transaction });
+              const product = await Product.findByPk(item.productId, { transaction, lock: transaction.LOCK.UPDATE });
               if (product) {
                   const stockBeforeReject = product.stock;
                   await product.update({ stock: product.stock + item.quantity }, { transaction });
 
                   // Also restore variant stock if applicable
-                  if (item.variantName) {
-                      const variant = await ProductVariant.findOne({
-                          where: { productId: item.productId, value: item.variantName },
-                          transaction,
-                      });
+                  {
+                      const variant = await originalSaleVariant(sale, item, transaction);
                       if (variant) {
                           await variant.update({ stock: variant.stock + item.quantity }, { transaction });
                       }
@@ -1093,7 +1091,7 @@ export const saleController = {
       if (stockWasDeducted) {
         for (const item of sale.items!) {
           if ((item as any).itemType === COMPONENT_SALE_TYPE || !item.productId) continue;
-          const product = await Product.findByPk(item.productId, { transaction });
+          const product = await Product.findByPk(item.productId, { transaction, lock: transaction.LOCK.UPDATE });
           const stockBeforeDelete = product!.stock;
           await product!.update(
             { stock: product!.stock + item.quantity },
@@ -1101,11 +1099,8 @@ export const saleController = {
           );
 
           // Also restore variant stock if applicable
-          if (item.variantName) {
-            const variant = await ProductVariant.findOne({
-              where: { productId: item.productId, value: item.variantName },
-              transaction,
-            });
+          {
+            const variant = await originalSaleVariant(sale, item, transaction);
             if (variant) {
               await variant.update({ stock: variant.stock + item.quantity }, { transaction });
             }

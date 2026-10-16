@@ -1,3 +1,5 @@
+import { buildWebsiteProductPayload } from '../services/websiteProductSync.service';
+import { resolveWebsiteProduct, resolveWebsiteVariant, appendWebsiteIdentities, readWebsiteIdentities, WebsiteItemIdentity } from '../services/websiteProductIdentity.service';
 import { websitePaymentEnvironment } from '../utils/websitePaymentEnvironment';
 import { websiteFulfillment } from '../services/websiteFulfillment.service';
 import { Request, Response, NextFunction } from 'express';
@@ -29,10 +31,6 @@ function cleanText(value: unknown) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
-function itemBaseName(name: string) {
-  return cleanText(name.replace(/\s*\([^)]*\)\s*$/, ''));
-}
-
 function itemVariantName(name: string) {
   const match = name.match(/\(([^()]*)\)\s*$/);
   return match ? cleanText(match[1]) : '';
@@ -50,13 +48,8 @@ function generateReturnNumber() {
 function isOperationalItem(item: any) {
   const name = cleanText(item?.name).toLowerCase();
   const id = cleanText(item?.id).toLowerCase();
-  return ![
-    'biaya admin',
-    'biaya ongkir',
-    'voucher',
-    'flash sale',
-    'potongan preorder',
-  ].some((keyword) => name.includes(keyword) || id.includes(keyword));
+  return !['biaya admin', 'biaya ongkir', 'ongkir', 'diskon voucher', 'luna point', 'ganti kaca', 'potongan preorder']
+    .some(keyword => id === keyword || (!id && name === keyword));
 }
 
 function normalizeAddress(raw: unknown) {
@@ -79,62 +72,6 @@ function normalizeAddress(raw: unknown) {
   return '';
 }
 
-function numberValue(value: unknown, fallback = 0) {
-  const number = Number(value ?? fallback);
-  return Number.isFinite(number) ? number : fallback;
-}
-
-function cleanSlug(value: unknown, fallback: string) {
-  const raw = cleanText(value || fallback).toLowerCase();
-  return raw
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-async function buildWebsiteProductPayload(product: Product) {
-  const json: any = product.toJSON();
-  const category = json.category || null;
-  const parentCategory = category?.parent || null;
-  const variantItems = Array.isArray(json.variantItems) ? json.variantItems : [];
-  const marketplaceLinks = json.marketplaceLinks || {};
-
-  return {
-    id: product.id,
-    sku: product.sku,
-    website_id: marketplaceLinks.websiteId || marketplaceLinks.website_id || product.sku,
-    name: product.name,
-    slug: product.slug || cleanSlug(product.slug, product.name),
-    description: product.description || '',
-    category: parentCategory?.name || category?.name || '',
-    subCategory: parentCategory?.name ? category?.name || '' : '',
-    sellingPrice: numberValue(product.sellingPrice),
-    purchasePrice: numberValue(product.purchasePrice),
-    warrantyPrice: product.warrantyPrice === null || product.warrantyPrice === undefined ? null : numberValue(product.warrantyPrice),
-    stock: numberValue(product.stock),
-    minStock: numberValue(product.minStock),
-    unit: product.unit,
-    length: product.length === null || product.length === undefined ? null : numberValue(product.length),
-    width: product.width === null || product.width === undefined ? null : numberValue(product.width),
-    height: product.height === null || product.height === undefined ? null : numberValue(product.height),
-    weight: product.weight === null || product.weight === undefined ? null : numberValue(product.weight),
-    imageUrl: product.imageUrl || '',
-    isActive: product.isActive,
-    variants: variantItems.map((variant: any) => ({
-      id: variant.id,
-      name: cleanText(variant.name || variant.value),
-      value: cleanText(variant.value || variant.name),
-      priceAdjustment: numberValue(variant.priceAdjustment),
-      stock: numberValue(variant.stock),
-    })),
-    marketplaceLinks,
-    shopee: marketplaceLinks.shopee || '',
-    tokped: marketplaceLinks.tokped || '',
-    tiktok: marketplaceLinks.tiktok || '',
-    youtube: marketplaceLinks.youtube || '',
-    updatedAt: product.updatedAt,
-  };
-}
-
 async function resolveCreatedBy() {
   const configuredUserId = process.env.WEBSITE_ORDER_USER_ID;
   if (configuredUserId) {
@@ -152,32 +89,6 @@ async function resolveCreatedBy() {
   }
 
   return user.id;
-}
-
-async function findProductForWebsiteItem(item: any, baseName: string, transaction: any) {
-  const websiteId = cleanText(item?.id);
-  const rawMap = String(process.env.LUNA_WEB_PRODUCT_MAP || '');
-  if (websiteId && rawMap) {
-    try {
-      const parsedMap = JSON.parse(rawMap) as Record<string, string>;
-      const mappedProductId = parsedMap[websiteId] || parsedMap[baseName];
-      if (mappedProductId) {
-        const mappedProduct = await Product.findByPk(mappedProductId, { transaction });
-        if (mappedProduct) return mappedProduct;
-      }
-    } catch (_) {
-      // lanjutkan pencarian normal jika format env mapping belum valid
-    }
-  }
-
-  const where: any = {
-    [Op.or]: [
-      ...(websiteId ? [{ sku: websiteId }, { id: websiteId }] : []),
-      ...(baseName ? [{ name: baseName }] : []),
-    ],
-  };
-
-  return Product.findOne({ where, transaction });
 }
 
 async function getExistingReturnedQtyMap(saleId: string, transaction: any) {
@@ -208,35 +119,27 @@ async function getExistingReturnedQtyMap(saleId: string, transaction: any) {
   return qtyMap;
 }
 
-async function resolveSaleItemForWebsiteReturn(sale: Sale, item: any, transaction: any) {
+export async function resolveSaleItemForWebsiteReturn(sale: Sale, item: any, _transaction: any) {
   const requestedId = cleanText(item?.id);
-  const requestedName = cleanText(item?.name);
-  const requestedBaseName = itemBaseName(requestedName);
-
-  for (const saleItem of sale.items || []) {
-    const product = (saleItem as any).product as Product | undefined;
-    const saleItemName = cleanText(product?.name || saleItem.componentName || '');
-    const saleItemBaseName = itemBaseName(saleItemName);
-
-    if (
-      (requestedId && product && (requestedId === product.id || requestedId === product.sku)) ||
-      (requestedName && requestedName === saleItemName) ||
-      (requestedBaseName && requestedBaseName === saleItemBaseName)
-    ) {
-      if (saleItem.productId) {
-        return saleItem;
-      }
-
-      const matchedProduct = await findProductForWebsiteItem(item, requestedBaseName || saleItemBaseName, transaction);
-      if (matchedProduct) {
-        await saleItem.update({ productId: matchedProduct.id, itemType: 'PRODUCT' }, { transaction });
-        saleItem.productId = matchedProduct.id;
-        return saleItem;
-      }
+  const variant = itemVariantName(cleanText(item?.name));
+  const identities = readWebsiteIdentities(sale.notes);
+  const candidates = (sale.items || []).filter(line => {
+    if (item.sale_item_id && item.sale_item_id !== line.id) return false;
+    if (identities) {
+      const identity = identities.find(i => i.saleItemId === line.id);
+      if (!identity || identity.productId !== line.productId) throw new AppError('Identitas retur pesanan tidak cocok', 409);
+      if (identity.websiteId !== requestedId) return false;
+      if (item.luna_product_id && item.luna_product_id !== identity.productId) return false;
+      if (item.luna_variant_id && item.luna_variant_id !== identity.variantId) return false;
+      return item.luna_variant_id ? true : (line.variantName || '') === variant;
     }
-  }
-
-  return null;
+    const product = (line as any).product as Product | undefined;
+    const sameProduct = product && (requestedId === product.id || requestedId === product.sku);
+    const sameName = cleanText(item?.name) === `${cleanText(product?.name || line.componentName)}${line.variantName ? ` (${line.variantName})` : ''}`;
+    return !!line.productId && !!(sameProduct || sameName) && (line.variantName || '') === variant;
+  });
+  if (candidates.length !== 1) throw new AppError('Item retur belum cocok secara tunggal dengan pesanan asli', 422);
+  return candidates[0];
 }
 
 export const webOrderIntegrationController = {
@@ -357,9 +260,9 @@ export const webOrderIntegrationController = {
       return successResponse(res, { skipped: true, reason: 'sandbox_order' }, 'Order uji tidak masuk operasional produksi');
     }
 
-    const transaction = await sequelize.transaction();
-
+    let transaction: any;
     try {
+      transaction = await sequelize.transaction();
       const body = req.body || {};
       const orderId = cleanText(body.order_id);
       const status = cleanText(body.status);
@@ -405,37 +308,31 @@ export const webOrderIntegrationController = {
       const preparedShipping = { ...body, status: 'Proses', shipping_status: 'Disiapkan', courier: body.courier || body.kurir };
       websiteShippingNotes(preparedShipping, null);
       const dryRun = String(req.headers['x-luna-dry-run'] || body.dry_run || '').toLowerCase() === 'true';
-      if (dryRun) {
-        await transaction.rollback();
-        return successResponse(
-          res,
-          {
-            dryRun: true,
-            saleNumber: orderId,
-            status: 'WAITING_APPROVAL',
-            platform: 'WEBSITE',
-            customerId: customerId || customerEmail || null,
-            customerEmail: customerEmail || null,
-            customerName: customerName || null,
-            customerPhone: customerPhone || null,
-            customerAuthProvider: customerAuthProvider || 'email',
-            shippingAddress: cleanText(normalizeAddress(body.alamat_pen)),
-            itemCount: Array.isArray(body.items) ? body.items.filter(isOperationalItem).length : 0,
-          },
-          'Dry run berhasil, data tidak disimpan',
-          200
-        );
-      }
-
       const existingSale = await Sale.findOne({ where: { saleNumber: orderId }, transaction, lock: transaction.LOCK.UPDATE });
       if (existingSale) {
         if (['CANCELLED', 'REJECTED'].includes(existingSale.status) || (existingSale.platform && String(existingSale.platform) !== 'WEBSITE')) {
           throw new AppError('Order sudah dibatalkan/ditolak atau nomor pesanan dipakai transaksi lain. Perlu rekonsiliasi operator.', 409);
         }
+        const frozen = readWebsiteIdentities(existingSale.notes);
+        if (frozen && Array.isArray(body.items)) {
+          const storedItems = await SaleItem.findAll({ where: { saleId: existingSale.id }, transaction });
+          const incomingItems = body.items.filter(isOperationalItem);
+          if (incomingItems.length !== frozen.length || incomingItems.some((item: any, index: number) => {
+            const identity = frozen[index];
+            const stored = storedItems.find(line => line.id === identity.saleItemId);
+            return !stored || String(item.id) !== identity.websiteId
+              || (item.luna_product_id && item.luna_product_id !== identity.productId)
+              || (item.luna_variant_id && item.luna_variant_id !== identity.variantId)
+              || Number(item.quantity) !== Number(stored.quantity)
+              || Number(item.price ?? item.value) !== Number(stored.price);
+          }) || Number(body.data_mid?.gross_amount || body.total) !== Number(existingSale.totalAmount)) {
+            throw new AppError('Snapshot pesanan ulang berbeda dari pesanan MyLuna asli', 409);
+          }
+        }
         const notes = websitePreparedResyncNotes(preparedShipping, String(existingSale.status), existingSale.notes);
-        if (notes !== existingSale.notes) await existingSale.update({ notes, shippingService: cleanText(preparedShipping.courier) }, { transaction });
-        await transaction.commit();
-        return successResponse(res, { ...existingSale.toJSON(), fulfillment: websiteFulfillment(existingSale), tracking_number: websiteShippingReference(notes).awb, shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website sudah pernah masuk sistem', 200);
+        if (!dryRun && notes !== existingSale.notes) await existingSale.update({ notes, shippingService: cleanText(preparedShipping.courier) }, { transaction });
+        if (dryRun) await transaction.rollback(); else await transaction.commit();
+        return successResponse(res, { ...existingSale.toJSON(), dryRun, fulfillment: websiteFulfillment(existingSale), tracking_number: websiteShippingReference(notes).awb, shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website sudah pernah masuk sistem', 200);
       }
 
       // Sale hooks rename cancelled/rejected numbers. Never silently import those orders again.
@@ -458,7 +355,7 @@ export const webOrderIntegrationController = {
         throw new AppError('Item order kosong', 400);
       }
 
-      const saleDate = body.transaction_time ? new Date(String(body.transaction_time)) : new Date();
+      const saleDate = new Date(String(body.transaction_time || ''));
       const shippingAddress = cleanText(normalizeAddress(body.alamat_pen));
       const shippingService = cleanText(body.courier || body.kurir);
       const dataMid = body.data_mid || {};
@@ -476,23 +373,30 @@ export const webOrderIntegrationController = {
         subtotal: number;
       }> = [];
 
-      let calculatedTotal = 0;
       const stockRequired = new Map<string, number>();
+      const resolvedVariants = new Map<string, ProductVariant | null>();
+      const sourceIdentities: Array<Omit<WebsiteItemIdentity, 'saleItemId'>> = [];
+      const productRequired = new Map<string, number>();
 
       for (const item of items) {
         const name = cleanText(item.name);
-        const baseName = itemBaseName(name);
         const variantName = itemVariantName(name);
-        const quantity = Math.max(1, Number(item.quantity || 1));
+        const quantity = Number(item.quantity);
         const price = Number(item.price ?? item.value ?? 0);
         const discount = Number(item.discount || 0);
+        if (!Number.isSafeInteger(quantity) || quantity <= 0 || !Number.isSafeInteger(price) || price < 0
+          || !Number.isSafeInteger(discount) || discount < 0 || discount > quantity * price
+          || !Number.isSafeInteger(quantity * price)) throw new AppError('Jumlah atau nominal item pesanan tidak valid', 422);
         const subtotal = quantity * price - discount;
-        calculatedTotal += subtotal;
 
-        const product = await findProductForWebsiteItem(item, baseName, transaction);
+        const product = await resolveWebsiteProduct(item, transaction);
+        const resolvedVariant = await resolveWebsiteVariant(product.id, item, variantName, transaction);
+        resolvedVariants.set(JSON.stringify([product.id, resolvedVariant?.value || '']), resolvedVariant);
+        sourceIdentities.push({ websiteId: cleanText(item.id), productId: product.id, variantId: resolvedVariant?.id || null });
         if (product) {
-          const finalVariant = variantName || null;
-          const key = `${product.id}|${finalVariant || ''}`;
+          const finalVariant = resolvedVariant?.value || null;
+          const key = JSON.stringify([product.id, finalVariant || '']);
+          productRequired.set(product.id, (productRequired.get(product.id) || 0) + quantity);
           stockRequired.set(key, (stockRequired.get(key) || 0) + quantity);
           mappedItems.push({
             itemType: 'PRODUCT',
@@ -505,29 +409,18 @@ export const webOrderIntegrationController = {
             discount,
             subtotal,
           });
-        } else {
-          mappedItems.push({
-            itemType: 'COMPONENT',
-            productId: null,
-            componentName: name || baseName || cleanText(item.id) || 'Produk Website',
-            componentNotes: `Item website belum cocok dengan master produk. ID website: ${cleanText(item.id) || '-'}`,
-            variantName: null,
-            quantity,
-            price,
-            discount,
-            subtotal,
-          });
         }
       }
 
       for (const [key, totalQty] of stockRequired) {
-        const [productId, variantName] = key.split('|');
-        const product = await Product.findByPk(productId, { transaction });
-        if (!product) continue;
+        const [productId, variantName] = JSON.parse(key) as [string, string];
+        const product = await Product.findByPk(productId, { transaction, lock: transaction.LOCK.UPDATE });
+        if (!product) throw new AppError('Produk pesanan tidak ditemukan', 422);
+        if (product.stock < (productRequired.get(productId) || 0)) throw new AppError(`Stok ${product.name} tidak cukup`, 400);
 
         if (variantName) {
-          const variant = await ProductVariant.findOne({ where: { productId, value: variantName }, transaction });
-          if (variant && variant.stock < totalQty) {
+          const variant = resolvedVariants.get(key);
+          if (!variant || variant.stock < totalQty) {
             throw new AppError(`Stok varian ${product.name} (${variantName}) tidak cukup`, 400);
           }
         } else if (product.stock < totalQty) {
@@ -535,13 +428,21 @@ export const webOrderIntegrationController = {
         }
       }
 
+      if (!Number.isFinite(saleDate.getTime()) || !Number.isSafeInteger(grossAmount) || grossAmount <= 0) {
+        throw new AppError('Waktu atau total pembayaran pesanan tidak valid', 422);
+      }
+      if (dryRun) {
+        await transaction.rollback();
+        return successResponse(res, { dryRun: true, saleNumber: orderId, itemCount: mappedItems.length }, 'Validasi produk, varian, dan stok berhasil; data tidak disimpan');
+      }
+      const identities: WebsiteItemIdentity[] = [];
       const sale = await Sale.create(
         {
           saleNumber: orderId,
           saleDate,
           customerName: customerName || null,
           customerPhone: customerPhone || null,
-          totalAmount: grossAmount || calculatedTotal,
+          totalAmount: grossAmount,
           paymentMethod: 'TRANSFER' as any,
           platform: 'WEBSITE' as any,
           saleType: 'PRODUCT' as any,
@@ -555,22 +456,20 @@ export const webOrderIntegrationController = {
         { transaction }
       );
 
-      for (const item of mappedItems) {
-        await SaleItem.create({ saleId: sale.id, ...item }, { transaction });
+      for (const [index, item] of mappedItems.entries()) {
+        const savedItem = await SaleItem.create({ saleId: sale.id, ...item }, { transaction });
+        identities.push({ saleItemId: savedItem.id, ...sourceIdentities[index] });
 
         if (item.itemType !== 'PRODUCT' || !item.productId) continue;
 
-        const product = await Product.findByPk(item.productId, { transaction });
-        if (!product) continue;
+        const product = await Product.findByPk(item.productId, { transaction, lock: transaction.LOCK.UPDATE });
+        if (!product) throw new AppError('Produk pesanan tidak ditemukan', 422);
 
         const stockBefore = product.stock;
         await product.update({ stock: stockBefore - item.quantity }, { transaction });
 
         if (item.variantName) {
-          const variant = await ProductVariant.findOne({
-            where: { productId: item.productId, value: item.variantName },
-            transaction,
-          });
+          const variant = resolvedVariants.get(JSON.stringify([item.productId, item.variantName]));
           if (variant) {
             await variant.update({ stock: variant.stock - item.quantity }, { transaction });
           }
@@ -591,8 +490,10 @@ export const webOrderIntegrationController = {
         );
       }
 
+      await sale.update({ notes: appendWebsiteIdentities(sale.notes || '', identities) }, { transaction, websiteIdentitySnapshot: true } as any);
       await transaction.commit();
 
+      try {
       socketService.emitToAdmins('approval:pending', {
         message: 'Order website Lunarea masuk',
         saleId: sale.id,
@@ -601,10 +502,11 @@ export const webOrderIntegrationController = {
         totalAmount: `Rp ${Number(sale.totalAmount || 0).toLocaleString('id-ID')}`,
       });
       socketService.broadcastDataRefresh('sales');
+      } catch (_) { /* Committed order remains acknowledged even when live notifications fail. */ }
 
       return successResponse(res, { ...sale.toJSON(), fulfillment: websiteFulfillment(sale), tracking_number: websiteShippingReference(sale.notes).awb, shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website Lunarea berhasil masuk sistem', 201);
     } catch (error) {
-      await transaction.rollback();
+      if (transaction && !transaction.finished) await transaction.rollback();
       return next(error);
     }
   },

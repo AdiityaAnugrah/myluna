@@ -1,8 +1,18 @@
 name: Deploy to VPS
 
 on:
-  push:
-    branches: [main]
+  # Production deployment is deliberate; pushing code must not mutate production.
+  workflow_dispatch:
+    inputs:
+      apply_verified_mt120:
+        description: 'Verify master IDs with SELECT and merge the confirmed MT120 mapping into backend configuration'
+        type: boolean
+        required: true
+        default: false
+
+concurrency:
+  group: myluna-production-deploy
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -28,20 +38,22 @@ jobs:
 
             echo "=== Build Backend ==="
             cd /mine/myluna.web.id/backend
-            npm install --production=false
+            npm ci --include=dev
             npm run build
-            npm run migrate:production || echo "::warning::Migration production gagal/tertahan, deploy kode tetap dilanjutkan. Cek migration log setelah aplikasi aktif."
-            npm run seed:regions:v2:production || echo "::warning::Seed wilayah dilewati/gagal, deploy kode tetap dilanjutkan."
-            npm run reconcile:regions:v2:production || echo "::warning::Rekonsiliasi wilayah dilewati/gagal, deploy kode tetap dilanjutkan."
+            # Schema/data maintenance requires a separate reviewed operation,
+            # verified backup and staging restore test. Never run it on deploy.
+            if [ "${{ inputs.apply_verified_mt120 }}" = "true" ]; then
+              node scripts/verifyWebsiteIdentityRelease.cjs --apply-verified-mt120
+            fi
+            pm2 restart luna-backend --update-env
             pm2 restart app_background_lunarea --update-env || true
-            pm2 restart all --update-env
 
             echo "=== Build Frontend ==="
             cd /mine/myluna.web.id/frontend
-            npm install --production=false
+            npm ci --include=dev
             npm run build
-            pm2 restart luna-frontend --update-env || true
-            pm2 restart all --update-env
+            pm2 restart luna-frontend --update-env
 
             echo "=== Done ==="
+            git -C /mine/myluna.web.id rev-parse HEAD
             pm2 list

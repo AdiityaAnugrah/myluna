@@ -1,0 +1,3 @@
+# Private configuration backups created during a reviewed release.
+/backend/.release-private/
+/backend/.env.identity-release-*.tmp

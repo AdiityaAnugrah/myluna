@@ -1,3 +1,4 @@
+import { originalReturnVariant } from '../services/websiteProductIdentity.service';
 import path from 'path';
 import sharp from 'sharp';
 import { NextFunction, Request, Response } from 'express';
@@ -693,6 +694,7 @@ export const returnController = {
         const ticket = await ReturnTicket.findOne({
           where: { saleReturnId: record.id },
           transaction,
+        lock: transaction.LOCK.UPDATE,
         });
 
         if (ticket && ![ReturnTicketStatus.REJECTED, ReturnTicketStatus.COMPLETED].includes(ticket.status)) {
@@ -854,6 +856,7 @@ export const returnController = {
       const record = await SaleReturn.findByPk(req.params.id, {
         include: [{ model: SaleReturnItem, as: 'items' }],
         transaction,
+        lock: transaction.LOCK.UPDATE,
       });
       if (!record) throw new AppError('Data retur tidak ditemukan', 404);
       await ensureLegacyFinalizationAllowed(record.id, transaction);
@@ -875,17 +878,14 @@ export const returnController = {
           throw new AppError('Qty diterima untuk restock tidak valid', 400);
         }
 
-        const product = await Product.findByPk(returnItem.productId, { transaction });
+        const product = await Product.findByPk(returnItem.productId, { transaction, lock: transaction.LOCK.UPDATE });
         if (!product) throw new AppError('Produk retur tidak ditemukan', 404);
 
         const stockBefore = product.stock;
         await product.update({ stock: product.stock + qtyReceived }, { transaction });
 
-        if (returnItem.variantName) {
-          const variant = await ProductVariant.findOne({
-            where: { productId: returnItem.productId, value: returnItem.variantName },
-            transaction,
-          });
+        {
+          const variant = await originalReturnVariant(returnItem, transaction);
           if (variant) {
             await variant.update({ stock: variant.stock + qtyReceived }, { transaction });
           }
@@ -968,6 +968,7 @@ export const returnController = {
       const record = await SaleReturn.findByPk(req.params.id, {
         include: [{ model: SaleReturnItem, as: 'items' }],
         transaction,
+        lock: transaction.LOCK.UPDATE,
       });
       if (!record) throw new AppError('Data retur tidak ditemukan', 404);
       if (record.status !== SaleReturnStatus.ITEM_RECEIVED) {
@@ -1089,6 +1090,7 @@ export const returnController = {
       const record = await SaleReturn.findByPk(req.params.id, {
         include: [{ model: SaleReturnItem, as: 'items' }],
         transaction,
+        lock: transaction.LOCK.UPDATE,
       });
       if (!record) throw new AppError('Data retur tidak ditemukan', 404);
       if (record.status !== SaleReturnStatus.ITEM_RECEIVED) {
@@ -1114,17 +1116,14 @@ export const returnController = {
           throw new AppError('Qty masuk stok setelah revisi tidak valid', 400);
         }
 
-        const product = await Product.findByPk(returnItem.productId, { transaction });
+        const product = await Product.findByPk(returnItem.productId, { transaction, lock: transaction.LOCK.UPDATE });
         if (!product) throw new AppError('Produk retur tidak ditemukan', 404);
 
         const stockBefore = product.stock;
         await product.update({ stock: product.stock + qtyRestocked }, { transaction });
 
-        if (returnItem.variantName) {
-          const variant = await ProductVariant.findOne({
-            where: { productId: returnItem.productId, value: returnItem.variantName },
-            transaction,
-          });
+        {
+          const variant = await originalReturnVariant(returnItem, transaction);
           if (variant) {
             await variant.update({ stock: variant.stock + qtyRestocked }, { transaction });
           }
@@ -1245,6 +1244,7 @@ export const returnController = {
       const record = await SaleReturn.findByPk(req.params.id, {
         include: [{ model: SaleReturnItem, as: 'items' }],
         transaction,
+        lock: transaction.LOCK.UPDATE,
       });
       if (!record) throw new AppError('Data retur tidak ditemukan', 404);
       await ensureLegacyFinalizationAllowed(record.id, transaction);
@@ -1350,6 +1350,7 @@ export const returnController = {
       const record = await SaleReturn.findByPk(req.params.id, {
         include: [{ model: SaleReturnItem, as: 'items' }],
         transaction,
+        lock: transaction.LOCK.UPDATE,
       });
       if (!record) throw new AppError('Data retur tidak ditemukan', 404);
       await ensureLegacyFinalizationAllowed(record.id, transaction);

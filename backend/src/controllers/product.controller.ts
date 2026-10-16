@@ -1,3 +1,4 @@
+import { updateProductVariantsPreservingIdentity } from '../services/productVariantIdentity.service';
 import { Product, Category, ProductVariant, ChangeRequest, EntityType, RequestType, RequestStatus } from '../models';
 import { successResponse } from '../utils/response';
 import { AppError } from '../utils/errors';
@@ -459,15 +460,7 @@ export const productController = {
         }, { transaction: t });
 
         if (variants && Array.isArray(variants)) {
-          // Simplest way: remove existing variants and recreating them
-          await ProductVariant.destroy({ where: { productId: id }, transaction: t });
-          await ProductVariant.bulkCreate(
-            variants.map((v: any) => ({
-              ...v,
-              productId: id,
-            })),
-            { transaction: t }
-          );
+          await updateProductVariantsPreservingIdentity(id, variants, t);
         }
       });
 

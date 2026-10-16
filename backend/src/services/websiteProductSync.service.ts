@@ -1,3 +1,4 @@
+import { websiteIdForMaster } from '../utils/websiteProductMap';
 import { Op } from 'sequelize';
 import { Product, ProductVariant, Category } from '../models';
 import { parseBoolean, postJsonToLunareaWebsite } from './lunareaWebsiteHttp.service';
@@ -45,7 +46,7 @@ async function buildWebsiteProductPayload(product: Product) {
   return {
     id: product.id,
     sku: product.sku,
-    website_id: marketplaceLinks.websiteId || marketplaceLinks.website_id || product.sku,
+    website_id: websiteIdForMaster(product),
     name: product.name,
     slug: product.slug || cleanSlug(product.slug, product.name),
     description: product.description || '',
@@ -61,6 +62,7 @@ async function buildWebsiteProductPayload(product: Product) {
     width: product.width === null || product.width === undefined ? null : numberValue(product.width),
     height: product.height === null || product.height === undefined ? null : numberValue(product.height),
     weight: product.weight === null || product.weight === undefined ? null : numberValue(product.weight),
+    imageUrl: product.imageUrl || '',
     isActive: product.isActive,
     variants: variantItems.map((variant: any) => ({
       id: variant.id,

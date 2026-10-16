@@ -82,15 +82,13 @@ export function ProductForm({ product, isEdit = false }: ProductFormProps) {
         stock: product.stock ? Number(product.stock) : 0,
         minStock: product.minStock ? Number(product.minStock) : 0,
         // Handle variants array safely
-        variants: (product.variants && Array.isArray(product.variants))
-          ? product.variants.map((v: any) => ({
+        variants: (Array.isArray(product.variantItems) ? product.variantItems : (Array.isArray(product.variants) ? product.variants : [])).map((v: any) => ({
               id: v.id || undefined, // Keep ID for updates
               name: v.name || '',
               value: v.value || '',
               stock: v.stock ? Number(v.stock) : 0,
               priceAdjustment: v.priceAdjustment ? Number(v.priceAdjustment) : 0,
-            }))
-          : [],
+            })),
         isActive: product.isActive ?? true,
       }
     : {

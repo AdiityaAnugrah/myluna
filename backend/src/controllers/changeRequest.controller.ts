@@ -1,3 +1,5 @@
+import { updateProductVariantsPreservingIdentity } from '../services/productVariantIdentity.service';
+import { originalSaleVariant } from '../services/websiteProductIdentity.service';
 import { Request, Response, NextFunction } from 'express';
 import { ChangeRequest, RequestStatus, EntityType, RequestType, Product, Category, Supplier, StockMovement, User, MovementType, Settlement, Sale, SaleItem, ProductVariant } from '../models';
 import { successResponse } from '../utils/response';
@@ -243,19 +245,13 @@ async function handleProductChange(type: RequestType, id: string | null, payload
 
     // Don't overwrite SKU on update if not changed
     if (!data.sku) delete productData.sku;
+    // Master edits must not overwrite inventory with an old form snapshot.
+    delete productData.stock;
 
     await product.update(productData, { transaction });
 
     if (variants && Array.isArray(variants)) {
-      await ProductVariant.destroy({ where: { productId: id }, transaction });
-      
-      const VARIANT_FIELDS = ['name', 'value', 'priceAdjustment', 'stock'];
-      const sanitizedVariants = variants.map((v: any) => {
-          const sv: any = { productId: id };
-          VARIANT_FIELDS.forEach(f => { if(v[f] !== undefined) sv[f] = v[f]; });
-          return sv;
-      });
-      await ProductVariant.bulkCreate(sanitizedVariants, { transaction });
+      await updateProductVariantsPreservingIdentity(id, variants, transaction);
     }
   } else if (type === RequestType.DELETE) {
     if (!id) throw new AppError('Entity ID required for DELETE', 400);
@@ -397,6 +393,7 @@ async function handleSaleCancellation(id: string | null, payload: any, transacti
   const sale = await Sale.findByPk(targetId, {
     include: [{ model: SaleItem, as: 'items' }],
     transaction,
+    lock: transaction.LOCK.UPDATE,
   });
 
   if (!sale) throw new AppError('Sale not found', 404);
@@ -422,16 +419,13 @@ async function handleSaleCancellation(id: string | null, payload: any, transacti
   if (sale.items) {
     for (const item of sale.items) {
       if ((item as any).itemType === 'COMPONENT' || !item.productId) continue;
-      const product = await Product.findByPk(item.productId, { transaction });
+      const product = await Product.findByPk(item.productId, { transaction, lock: transaction.LOCK.UPDATE });
       if (product) {
         const stockBeforeSaleCancel = product.stock;
         await product.update({ stock: product.stock + item.quantity }, { transaction });
 
-        if (item.variantName) {
-            const variant = await ProductVariant.findOne({
-                where: { productId: item.productId, value: item.variantName },
-                transaction,
-            });
+        {
+            const variant = await originalSaleVariant(sale, item, transaction);
             if (variant) {
                 await variant.update({ stock: variant.stock + item.quantity }, { transaction });
             }

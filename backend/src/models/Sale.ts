@@ -1,3 +1,4 @@
+import { preserveWebsiteIdentities, readWebsiteIdentities } from '../utils/websiteItemIdentities';
 import { Model, DataTypes, Optional } from 'sequelize';
 import { sequelize } from '../config/database';
 
@@ -219,7 +220,13 @@ Sale.init(
     sequelize,
     tableName: 'sales',
     hooks: {
-      beforeUpdate: (sale: Sale) => {
+      beforeUpdate: (sale: Sale, options) => {
+        if (sale.changed('notes') && !readWebsiteIdentities(sale.previous('notes') as string | null) && !(options as any).websiteIdentitySnapshot) {
+          preserveWebsiteIdentities(null, sale.notes);
+        }
+        if (sale.changed('notes') && readWebsiteIdentities(sale.previous('notes') as string | null)) {
+          sale.notes = preserveWebsiteIdentities(sale.previous('notes') as string | null, sale.notes);
+        }
         if (sale.changed('status')) {
           const newStatus = sale.getDataValue('status');
           if (newStatus === SaleStatus.CANCELLED || newStatus === SaleStatus.REJECTED) {

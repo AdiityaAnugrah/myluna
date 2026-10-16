@@ -24,6 +24,7 @@ export const productSchema = z.object({
   stock: z.number().int().optional(),
   minStock: z.number().int().min(0, 'Min stok tidak boleh negatif'),
   variants: z.array(z.object({
+    id: z.string().uuid().optional(),
     name: z.string().optional().default(''),
     value: z.string().min(1, 'Pilihan warna/varian wajib diisi'),
     priceAdjustment: z.number().default(0),
