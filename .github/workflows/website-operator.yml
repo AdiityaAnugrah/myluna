@@ -1,0 +1,58 @@
+name: Configure explicitly approved website operator
+on:
+  workflow_dispatch:
+    inputs:
+      operator_username:
+        description: 'Exact username explicitly chosen by the business owner'
+        required: true
+        type: string
+      expected_role:
+        description: 'Exact role explicitly approved by the business owner'
+        required: true
+        type: string
+      apply:
+        description: 'Back up .env, set only WEBSITE_ORDER_USER_ID, and restart luna-backend'
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: myluna-production-deploy
+  cancel-in-progress: false
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate approved input and encode script
+        id: script
+        env:
+          APPROVED_OPERATOR_USERNAME: ${{ inputs.operator_username }}
+          APPROVED_OPERATOR_ROLE: ${{ inputs.expected_role }}
+        run: |
+          node -e "if(!/^[A-Za-z0-9_.-]{1,100}$/.test(process.env.APPROVED_OPERATOR_USERNAME)||!/^[A-Z_]{1,50}$/.test(process.env.APPROVED_OPERATOR_ROLE))process.exit(1)"
+          echo "encoded=$(base64 -w0 backend/scripts/configureWebsiteOperator.cjs)" >> "$GITHUB_OUTPUT"
+      - name: Verify and optionally configure approved operator
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          OPERATOR_SCRIPT_B64: ${{ steps.script.outputs.encoded }}
+          APPROVED_OPERATOR_USERNAME: ${{ inputs.operator_username }}
+          APPROVED_OPERATOR_ROLE: ${{ inputs.expected_role }}
+          LUNA_OPERATOR_APPLY: ${{ inputs.apply && '1' || '0' }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: OPERATOR_SCRIPT_B64,APPROVED_OPERATOR_USERNAME,APPROVED_OPERATOR_ROLE,LUNA_OPERATOR_APPLY
+          script: |
+            set -e
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            export PATH=$PATH:/root/.nvm/versions/node/v22.13.0/bin:/usr/local/bin:/usr/bin
+            cd /mine/myluna.web.id/backend
+            export LUNA_OPERATOR_CONFIG_STDIN=1
+            printf '%s' "$OPERATOR_SCRIPT_B64" | base64 --decode | node -
+            if [ "$LUNA_OPERATOR_APPLY" = "1" ]; then
+              pm2 restart luna-backend --update-env
+            fi

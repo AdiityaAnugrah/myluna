@@ -16,6 +16,7 @@ const json = value => {
 const normalized = value => String(value || '').replace(/\s+/g, ' ').trim().toUpperCase();
 const fingerprint = rows => sha(JSON.stringify(rows));
 let auditStage = 'INITIALIZE';
+const CONTEXT_SQL = "SELECT DATABASE() AS database_name, VERSION() AS server_version, DATE_FORMAT(UTC_TIMESTAMP(6), '%Y-%m-%dT%H:%i:%s.%fZ') AS observed_at, @@session.time_zone AS session_time_zone, @@system_time_zone AS server_system_time_zone";
 
 async function select(db, sql, params = []) {
   if (!/^SELECT\s/i.test(sql) || /\b(?:INTO|FOR\s+UPDATE|GET_LOCK|RELEASE_LOCK|SLEEP|BENCHMARK)\b/i.test(sql)) {
@@ -43,7 +44,7 @@ function websiteConfig(values) {
 
 async function collectWebsite(db) {
   return readOnlySnapshot(db, async () => ({
-    context: await select(db, 'SELECT DATABASE() AS database_name, VERSION() AS server_version, UTC_TIMESTAMP(6) AS observed_at'),
+    context: await select(db, CONTEXT_SQL),
     schema: await select(db, 'SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND ((TABLE_NAME = ? AND COLUMN_NAME = ?) OR (TABLE_NAME = ? AND COLUMN_NAME = ?)) ORDER BY TABLE_NAME, COLUMN_NAME', ['konstanta', 'value', 'stok', 'nama']),
     products: await select(db, 'SELECT id, nama, active, varian FROM barang ORDER BY id'),
     identities: await select(db, 'SELECT label, value FROM konstanta WHERE LEFT(label, ?) = ? ORDER BY id', [PREFIX.length, PREFIX]),
@@ -53,12 +54,13 @@ async function collectWebsite(db) {
 
 async function collectMaster(db) {
   return readOnlySnapshot(db, async () => ({
-    context: await select(db, 'SELECT DATABASE() AS database_name, VERSION() AS server_version, UTC_TIMESTAMP(6) AS observed_at'),
+    context: await select(db, CONTEXT_SQL),
     products: await select(db, 'SELECT id, sku, name, isActive, marketplaceLinks, stock FROM products ORDER BY id'),
     variants: await select(db, 'SELECT id, productId, name, value, stock FROM product_variants ORDER BY productId, id'),
     operators: await select(db, 'SELECT u.id, u.isActive, u.createdAt, r.name AS role_name FROM users u LEFT JOIN roles r ON r.id = u.roleId ORDER BY u.createdAt, u.id'),
-    orders: await select(db, 'SELECT id, saleNumber, status, notes FROM sales WHERE saleNumber = ? OR saleNumber LIKE ? OR saleNumber LIKE ? ORDER BY saleNumber', ['L00000227', 'L00000227-CANCELLED-%', 'L00000227-REJECTED-%']),
+    orders: await select(db, "SELECT id, saleNumber, status, platform, notes, totalAmount, createdBy, DATE_FORMAT(saleDate, '%Y-%m-%d %H:%i:%s') AS sale_date_stored, DATE_FORMAT(createdAt, '%Y-%m-%d %H:%i:%s') AS imported_at_stored, processed_at FROM sales WHERE saleNumber = ? OR saleNumber LIKE ? OR saleNumber LIKE ? ORDER BY saleNumber", ['L00000227', 'L00000227-CANCELLED-%', 'L00000227-REJECTED-%']),
     items: await select(db, 'SELECT i.id, i.saleId, i.productId, i.variantName, i.quantity, i.price FROM sale_items i JOIN sales s ON s.id = i.saleId WHERE s.saleNumber = ? ORDER BY i.id', ['L00000227']),
+    movements: await select(db, 'SELECT productId, type, quantity, stock_before, stock_after FROM stock_movements WHERE reference = ? ORDER BY id', ['WEB:L00000227']),
   }));
 }
 
@@ -156,19 +158,68 @@ function operatorEvidence(users, configuredId) {
     business_owner_approval: 'UNVERIFIED_NO_OWNER_ASSIGNED_BY_AUDIT' };
 }
 
-function orderEvidence(web, master) {
+function moneyMinor(value) {
+  const text = String(value ?? '');
+  if (!/^\d+(?:\.\d{1,2})?$/.test(text)) return null;
+  const [whole, fraction = ''] = text.split('.');
+  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
+}
+
+function orderEvidence(web, master, rawMap = '{}', configuredOperatorId = '') {
   const w = web.orders.length === 1 ? web.orders[0] : null;
   const mid = json(w?.data_mid);
   const items = json(w?.items);
+  const sale = master.orders.filter(s => s.saleNumber === 'L00000227');
+  const active = sale.length === 1 ? sale[0] : null;
+  const matches = [...String(active?.notes || '').matchAll(/\[LUNA_ITEM_IDENTITIES_V1:([A-Za-z0-9+/=]+)\]/g)];
+  const frozen = matches.length === 1 ? json(Buffer.from(matches[0][1], 'base64').toString('utf8')) : null;
+  const validFrozen = Array.isArray(frozen) && frozen.length > 0 && frozen.every(i => UUID.test(i.saleItemId) && UUID.test(i.productId)
+    && typeof i.websiteId === 'string' && (i.variantId === null || UUID.test(i.variantId)))
+    && new Set(frozen.map(i => i.saleItemId)).size === frozen.length;
+  const configured = json(rawMap) || {};
+  const operational = Array.isArray(items) ? items.filter(i => !['biaya admin', 'biaya ongkir', 'ongkir', 'diskon voucher', 'luna point', 'ganti kaca', 'potongan preorder']
+    .includes(String(i.id || i.name || '').trim().toLowerCase())) : [];
+  const lines = operational.map(i => {
+    const identities = validFrozen ? frozen.filter(f => f.websiteId === String(i.id) && f.productId === (i.luna_product_id || configured[i.id])) : [];
+    const match = identities.length === 1 ? master.items.find(line => line.id === identities[0].saleItemId && line.productId === identities[0].productId) : null;
+    const variant = match && identities[0].variantId ? master.variants.find(v => v.id === identities[0].variantId && v.productId === match.productId) : null;
+    return { website_id: String(i.id), master_product_id: match?.productId || null,
+      frozen_variant_id: identities.length === 1 ? identities[0].variantId : null,
+      canonical_item_reference_matches: Boolean(match),
+      variant_ownership_matches: Boolean(match && (variant || (identities[0].variantId === null
+        && !master.variants.some(v => v.productId === match.productId)))),
+      quantity_matches: match ? Number(i.quantity) === Number(match.quantity) : null,
+      unit_price_matches: match ? moneyMinor(i.price ?? i.value) !== null && moneyMinor(i.price ?? i.value) === moneyMinor(match.price) : null };
+  });
+  const rawTime = typeof mid?.transaction_time === 'string' ? mid.transaction_time : '';
+  const explicitTime = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(rawTime) ? rawTime.replace(' ', 'T') + '+07:00' : rawTime;
+  const parsed = new Date(explicitTime);
+  const expectedUtc = Number.isFinite(parsed.getTime()) ? parsed.toISOString().slice(0, 19).replace('T', ' ') : null;
+  const movements = master.movements || [];
+  const stockByProduct = new Map();
+  for (const line of master.items) stockByProduct.set(line.productId, (stockByProduct.get(line.productId) || 0) + Number(line.quantity));
+  const stockMatches = stockByProduct.size > 0 && movements.length > 0 && movements.every(m => m.type === 'OUT'
+    && m.stock_before !== null && m.stock_after !== null && Number.isSafeInteger(Number(m.quantity)) && Number(m.quantity) > 0
+    && stockByProduct.has(m.productId) && Number(m.stock_before) - Number(m.stock_after) === Number(m.quantity))
+    && [...stockByProduct].every(([id, qty]) => movements.filter(m => m.productId === id).reduce((n, m) => n + Number(m.quantity), 0) === qty);
   return { order_number: 'L00000227', website_record_count: web.orders.length,
     website_saved_status: w?.status || null,
     saved_midtrans_status: mid?.transaction_status || null,
     gateway_status_checked_live: false,
     website_items_are_array: Array.isArray(items),
     website_item_count: Array.isArray(items) ? items.length : null,
-    master_orders: master.orders.map(s => ({ sale_number: s.saleNumber, status: s.status })),
+    master_orders: master.orders.map(s => ({ sale_number: s.saleNumber, status: s.status, platform: s.platform || null })),
     master_item_count: master.items.length,
     master_items_without_product: master.items.filter(i => !i.productId).length,
+    frozen_identity_snapshot_valid: Boolean(validFrozen),
+    item_comparisons: lines,
+    gross_amount_matches: active && moneyMinor(mid?.gross_amount) !== null ? moneyMinor(mid.gross_amount) === moneyMinor(active.totalAmount) : null,
+    order_owner_matches_configured_operator: active && configuredOperatorId ? active.createdBy === configuredOperatorId : null,
+    sale_date_stored: active?.sale_date_stored || null, expected_utc_from_website_timestamp: expectedUtc,
+    sale_date_matches_sender_utc_contract: active && expectedUtc ? active.sale_date_stored === expectedUtc : null,
+    import_timestamp_is_distinct_field: true,
+    stock_movement_count: movements.length, stock_movement_quantities_and_arithmetic_match: stockMatches,
+    current_stock_unchanged_by_audit: true,
     order_created_or_forwarded_by_audit: false };
 }
 
@@ -183,7 +234,7 @@ async function main() {
   const mysql = require('mysql2/promise');
   auditStage = 'CONNECT_MASTER';
   const masterDb = await mysql.createConnection({ host: luna.DB_HOST, port: Number(luna.DB_PORT || 3306),
-    user: luna.DB_USER, password: luna.DB_PASSWORD || '', database: luna.DB_NAME, connectTimeout: 10000 });
+    user: luna.DB_USER, password: luna.DB_PASSWORD || '', database: luna.DB_NAME, connectTimeout: 10000, dateStrings: true });
   try {
     auditStage = 'SELECT_MASTER_SNAPSHOT';
     const master = await collectMaster(masterDb);
@@ -213,7 +264,7 @@ async function main() {
       website_identity_flag_on_disk: /^(true|1|yes|on)$/i.test(web.LUNA_PRODUCT_IDENTITY_ENABLED || ''),
       operator: operatorEvidence(master.operators, luna.WEBSITE_ORDER_USER_ID),
       catalogue: mappingEvidence(websiteData, master, luna.LUNA_WEB_PRODUCT_MAP),
-      order: orderEvidence(websiteData, master),
+      order: orderEvidence(websiteData, master, luna.LUNA_WEB_PRODUCT_MAP, luna.WEBSITE_ORDER_USER_ID),
       snapshot_fingerprints: { master_products: before[0], master_variants: before[1], website_products: before[2] },
       production_writes_performed: false, credentials_and_customer_fields_in_report: false };
     if (fs.readFileSync(path.join(backend, '.env'), 'utf8') !== backendFile

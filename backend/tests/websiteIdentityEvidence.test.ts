@@ -56,6 +56,23 @@ describe('read-only production evidence', () => {
     expect(report.gateway_status_checked_live).toBe(false);
     expect(JSON.stringify(report)).not.toContain('private-');
   });
+  test('actual order comparison checks UUIDs, amount, timezone contract and movement arithmetic', () => {
+    const { web, master } = fixtures();
+    const lineId = '11111111-1111-4111-8111-111111111111';
+    const identities = [{ saleItemId: lineId, websiteId: 'B20240116151233', productId, variantId }];
+    (web.orders as any[]).push({ status: 'Proses', items: JSON.stringify([{ id: identities[0].websiteId, quantity: 7, value: 445550 }]),
+      data_mid: JSON.stringify({ transaction_time: '2026-10-15 10:32:01', gross_amount: '3118850.00', transaction_status: 'settlement' }) });
+    (master.orders as any[]).push({ saleNumber: 'L00000227', totalAmount: '3118850.00', sale_date_stored: '2026-10-15 03:32:01',
+      notes: '[LUNA_ITEM_IDENTITIES_V1:' + Buffer.from(JSON.stringify(identities)).toString('base64') + ']' });
+    (master.items as any[]).push({ id: lineId, productId, quantity: 7, price: '445550.00' });
+    const withMovements = { ...master, movements: [{ productId, type: 'OUT', quantity: 7, stock_before: 23, stock_after: 16 }] };
+    const report = orderEvidence(web, withMovements, JSON.stringify({ [identities[0].websiteId]: productId }));
+    expect(report.item_comparisons[0]).toMatchObject({ canonical_item_reference_matches: true, variant_ownership_matches: true, quantity_matches: true, unit_price_matches: true });
+    expect(report.gross_amount_matches).toBe(true);
+    expect(report.sale_date_matches_sender_utc_contract).toBe(true);
+    expect(report.stock_movement_quantities_and_arithmetic_match).toBe(true);
+    expect(orderEvidence(web, { ...withMovements, movements: [...withMovements.movements, ...withMovements.movements] }).stock_movement_quantities_and_arithmetic_match).toBe(false);
+  });
   test('snapshot always rolls back and selects only guarded queries', async () => {
     const db = { query: jest.fn().mockResolvedValue(undefined), rollback: jest.fn().mockResolvedValue(undefined), execute: jest.fn().mockResolvedValue([[]]) };
     await expect(readOnlySnapshot(db, () => { throw new Error('synthetic'); })).rejects.toThrow('synthetic');
