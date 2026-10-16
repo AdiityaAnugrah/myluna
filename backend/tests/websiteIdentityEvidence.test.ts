@@ -2,9 +2,13 @@ export {};
 const fs = require('node:fs');
 const path = require('node:path');
 const { select, readOnlySnapshot, websiteConfig, mappingEvidence, operatorEvidence, orderEvidence,
-  collectWebsite, collectMaster } = require('../scripts/auditWebsiteIdentityEvidence.cjs');
+  collectWebsite, collectMaster, safeAuditFailure } = require('../scripts/auditWebsiteIdentityEvidence.cjs');
 
 describe('read-only production evidence', () => {
+  test('failure diagnostics never echo credentials or raw SQL', () => {
+    expect(safeAuditFailure({ code: 'ER_BAD_FIELD_ERROR', message: 'private query' })).toBe('ER_BAD_FIELD_ERROR');
+    expect(safeAuditFailure(new Error('private password'))).toBe('UNCLASSIFIED_FAILURE');
+  });
   const productId = '7ef42be0-9851-4d75-ab2b-13e9acd58990';
   const variantId = '3b2bb1d3-df78-4272-92b2-87612eac4c1d';
   const fixtures = () => ({

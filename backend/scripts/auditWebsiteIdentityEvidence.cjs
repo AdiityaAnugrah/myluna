@@ -14,6 +14,7 @@ const json = value => {
 };
 const normalized = value => String(value || '').replace(/\s+/g, ' ').trim().toUpperCase();
 const fingerprint = rows => sha(JSON.stringify(rows));
+let auditStage = 'INITIALIZE';
 
 async function select(db, sql, params = []) {
   if (!/^SELECT\s/i.test(sql) || /\b(?:INTO|FOR\s+UPDATE|GET_LOCK|RELEASE_LOCK|SLEEP|BENCHMARK)\b/i.test(sql)) {
@@ -171,6 +172,7 @@ function orderEvidence(web, master) {
 }
 
 async function main() {
+  auditStage = 'READ_CONFIGURATION_FILES';
   const backend = process.cwd();
   const website = '/mine/lunareafurniture.com/jasmine-shop';
   const backendFile = fs.readFileSync(path.join(backend, '.env'), 'utf8');
@@ -178,12 +180,18 @@ async function main() {
   const luna = dotenv.parse(backendFile), web = dotenv.parse(websiteFile);
   if (!luna.DB_HOST || !luna.DB_USER || !luna.DB_NAME) throw new Error('Master connection incomplete');
   const mysql = require('mysql2/promise');
+  auditStage = 'CONNECT_MASTER';
   const masterDb = await mysql.createConnection({ host: luna.DB_HOST, port: Number(luna.DB_PORT || 3306),
     user: luna.DB_USER, password: luna.DB_PASSWORD || '', database: luna.DB_NAME, connectTimeout: 10000 });
   let webDb;
   try {
+    auditStage = 'RESOLVE_WEBSITE_CONNECTION';
     webDb = await mysql.createConnection(websiteConfig(web));
-    const master = await collectMaster(masterDb), websiteData = await collectWebsite(webDb);
+    auditStage = 'SELECT_MASTER_SNAPSHOT';
+    const master = await collectMaster(masterDb);
+    auditStage = 'SELECT_WEBSITE_SNAPSHOT';
+    const websiteData = await collectWebsite(webDb);
+    auditStage = 'CLASSIFY_EVIDENCE';
     const before = [fingerprint(master.products), fingerprint(master.variants), fingerprint(websiteData.products)];
     const report = { report_version: 1, audit_mode: 'SELECT_ONLY_READ_ONLY_TRANSACTIONS',
       source: 'PRODUCTION_DATABASE_SNAPSHOTS', cross_database_snapshot_is_atomic: false,
@@ -203,8 +211,17 @@ async function main() {
   } finally { if (webDb) await webDb.end(); await masterDb.end(); }
 }
 
-module.exports = { select, readOnlySnapshot, websiteConfig, mappingEvidence, operatorEvidence, orderEvidence, collectWebsite, collectMaster };
-if (require.main === module || process.env.LUNA_READONLY_AUDIT_STDIN === '1') main().catch(() => {
+function safeAuditFailure(error) {
+  const knownMessages = new Set(['Website connection requires explicit review', 'Website connection incomplete',
+    'Master connection incomplete', 'Configuration changed during audit', 'Non-read-only query rejected']);
+  const knownCodes = new Set(['ER_ACCESS_DENIED_ERROR', 'ER_BAD_DB_ERROR', 'ER_BAD_FIELD_ERROR',
+    'ER_NO_SUCH_TABLE', 'ER_PARSE_ERROR', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ENOENT', 'EACCES']);
+  return knownMessages.has(error?.message) ? error.message : knownCodes.has(error?.code) ? error.code : 'UNCLASSIFIED_FAILURE';
+}
+
+module.exports = { select, readOnlySnapshot, websiteConfig, mappingEvidence, operatorEvidence, orderEvidence, collectWebsite, collectMaster, safeAuditFailure };
+if (require.main === module || process.env.LUNA_READONLY_AUDIT_STDIN === '1') main().catch((error) => {
+  console.error(JSON.stringify({ audit_stage: auditStage, reason: safeAuditFailure(error) }));
   console.error('Read-only evidence audit stopped. No raw SQL, customer data or credentials are printed.');
   process.exitCode = 1;
 });
