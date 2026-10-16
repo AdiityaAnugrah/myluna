@@ -58,8 +58,8 @@ async function collectMaster(db) {
     products: await select(db, 'SELECT id, sku, name, isActive, marketplaceLinks, stock FROM products ORDER BY id'),
     variants: await select(db, 'SELECT id, productId, name, value, stock FROM product_variants ORDER BY productId, id'),
     operators: await select(db, 'SELECT u.id, u.isActive, u.createdAt, r.name AS role_name FROM users u LEFT JOIN roles r ON r.id = u.roleId ORDER BY u.createdAt, u.id'),
-    orders: await select(db, "SELECT id, saleNumber, status, platform, notes, totalAmount, createdBy, DATE_FORMAT(saleDate, '%Y-%m-%d %H:%i:%s') AS sale_date_stored, DATE_FORMAT(createdAt, '%Y-%m-%d %H:%i:%s') AS imported_at_stored, processed_at FROM sales WHERE saleNumber = ? OR saleNumber LIKE ? OR saleNumber LIKE ? ORDER BY saleNumber", ['L00000227', 'L00000227-CANCELLED-%', 'L00000227-REJECTED-%']),
-    items: await select(db, 'SELECT i.id, i.saleId, i.productId, i.variantName, i.quantity, i.price FROM sale_items i JOIN sales s ON s.id = i.saleId WHERE s.saleNumber = ? ORDER BY i.id', ['L00000227']),
+    orders: await select(db, "SELECT id, saleNumber, status, platform, notes, totalAmount, createdBy, DATE_FORMAT(saleDate, '%Y-%m-%d %H:%i:%s') AS sale_date_stored, DATE_FORMAT(createdAt, '%Y-%m-%d %H:%i:%s') AS imported_at_stored, processed_at FROM sales WHERE saleNumber IN (?, ?) OR saleNumber LIKE ? OR saleNumber LIKE ? OR saleNumber LIKE ? OR saleNumber LIKE ? ORDER BY saleNumber", ['L00000227', 'LWEB-L00000227', 'L00000227-CANCELLED-%', 'L00000227-REJECTED-%', 'LWEB-L00000227-CANCELLED-%', 'LWEB-L00000227-REJECTED-%']),
+    items: await select(db, 'SELECT i.id, i.saleId, i.productId, i.variantName, i.quantity, i.price FROM sale_items i JOIN sales s ON s.id = i.saleId WHERE s.saleNumber IN (?, ?) ORDER BY i.id', ['L00000227', 'LWEB-L00000227']),
     movements: await select(db, 'SELECT productId, type, quantity, stock_before, stock_after FROM stock_movements WHERE reference = ? ORDER BY id', ['WEB:L00000227']),
   }));
 }
@@ -142,6 +142,8 @@ function mappingEvidence(web, master, rawMap) {
     }
   }
   return { global_issues: [...new Set(globalIssues)],
+    master_catalog: master.products.map(p => ({ id: p.id, sku: p.sku, name: p.name, active: Boolean(Number(p.isActive)),
+      variants: master.variants.filter(v => v.productId === p.id).map(v => ({ id: v.id, value: v.value })) })),
     master_reference_field_counts: Object.fromEntries(referenceKeys.map(key => [key,
       master.products.filter(p => typeof json(p.marketplaceLinks)?.[key] === 'string' && json(p.marketplaceLinks)[key]).length])),
     exact_shared_external_references: externalReferences,
@@ -223,6 +225,7 @@ function orderEvidence(web, master, rawMap = '{}', configuredOperatorId = '') {
     website_items_are_array: Array.isArray(items),
     website_item_count: Array.isArray(items) ? items.length : null,
     master_orders: master.orders.map(s => ({ sale_number: s.saleNumber, status: s.status, platform: s.platform || null })),
+    namespaced_record_count: master.orders.filter(s => s.saleNumber === 'LWEB-L00000227').length,
     master_reference_classification: !active ? 'NO_UNIQUE_CURRENT_RECORD'
       : active.platform !== 'WEBSITE' ? 'NUMBER_COLLISION_NON_WEBSITE_PLATFORM'
       : validFrozen ? 'WEBSITE_WITH_CANONICAL_SNAPSHOT' : 'WEBSITE_LEGACY_IDENTITY_UNVERIFIED',

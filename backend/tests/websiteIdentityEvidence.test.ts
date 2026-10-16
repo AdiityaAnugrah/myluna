@@ -29,6 +29,7 @@ describe('read-only production evidence', () => {
     expect(report.rows[0].status).toBe('EXPLICIT_REFERENCE_PRESENT');
     expect(report.rows[0].variants[0].status).toBe('OPERATOR_CONFIRMED_AND_PRESENT');
     expect(report.summary.stock_parent_differs_from_variant_sum).toBe(1);
+    expect(report.master_catalog[0]).toMatchObject({ id: productId, variants: [{ id: variantId, value: 'CHERRY HITAM' }] });
     expect(JSON.stringify(report)).not.toContain('"stock":');
   });
   test('conflicting references and variant ownership are not approved', () => {
