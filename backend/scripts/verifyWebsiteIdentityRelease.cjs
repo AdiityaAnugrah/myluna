@@ -76,8 +76,21 @@ async function main() {
     mapping_changed: changed, operator_explicitly_configured: operatorConfigured, database_writes: false }));
 }
 
-module.exports = { VERIFIED, mergedMap, updatedEnvironment, verifyMaster };
-if (require.main === module) main().catch(() => {
+function safeFailureReason(error) {
+  const reasons = new Set(['Invalid map', 'Invalid existing map', 'Conflicting website mapping',
+    'Conflicting master mapping', 'Duplicate environment key', 'Master product preflight failed',
+    'Stored marketplace mapping conflicts', 'Master variant preflight failed',
+    'Configured operator preflight failed', 'Environment changed concurrently']);
+  if (reasons.has(error?.message)) return error.message;
+  if (error instanceof SyntaxError) return 'Invalid JSON configuration or master metadata';
+  const codes = new Set(['ER_ACCESS_DENIED_ERROR', 'ER_BAD_DB_ERROR', 'ER_BAD_FIELD_ERROR',
+    'ER_NO_SUCH_TABLE', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ENOENT', 'EACCES']);
+  return codes.has(error?.code) ? error.code : 'Unexpected preflight failure';
+}
+
+module.exports = { VERIFIED, mergedMap, updatedEnvironment, verifyMaster, safeFailureReason };
+if (require.main === module) main().catch((error) => {
+  console.error('Preflight reason: ' + safeFailureReason(error));
   console.error('Identity release preflight failed. Database records were not modified; inspect schema, mapping and operator configuration privately.');
   process.exitCode = 1;
 });

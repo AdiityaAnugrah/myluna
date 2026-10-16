@@ -1,7 +1,12 @@
 export {};
-const { VERIFIED, mergedMap, updatedEnvironment, verifyMaster } = require('../scripts/verifyWebsiteIdentityRelease.cjs');
+const { VERIFIED, mergedMap, updatedEnvironment, verifyMaster, safeFailureReason } = require('../scripts/verifyWebsiteIdentityRelease.cjs');
 
 describe('read-only identity release preflight', () => {
+  test('diagnostics expose only known reasons, never raw connection or SQL errors', () => {
+    expect(safeFailureReason(new Error('Conflicting master mapping'))).toBe('Conflicting master mapping');
+    expect(safeFailureReason({ code: 'ER_BAD_FIELD_ERROR', message: 'secret SQL' })).toBe('ER_BAD_FIELD_ERROR');
+    expect(safeFailureReason(new Error('secret credential'))).toBe('Unexpected preflight failure');
+  });
   test('adds only confirmed mapping and retains existing mappings', () => {
     expect(mergedMap(JSON.stringify({ BOTHER: '11111111-1111-4111-8111-111111111111' })))
       .toEqual({ BOTHER: '11111111-1111-4111-8111-111111111111', [VERIFIED.websiteId]: VERIFIED.productId });
