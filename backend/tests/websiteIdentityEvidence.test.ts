@@ -47,7 +47,7 @@ describe('read-only production evidence', () => {
   test('operator fallback is described, not silently assigned or called approved', () => {
     const report = operatorEvidence([{ id: 'private-id', isActive: 1, createdAt: '2026-01-01', role_name: 'ADMIN', email: 'private-email' }], '');
     expect(report.resolution_source).toBe('OLDEST_ACTIVE_USER_FALLBACK');
-    expect(report.business_owner_approval).toMatch(/^UNVERIFIED/);
+    expect(report.business_owner_approval).toBe('NOT_DETERMINABLE_FROM_DATABASE_ALONE');
     expect(JSON.stringify(report)).not.toContain('private-');
   });
   test('customer fields and payment credentials are excluded from order evidence', () => {
@@ -72,6 +72,15 @@ describe('read-only production evidence', () => {
     expect(report.sale_date_matches_sender_utc_contract).toBe(true);
     expect(report.stock_movement_quantities_and_arithmetic_match).toBe(true);
     expect(orderEvidence(web, { ...withMovements, movements: [...withMovements.movements, ...withMovements.movements] }).stock_movement_quantities_and_arithmetic_match).toBe(false);
+  });
+  test('same number on WHATSAPP is a collision, never proof of website import', () => {
+    const { web, master } = fixtures();
+    (master.orders as any[]).push({ saleNumber: 'L00000227', platform: 'WHATSAPP', status: 'WAITING_APPROVAL' });
+    (master.items as any[]).push({ productId, quantity: 7 });
+    const report = orderEvidence(web, master);
+    expect(report.master_items_without_product).toBe(0);
+    expect(report.master_reference_classification).toBe('NUMBER_COLLISION_NON_WEBSITE_PLATFORM');
+    expect(report.website_identity_matches_existing_sale).toBe(false);
   });
   test('snapshot always rolls back and selects only guarded queries', async () => {
     const db = { query: jest.fn().mockResolvedValue(undefined), rollback: jest.fn().mockResolvedValue(undefined), execute: jest.fn().mockResolvedValue([[]]) };

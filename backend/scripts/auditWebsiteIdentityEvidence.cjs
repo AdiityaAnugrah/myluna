@@ -155,7 +155,7 @@ function operatorEvidence(users, configuredId) {
     effective_operator_fingerprint: (configured || fallback) ? sha((configured || fallback).id).slice(0, 16) : null,
     effective_role: (configured || fallback)?.role_name || null,
     oldest_created_at_tied: Boolean(fallback && active.filter(u => String(u.createdAt) === String(fallback.createdAt)).length > 1),
-    business_owner_approval: 'UNVERIFIED_NO_OWNER_ASSIGNED_BY_AUDIT' };
+    business_owner_approval: 'NOT_DETERMINABLE_FROM_DATABASE_ALONE' };
 }
 
 function moneyMinor(value) {
@@ -209,6 +209,11 @@ function orderEvidence(web, master, rawMap = '{}', configuredOperatorId = '') {
     website_items_are_array: Array.isArray(items),
     website_item_count: Array.isArray(items) ? items.length : null,
     master_orders: master.orders.map(s => ({ sale_number: s.saleNumber, status: s.status, platform: s.platform || null })),
+    master_reference_classification: !active ? 'NO_UNIQUE_CURRENT_RECORD'
+      : active.platform !== 'WEBSITE' ? 'NUMBER_COLLISION_NON_WEBSITE_PLATFORM'
+      : validFrozen ? 'WEBSITE_WITH_CANONICAL_SNAPSHOT' : 'WEBSITE_LEGACY_IDENTITY_UNVERIFIED',
+    website_identity_matches_existing_sale: Boolean(active?.platform === 'WEBSITE' && validFrozen && lines.length > 0
+      && lines.every(line => line.canonical_item_reference_matches && line.variant_ownership_matches && line.quantity_matches && line.unit_price_matches)),
     master_item_count: master.items.length,
     master_items_without_product: master.items.filter(i => !i.productId).length,
     frozen_identity_snapshot_valid: Boolean(validFrozen),
