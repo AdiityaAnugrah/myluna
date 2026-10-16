@@ -1,7 +1,12 @@
 export {};
-const { VERIFIED, mergedMap, updatedEnvironment, verifyMaster, safeFailureReason } = require('../scripts/verifyWebsiteIdentityRelease.cjs');
+const { VERIFIED, mergedMap, updatedEnvironment, verifyMaster, safeFailureReason, mapDiagnostics } = require('../scripts/verifyWebsiteIdentityRelease.cjs');
 
 describe('read-only identity release preflight', () => {
+  test('mapping diagnostics report shape only, never keys or values', () => {
+    const result = JSON.stringify(mapDiagnostics(JSON.stringify({ 'PRIVATE NAME': 'PRIVATE VALUE' })));
+    expect(result).not.toContain('PRIVATE');
+    expect(result).toContain('"valid_master_uuid":false');
+  });
   test('diagnostics expose only known reasons, never raw connection or SQL errors', () => {
     expect(safeFailureReason(new Error('Conflicting master mapping'))).toBe('Conflicting master mapping');
     expect(safeFailureReason({ code: 'ER_BAD_FIELD_ERROR', message: 'secret SQL' })).toBe('ER_BAD_FIELD_ERROR');

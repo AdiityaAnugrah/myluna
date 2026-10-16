@@ -20,6 +20,22 @@ function mergedMap(raw) {
   return { ...result, [VERIFIED.websiteId]: VERIFIED.productId };
 }
 
+function mapDiagnostics(raw) {
+  try {
+    const map = raw ? JSON.parse(raw) : {};
+    if (!map || Array.isArray(map) || typeof map !== 'object') return { format: 'invalid' };
+    const seen = new Set();
+    return { format: 'object', entries: Object.entries(map).map(([key, value]) => {
+      const validId = typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
+      const duplicate = validId && seen.has(value.toLowerCase());
+      if (validId) seen.add(value.toLowerCase());
+      return { confirmed_website: key === VERIFIED.websiteId,
+        valid_key: /^[A-Za-z0-9_-]{1,100}$/.test(key), valid_master_uuid: validId,
+        confirmed_master: value === VERIFIED.productId, duplicate_master: duplicate };
+    }) };
+  } catch { return { format: 'invalid_json' }; }
+}
+
 function updatedEnvironment(source, map) {
   const pattern = /^(?:[ \t]*export[ \t]+)?[ \t]*LUNA_WEB_PRODUCT_MAP[ \t]*=.*$/gm;
   const matches = source.match(pattern) || [];
@@ -44,6 +60,7 @@ async function main() {
   const filename = path.resolve('.env');
   const original = fs.readFileSync(filename, 'utf8');
   const config = dotenv.parse(original);
+  console.log(JSON.stringify({ mapping_diagnostics: mapDiagnostics(config.LUNA_WEB_PRODUCT_MAP) }));
   const map = mergedMap(config.LUNA_WEB_PRODUCT_MAP);
   const mysql = require('mysql2/promise');
   const db = await mysql.createConnection({ host: config.DB_HOST, port: Number(config.DB_PORT || 3306),
@@ -88,7 +105,7 @@ function safeFailureReason(error) {
   return codes.has(error?.code) ? error.code : 'Unexpected preflight failure';
 }
 
-module.exports = { VERIFIED, mergedMap, updatedEnvironment, verifyMaster, safeFailureReason };
+module.exports = { VERIFIED, mergedMap, updatedEnvironment, verifyMaster, safeFailureReason, mapDiagnostics };
 if (require.main === module) main().catch((error) => {
   console.error('Preflight reason: ' + safeFailureReason(error));
   console.error('Identity release preflight failed. Database records were not modified; inspect schema, mapping and operator configuration privately.');
