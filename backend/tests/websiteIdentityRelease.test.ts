@@ -1,7 +1,20 @@
 export {};
-const { VERIFIED, mergedMap, updatedEnvironment, verifyMaster, safeFailureReason, mapDiagnostics } = require('../scripts/verifyWebsiteIdentityRelease.cjs');
+const { VERIFIED, mergedMap, updatedEnvironment, verifyMaster, safeFailureReason, mapDiagnostics, prepareReleaseMap } = require('../scripts/verifyWebsiteIdentityRelease.cjs');
 
 describe('read-only identity release preflight', () => {
+  test('invalid legacy values require explicit quarantine and are preserved without guessing', () => {
+    const raw = JSON.stringify({ UNKNOWN: 'unresolved-placeholder', BOTHER: '11111111-1111-4111-8111-111111111111' });
+    expect(() => prepareReleaseMap(raw)).toThrow();
+    const result = prepareReleaseMap(raw, true);
+    expect(result.quarantined).toEqual({ UNKNOWN: 'unresolved-placeholder' });
+    expect(result.map).toEqual({ BOTHER: '11111111-1111-4111-8111-111111111111', [VERIFIED.websiteId]: VERIFIED.productId });
+    expect(result.map.UNKNOWN).toBeUndefined();
+  });
+  test('quarantine never resolves conflicting valid UUIDs or malformed map containers', () => {
+    expect(() => prepareReleaseMap(JSON.stringify({ [VERIFIED.websiteId]: '11111111-1111-4111-8111-111111111111' }), true)).toThrow();
+    expect(() => prepareReleaseMap(JSON.stringify({ B1: VERIFIED.productId, B2: VERIFIED.productId }), true)).toThrow();
+    expect(() => prepareReleaseMap('[]', true)).toThrow();
+  });
   test('mapping diagnostics report shape only, never keys or values', () => {
     const result = JSON.stringify(mapDiagnostics(JSON.stringify({ 'PRIVATE NAME': 'PRIVATE VALUE' })));
     expect(result).not.toContain('PRIVATE');

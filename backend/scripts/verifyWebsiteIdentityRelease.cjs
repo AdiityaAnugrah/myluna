@@ -36,6 +36,21 @@ function mapDiagnostics(raw) {
   } catch { return { format: 'invalid_json' }; }
 }
 
+function prepareReleaseMap(raw, quarantineInvalid = false) {
+  if (!quarantineInvalid) return { map: mergedMap(raw), quarantined: {} };
+  const parsed = raw ? JSON.parse(raw) : {};
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error('Invalid map');
+  const valid = {}; const quarantined = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value)) {
+      Object.defineProperty(quarantined, key, { value, enumerable: true });
+    } else {
+      Object.defineProperty(valid, key, { value, enumerable: true });
+    }
+  }
+  return { map: mergedMap(JSON.stringify(valid)), quarantined };
+}
+
 function updatedEnvironment(source, map) {
   const pattern = /^(?:[ \t]*export[ \t]+)?[ \t]*LUNA_WEB_PRODUCT_MAP[ \t]*=.*$/gm;
   const matches = source.match(pattern) || [];
@@ -61,7 +76,8 @@ async function main() {
   const original = fs.readFileSync(filename, 'utf8');
   const config = dotenv.parse(original);
   console.log(JSON.stringify({ mapping_diagnostics: mapDiagnostics(config.LUNA_WEB_PRODUCT_MAP) }));
-  const map = mergedMap(config.LUNA_WEB_PRODUCT_MAP);
+  const { map, quarantined } = prepareReleaseMap(config.LUNA_WEB_PRODUCT_MAP,
+    process.argv.includes('--quarantine-invalid-map'));
   const mysql = require('mysql2/promise');
   const db = await mysql.createConnection({ host: config.DB_HOST, port: Number(config.DB_PORT || 3306),
     database: config.DB_NAME, user: config.DB_USER, password: config.DB_PASSWORD || '', connectTimeout: 10000 });
@@ -83,6 +99,9 @@ async function main() {
     const suffix = Date.now() + '-' + crypto.randomBytes(6).toString('hex');
     const backup = path.join(folder, 'env-before-identity-' + suffix);
     fs.writeFileSync(backup, original, { flag: 'wx', mode: 0o600 });
+    if (Object.keys(quarantined).length) {
+      fs.writeFileSync(path.join(folder, 'unresolved-map-' + suffix + '.json'), JSON.stringify(quarantined), { flag: 'wx', mode: 0o600 });
+    }
     if (fs.readFileSync(filename, 'utf8') !== original) throw new Error('Environment changed concurrently');
     const temp = path.resolve('.env.identity-release-' + suffix + '.tmp');
     fs.writeFileSync(temp, next, { flag: 'wx', mode: fs.statSync(filename).mode & 0o777 });
@@ -90,7 +109,8 @@ async function main() {
     changed = true;
   }
   console.log(JSON.stringify({ identity_preflight: 'passed', verified_product: 'MT120',
-    mapping_changed: changed, operator_explicitly_configured: operatorConfigured, database_writes: false }));
+    mapping_changed: changed, quarantined_invalid_entries: Object.keys(quarantined).length,
+    operator_explicitly_configured: operatorConfigured, database_writes: false }));
 }
 
 function safeFailureReason(error) {
@@ -105,7 +125,7 @@ function safeFailureReason(error) {
   return codes.has(error?.code) ? error.code : 'Unexpected preflight failure';
 }
 
-module.exports = { VERIFIED, mergedMap, updatedEnvironment, verifyMaster, safeFailureReason, mapDiagnostics };
+module.exports = { VERIFIED, mergedMap, updatedEnvironment, verifyMaster, safeFailureReason, mapDiagnostics, prepareReleaseMap };
 if (require.main === module) main().catch((error) => {
   console.error('Preflight reason: ' + safeFailureReason(error));
   console.error('Identity release preflight failed. Database records were not modified; inspect schema, mapping and operator configuration privately.');

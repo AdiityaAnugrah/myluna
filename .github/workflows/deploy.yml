@@ -9,6 +9,11 @@ on:
         type: boolean
         required: true
         default: false
+      quarantine_invalid_mapping:
+        description: 'Privately archive non-UUID legacy entries; never infer their product identity'
+        type: boolean
+        required: true
+        default: false
 
 concurrency:
   group: myluna-production-deploy
@@ -43,7 +48,11 @@ jobs:
             # Schema/data maintenance requires a separate reviewed operation,
             # verified backup and staging restore test. Never run it on deploy.
             if [ "${{ inputs.apply_verified_mt120 }}" = "true" ]; then
-              node scripts/verifyWebsiteIdentityRelease.cjs --apply-verified-mt120
+              if [ "${{ inputs.quarantine_invalid_mapping }}" = "true" ]; then
+                node scripts/verifyWebsiteIdentityRelease.cjs --apply-verified-mt120 --quarantine-invalid-map
+              else
+                node scripts/verifyWebsiteIdentityRelease.cjs --apply-verified-mt120
+              fi
             fi
             pm2 restart luna-backend --update-env
             pm2 restart app_background_lunarea --update-env || true
