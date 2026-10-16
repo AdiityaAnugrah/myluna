@@ -2,9 +2,21 @@ export {};
 const fs = require('node:fs');
 const path = require('node:path');
 const { select, readOnlySnapshot, websiteConfig, mappingEvidence, operatorEvidence, orderEvidence,
-  collectWebsite, collectMaster, safeAuditFailure } = require('../scripts/auditWebsiteIdentityEvidence.cjs');
+  collectWebsite, collectMaster, safeAuditFailure, reportTransport } = require('../scripts/auditWebsiteIdentityEvidence.cjs');
 
 describe('read-only production evidence', () => {
+  test('large catalogue transport is bounded, lossless and hash-verifiable', () => {
+    const report = { data: 'Produk furnitur — '.repeat(10000) };
+    const lines = reportTransport(report);
+    expect(lines.every((line: string) => Buffer.byteLength(line) < 6200)).toBe(true);
+    const begin = JSON.parse(lines[0].split('=', 2)[1]);
+    const chunks = lines.slice(1, -1).map((line: string) => JSON.parse(line.slice(line.indexOf('=') + 1)));
+    expect(chunks).toHaveLength(begin.chunks);
+    const decoded = Buffer.from(chunks.map((chunk: any) => chunk.data).join(''), 'base64').toString('utf8');
+    expect(JSON.parse(decoded)).toEqual(report);
+    expect(require('node:crypto').createHash('sha256').update(decoded).digest('hex')).toBe(begin.sha256);
+    expect(lines[lines.length - 1]).toBe('LUNA_IDENTITY_EVIDENCE_END=' + begin.sha256);
+  });
   test('failure diagnostics never echo credentials or raw SQL', () => {
     expect(safeAuditFailure({ code: 'ER_BAD_FIELD_ERROR', message: 'private query' })).toBe('ER_BAD_FIELD_ERROR');
     expect(safeAuditFailure(new Error('private password'))).toBe('UNCLASSIFIED_FAILURE');

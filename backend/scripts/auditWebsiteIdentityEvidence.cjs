@@ -245,6 +245,15 @@ function orderEvidence(web, master, rawMap = '{}', configuredOperatorId = '') {
     order_created_or_forwarded_by_audit: false };
 }
 
+function reportTransport(report) {
+  const source = JSON.stringify(report), encoded = Buffer.from(source, 'utf8').toString('base64');
+  const chunks = [];
+  for (let offset = 0; offset < encoded.length; offset += 6000) chunks.push(encoded.slice(offset, offset + 6000));
+  return ['LUNA_IDENTITY_EVIDENCE_BEGIN=' + JSON.stringify({ encoding: 'base64', chunks: chunks.length, sha256: sha(source) }),
+    ...chunks.map((data, index) => 'LUNA_IDENTITY_EVIDENCE_CHUNK=' + JSON.stringify({ index, data })),
+    'LUNA_IDENTITY_EVIDENCE_END=' + sha(source)];
+}
+
 async function main() {
   auditStage = 'READ_CONFIGURATION_FILES';
   const backend = process.cwd();
@@ -291,7 +300,8 @@ async function main() {
       production_writes_performed: false, credentials_and_customer_fields_in_report: false };
     if (fs.readFileSync(path.join(backend, '.env'), 'utf8') !== backendFile
       || fs.readFileSync(path.join(website, '.env'), 'utf8') !== websiteFile) throw new Error('Configuration changed during audit');
-    console.log('LUNA_IDENTITY_EVIDENCE_JSON=' + JSON.stringify(report));
+    // SSH/GitHub log readers may silently discard lines above 64 KiB. Every chunk is bounded and hash-verifiable.
+    for (const line of reportTransport(report)) console.log(line);
   } finally { await masterDb.end(); }
 }
 
@@ -304,7 +314,7 @@ function safeAuditFailure(error) {
   return knownMessages.has(error?.message) ? error.message : knownCodes.has(error?.code) ? error.code : 'UNCLASSIFIED_FAILURE';
 }
 
-module.exports = { select, readOnlySnapshot, websiteConfig, mappingEvidence, operatorEvidence, orderEvidence, collectWebsite, collectMaster, safeAuditFailure };
+module.exports = { select, readOnlySnapshot, websiteConfig, mappingEvidence, operatorEvidence, orderEvidence, collectWebsite, collectMaster, safeAuditFailure, reportTransport };
 if (require.main === module || process.env.LUNA_READONLY_AUDIT_STDIN === '1') main().catch((error) => {
   console.error(JSON.stringify({ audit_stage: auditStage, reason: safeAuditFailure(error) }));
   console.error('Read-only evidence audit stopped. No raw SQL, customer data or credentials are printed.');
