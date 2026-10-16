@@ -1,0 +1,33 @@
+name: Read-only website identity evidence
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: myluna-production-deploy
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare reviewed read-only script
+        id: script
+        run: echo "encoded=$(base64 -w0 backend/scripts/auditWebsiteIdentityEvidence.cjs)" >> "$GITHUB_OUTPUT"
+      - name: Read production evidence without deployment
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          AUDIT_SCRIPT_B64: ${{ steps.script.outputs.encoded }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: AUDIT_SCRIPT_B64
+          script: |
+            set -e
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            export PATH=$PATH:/root/.nvm/versions/node/v22.13.0/bin:/usr/local/bin:/usr/bin
+            cd /mine/myluna.web.id/backend
+            export LUNA_READONLY_AUDIT_STDIN=1
+            printf '%s' "$AUDIT_SCRIPT_B64" | base64 --decode | node -
