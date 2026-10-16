@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const dotenv = require('dotenv');
+const { spawnSync } = require('node:child_process');
 
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const PREFIX = 'luna_product_identity_';
@@ -183,18 +184,28 @@ async function main() {
   auditStage = 'CONNECT_MASTER';
   const masterDb = await mysql.createConnection({ host: luna.DB_HOST, port: Number(luna.DB_PORT || 3306),
     user: luna.DB_USER, password: luna.DB_PASSWORD || '', database: luna.DB_NAME, connectTimeout: 10000 });
-  let webDb;
   try {
-    auditStage = 'RESOLVE_WEBSITE_CONNECTION';
-    webDb = await mysql.createConnection(websiteConfig(web));
     auditStage = 'SELECT_MASTER_SNAPSHOT';
     const master = await collectMaster(masterDb);
-    auditStage = 'SELECT_WEBSITE_SNAPSHOT';
-    const websiteData = await collectWebsite(webDb);
+    auditStage = 'SELECT_WEBSITE_SNAPSHOT_WITH_PHP';
+    if (!process.env.AUDIT_PHP_B64) throw new Error('Missing reviewed PHP inspector');
+    const phpSource = Buffer.from(process.env.AUDIT_PHP_B64, 'base64').toString('utf8').replace(/^<\?php\s*/, '');
+    const php = spawnSync('/usr/bin/php', ['-r', phpSource], { cwd: website,
+      env: { ...process.env, LUNA_AUDIT_WEBSITE_ROOT: website }, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 30000 });
+    const marker = 'LUNA_WEBSITE_EVIDENCE_JSON=';
+    const line = String(php.stdout || '').split(/\r?\n/).find(v => v.startsWith(marker));
+    if (php.status !== 0 || !line) {
+      const diagnostic = json(String(php.stderr || '').trim());
+      if (['READ_CONFIGURATION', 'CONNECT_MYSQLI', 'SELECT_SNAPSHOT'].includes(diagnostic?.website_audit_stage)
+        && Number.isInteger(diagnostic?.error_code)) console.error(JSON.stringify({ php_inspector_stage: diagnostic.website_audit_stage, php_error_code: diagnostic.error_code }));
+      throw new Error('PHP website inspection failed');
+    }
+    const websiteData = JSON.parse(line.slice(marker.length));
     auditStage = 'CLASSIFY_EVIDENCE';
     const before = [fingerprint(master.products), fingerprint(master.variants), fingerprint(websiteData.products)];
     const report = { report_version: 1, audit_mode: 'SELECT_ONLY_READ_ONLY_TRANSACTIONS',
       source: 'PRODUCTION_DATABASE_SNAPSHOTS', cross_database_snapshot_is_atomic: false,
+      website_connection_driver: 'PHP_MYSQLI_WITH_CI4_DOTENV_PARSER',
       master_context: master.context, website_context: websiteData.context, website_schema: websiteData.schema,
       config_source: 'DISK_ENV_NOT_LIVE_PROCESS_MEMORY',
       integration_tokens_nonempty_and_equal: Boolean(luna.LUNA_WEB_ORDER_TOKEN && web.LUNA_SYSTEM_WEB_ORDER_TOKEN
@@ -208,12 +219,13 @@ async function main() {
     if (fs.readFileSync(path.join(backend, '.env'), 'utf8') !== backendFile
       || fs.readFileSync(path.join(website, '.env'), 'utf8') !== websiteFile) throw new Error('Configuration changed during audit');
     console.log('LUNA_IDENTITY_EVIDENCE_JSON=' + JSON.stringify(report));
-  } finally { if (webDb) await webDb.end(); await masterDb.end(); }
+  } finally { await masterDb.end(); }
 }
 
 function safeAuditFailure(error) {
   const knownMessages = new Set(['Website connection requires explicit review', 'Website connection incomplete',
-    'Master connection incomplete', 'Configuration changed during audit', 'Non-read-only query rejected']);
+    'Master connection incomplete', 'Configuration changed during audit', 'Non-read-only query rejected',
+    'Missing reviewed PHP inspector', 'PHP website inspection failed']);
   const knownCodes = new Set(['ER_ACCESS_DENIED_ERROR', 'ER_BAD_DB_ERROR', 'ER_BAD_FIELD_ERROR',
     'ER_NO_SUCH_TABLE', 'ER_PARSE_ERROR', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ENOENT', 'EACCES']);
   return knownMessages.has(error?.message) ? error.message : knownCodes.has(error?.code) ? error.code : 'UNCLASSIFIED_FAILURE';

@@ -77,4 +77,11 @@ describe('read-only production evidence', () => {
     expect(workflow).not.toMatch(/git (?:pull|reset)|npm (?:ci|install)|pm2|migrat|apply_verified/i);
     expect(workflow).toContain('LUNA_READONLY_AUDIT_STDIN=1');
   });
+  test('PHP inspector uses the CI4 parser, read-only transaction and no application bootstrap', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, '../scripts/readWebsiteIdentityEvidence.php'), 'utf8');
+    expect(source).toContain('CodeIgniter\\Config\\DotEnv');
+    expect(source).toContain('WITH CONSISTENT SNAPSHOT, READ ONLY');
+    expect(source).toContain('$db->rollback()');
+    expect(source).not.toMatch(/INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|ALTER\s+TABLE|Boot::|spark/);
+  });
 });
