@@ -140,13 +140,14 @@ describe('shipping-only webhook isolation', () => {
     expect(transaction.rollback).toHaveBeenCalled();
   });
 
-  test.each(['legacy', 'internal_delivery'])('missing AWB blocks new imports for %s', async method => {
+  test.each(['legacy', 'internal_delivery'])('reviewed order without AWB passes import validation for %s', async method => {
     const req = { headers: { 'x-luna-webhook-token': 'unit-test-token' }, body: {
-      order_id: 'L00000227', status: 'Proses', customer_email: 'buyer@test.invalid',
+      order_id: 'L00000227', status: 'Proses', customer_email: 'buyer@test.invalid', dry_run: true,
       courier: method === 'internal_delivery' ? 'Jasa Kirim Toko' : 'JNE', shipping_method_code: method,
     } };
     await webOrderIntegrationController.importLunareaOrder(req as any, response, next);
-    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 400 }));
+    expect(next).not.toHaveBeenCalled();
+    expect(response.json).toHaveBeenCalledWith(expect.objectContaining({success:true,data:expect.objectContaining({dryRun:true})}));
     expect(Sale.create).not.toHaveBeenCalled();
     expect(StockMovement.create).not.toHaveBeenCalled();
     expect(transaction.rollback).toHaveBeenCalled();

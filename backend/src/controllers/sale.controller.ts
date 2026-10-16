@@ -9,6 +9,7 @@ import { Op } from 'sequelize';
 import { assertUserDateIsToday } from '../utils/dateGuard';
 import { formatRegionLabel } from '../utils/regionLabel';
 import { assertWebsitePrintConfirmation } from '../utils/websiteShipping';
+import { notifyWebsiteProcessed } from '../services/websiteFulfillment.service';
 import { isUserLikeRole } from '../utils/roles';
 
 const COMPONENT_SALE_TYPE = 'COMPONENT';
@@ -1014,6 +1015,7 @@ export const saleController = {
       await transaction.commit();
       
       // Send real-time notification to TCP team  
+      await notifyWebsiteProcessed(sale);
       socketService.emitToTCP('shipping:ready', {
         message: 'Pesanan siap untuk dikirim',
         saleId: sale.id,

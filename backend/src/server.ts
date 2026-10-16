@@ -5,6 +5,7 @@ import { connectDatabase } from './config/database';
 import { logger } from './utils/logger';
 import { auditService } from './services/audit.service';
 import { socketService } from './services/socket.service';
+import { retryWebsiteProcessed } from './services/websiteFulfillment.service';
 
 async function startServer() {
   try {
@@ -23,6 +24,8 @@ async function startServer() {
       logger.info(`Environment: ${env.NODE_ENV}`);
       logger.info(`API Prefix: ${env.API_PREFIX}`);
       logger.info(`Socket.IO enabled`);
+      // Persisted acknowledgement in Sale.notes survives restarts; no new queue/schema required.
+      setInterval(() => { void retryWebsiteProcessed(); }, 60000).unref();
 
       // Schedule daily cleanup of old audit logs (keep 6 months)
       setInterval(async () => {

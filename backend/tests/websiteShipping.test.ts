@@ -1,6 +1,30 @@
-import { websiteShippingNotes, websiteShippingPricingNotes, websitePreparedResyncNotes, websiteShippingReference, assertWebsitePrintConfirmation } from '../src/utils/websiteShipping';
+import { websiteShippingNotes, websiteShippingPricingNotes, websitePreparedResyncNotes, websiteShippingReference, assertWebsitePrintConfirmation, assertWebsiteShippingReferenceChange } from '../src/utils/websiteShipping';
 
 const shipment = { status: 'Dikirim', shipping_status: 'Dalam Pengiriman', courier: 'JNE', tracking_number: 'TEST12345', shipping_cost: 25000 };
+
+describe('review before AWB workflow', () => {
+  const prepared = {status:'Proses',shipping_status:'Disiapkan',courier:'JNE',tracking_number:'',service_name:'REG'};
+  const notes = websiteShippingNotes(prepared, 'Catatan operator');
+  test('TCP prints and processes current shipping snapshot without a fictional AWB', () => {
+    expect(websiteShippingReference(notes).awb).toBe('');
+    expect(notes).not.toContain('Resi:');
+    const block = notes.match(/\[Pengiriman Website\][\s\S]*?\[\/Pengiriman Website\]/)![0];
+    expect(()=>assertWebsitePrintConfirmation('WEBSITE',notes,{printConfirmed:true,expectedWebsiteShipping:block})).not.toThrow();
+    expect(()=>assertWebsitePrintConfirmation('WEBSITE',notes,{})).toThrow();
+  });
+  test('processed order accepts first AWB but not a changed courier or a replacement AWB', () => {
+    const dispatched = {...prepared,status:'Dikirim',shipping_status:'Dalam Pengiriman',tracking_number:'NEW227',shipping_revision:'2026-10-16 14:00:00'};
+    expect(assertWebsiteShippingReferenceChange(dispatched,'PROCESSED',notes)).toBe(true);
+    expect(()=>assertWebsiteShippingReferenceChange({...dispatched,courier:'TIKI'},'PROCESSED',notes)).toThrow();
+    const saved = websiteShippingNotes(dispatched,notes);
+    expect(()=>assertWebsiteShippingReferenceChange({...dispatched,tracking_number:'OTHER'},'PROCESSED',saved)).toThrow();
+  });
+  test('no-AWB resend after TCP processing is idempotent and preserves later AWB', () => {
+    expect(websitePreparedResyncNotes(prepared,'PROCESSED',notes)).toBe(notes);
+    const dispatched = websiteShippingNotes({...prepared,status:'Dikirim',shipping_status:'Dalam Pengiriman',tracking_number:'NEW227'},notes);
+    expect(websitePreparedResyncNotes(prepared,'PROCESSED',dispatched)).toBe(dispatched);
+  });
+});
 
 describe('website shipping updates', () => {
   test('preserves operator notes and is idempotent', () => {

@@ -600,9 +600,6 @@ export default function SalesProcessPage() {
   const handlePrintClick = useCallback((sale: Sale) => {
     if (isPrintingRef.current || printConfirmation || processMutation.isPending) return;
     if (sale.isCancelPending) { toast.error('Pesanan sedang menunggu keputusan pembatalan.'); return; }
-    if (String(sale.platform) === 'WEBSITE' && !websiteAwb(sale)) {
-      toast.error('Resi website belum tersedia. Sinkronkan resi sebelum mencetak.'); return;
-    }
     printCycleFinishedRef.current = false;
     if (sale.shippingDocument) {
       const viewer = window.open(getPdfUrl(sale.shippingDocument), 'LunaPDFViewer');

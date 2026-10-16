@@ -1,4 +1,5 @@
 import { websitePaymentEnvironment } from '../utils/websitePaymentEnvironment';
+import { websiteFulfillment } from '../services/websiteFulfillment.service';
 import { Request, Response, NextFunction } from 'express';
 import { Op } from 'sequelize';
 import {
@@ -400,7 +401,7 @@ export const webOrderIntegrationController = {
         return successResponse(res, { skipped: true, reason: 'Status belum dibayar' }, 'Order belum masuk proses', 200);
       }
 
-      // Require a real admin-saved AWB, including internal store delivery, before any new Sale.
+      // Admin-reviewed paid orders arrive before AWB creation. Dispatch still requires an AWB.
       const preparedShipping = { ...body, status: 'Proses', shipping_status: 'Disiapkan', courier: body.courier || body.kurir };
       websiteShippingNotes(preparedShipping, null);
       const dryRun = String(req.headers['x-luna-dry-run'] || body.dry_run || '').toLowerCase() === 'true';
@@ -434,7 +435,7 @@ export const webOrderIntegrationController = {
         const notes = websitePreparedResyncNotes(preparedShipping, String(existingSale.status), existingSale.notes);
         if (notes !== existingSale.notes) await existingSale.update({ notes, shippingService: cleanText(preparedShipping.courier) }, { transaction });
         await transaction.commit();
-        return successResponse(res, { ...existingSale.toJSON(), tracking_number: websiteShippingReference(notes).awb, shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website sudah pernah masuk sistem', 200);
+        return successResponse(res, { ...existingSale.toJSON(), fulfillment: websiteFulfillment(existingSale), tracking_number: websiteShippingReference(notes).awb, shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website sudah pernah masuk sistem', 200);
       }
 
       // Sale hooks rename cancelled/rejected numbers. Never silently import those orders again.
@@ -601,7 +602,7 @@ export const webOrderIntegrationController = {
       });
       socketService.broadcastDataRefresh('sales');
 
-      return successResponse(res, { ...sale.toJSON(), tracking_number: websiteShippingReference(sale.notes).awb, shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website Lunarea berhasil masuk sistem', 201);
+      return successResponse(res, { ...sale.toJSON(), fulfillment: websiteFulfillment(sale), tracking_number: websiteShippingReference(sale.notes).awb, shipping_pricing_recorded: !!body.shipping_pricing }, 'Order website Lunarea berhasil masuk sistem', 201);
     } catch (error) {
       await transaction.rollback();
       return next(error);
