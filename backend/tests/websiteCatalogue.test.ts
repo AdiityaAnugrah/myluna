@@ -35,9 +35,9 @@ describe('read-only website catalogue projection', () => {
       variantItems: [{ id: '3b2bb1d3-df78-4272-92b2-87612eac4c1d', value: 'CHERRY HITAM', stock: 44 }] }) }]);
     await websiteCatalogue(request(undefined, { product_id: id }), res, next);
     const body = res.json.mock.calls[0][0];
-    expect(body).toEqual({ success: true, data: { complete: true, products: [{ id, sku: 'MT12', name: 'MT 120', active: true,
-      website_ids: ['B20240116151233'], variants: [{ id: '3b2bb1d3-df78-4272-92b2-87612eac4c1d', value: 'CHERRY HITAM' }] }] } });
-    expect(Product.findAll).toHaveBeenCalledWith(expect.objectContaining({ where: { id }, limit: 1, attributes: ['id', 'sku', 'name', 'isActive', 'marketplaceLinks'] }));
+    expect(body).toEqual({ success: true, data: { complete: true, products: [{ id, sku: 'MT12', name: 'MT 120', active: true, stock: 33,
+      website_ids: ['B20240116151233'], variants: [{ id: '3b2bb1d3-df78-4272-92b2-87612eac4c1d', value: 'CHERRY HITAM', stock: 44 }] }] } });
+    expect(Product.findAll).toHaveBeenCalledWith(expect.objectContaining({ where: { id }, limit: 1, attributes: ['id', 'sku', 'name', 'isActive', 'marketplaceLinks', 'stock'] }));
     expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store'); expect(next).not.toHaveBeenCalled();
   });
   test('does not silently return a truncated catalogue', async () => {

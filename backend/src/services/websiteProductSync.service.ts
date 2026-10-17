@@ -22,6 +22,8 @@ function cleanSlug(value: unknown, fallback: string) {
 }
 
 function syncEnabled() {
+  const stockSync = process.env.LUNAREA_WEBSITE_STOCK_SYNC_ENABLED;
+  if (stockSync !== undefined && stockSync !== '') return String(stockSync).toLowerCase() === 'true';
   return String(process.env.LUNAREA_WEBSITE_PRODUCT_SYNC_ENABLED || '').toLowerCase() === 'true';
 }
 
@@ -80,10 +82,26 @@ async function buildWebsiteProductPayload(product: Product) {
   };
 }
 
+/** Only inventory fields cross to Lunarea; local price, copy and image remain its own. */
+async function buildWebsiteStockPayload(product: Product) {
+  const json: any = product.toJSON();
+  const variants = Array.isArray(json.variantItems) ? json.variantItems : [];
+  return {
+    id: product.id,
+    sku: product.sku,
+    stock: Number(product.stock),
+    variants: variants.map((variant: any) => ({
+      id: variant.id,
+      value: cleanText(variant.value || variant.name),
+      stock: Number(variant.stock),
+    })),
+  };
+}
+
 class WebsiteProductSyncService {
   private timers = new Map<string, SyncTimer>();
 
-  queueProductSync(productId: string, delayMs = 1500) {
+  queueProductSync(productId: string, delayMs = 1500, attempt = 0) {
     if (!productId || !syncEnabled()) return;
 
     const currentTimer = this.timers.get(productId);
@@ -98,6 +116,7 @@ class WebsiteProductSyncService {
           productId,
           message: error instanceof Error ? error.message : String(error),
         });
+        if (attempt < 3) this.queueProductSync(productId, Math.min(30000, 3000 * (2 ** attempt)), attempt + 1);
       });
     }, delayMs);
 
@@ -144,7 +163,8 @@ class WebsiteProductSyncService {
     const response = await postJsonToLunareaWebsite(getSyncUrl(), {
         source: 'luna-system-auto',
         create_missing: false,
-        products: [await buildWebsiteProductPayload(product)],
+        stock_only: true,
+        products: [await buildWebsiteStockPayload(product)],
       },
       {
         token,
@@ -193,7 +213,8 @@ class WebsiteProductSyncService {
     const response = await postJsonToLunareaWebsite(getSyncUrl(), {
         source: 'luna-system-auto-batch',
         create_missing: false,
-        products: await Promise.all(products.map(buildWebsiteProductPayload)),
+        stock_only: true,
+        products: await Promise.all(products.map(buildWebsiteStockPayload)),
       },
       {
         token,
@@ -218,4 +239,4 @@ class WebsiteProductSyncService {
 }
 
 export const websiteProductSyncService = new WebsiteProductSyncService();
-export { buildWebsiteProductPayload };
+export { buildWebsiteProductPayload, buildWebsiteStockPayload };

@@ -19,7 +19,7 @@ export async function websiteCatalogue(req: Request, res: Response, next: NextFu
     }
     const map = websiteProductMap();
     const products = await Product.findAll({
-      attributes: ['id', 'sku', 'name', 'isActive', 'marketplaceLinks'],
+      attributes: ['id', 'sku', 'name', 'isActive', 'marketplaceLinks', 'stock'],
       ...(id ? { where: { id } } : {}),
       include: [{ model: ProductVariant, as: 'variantItems', attributes: ['id', 'value'] }],
       order: [['id', 'ASC']], limit: id ? 1 : 2001,
@@ -32,9 +32,9 @@ export async function websiteCatalogue(req: Request, res: Response, next: NextFu
       for (const value of [linked.websiteId, linked.website_id, ...Object.entries(map).filter(([, value]) => value === row.id).map(([key]) => key)]) {
         if (typeof value === 'string' && value) websiteIds.add(value);
       }
-      return { id: row.id, sku: row.sku, name: row.name, active: !!row.isActive,
+      return { id: row.id, sku: row.sku, name: row.name, active: !!row.isActive, stock: Number(row.stock),
         website_ids: [...websiteIds].sort(),
-        variants: (row.variantItems || []).map((v: any) => ({ id: v.id, value: v.value })).sort((a: any, b: any) => a.id.localeCompare(b.id)) };
+        variants: (row.variantItems || []).map((v: any) => ({ id: v.id, value: v.value, stock: Number(v.stock) })).sort((a: any, b: any) => a.id.localeCompare(b.id)) };
     });
     return res.json({ success: true, data: { products: data, complete: true } });
   } catch (error) { return next(error); }
