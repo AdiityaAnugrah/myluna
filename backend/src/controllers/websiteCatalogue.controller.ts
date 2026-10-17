@@ -4,7 +4,7 @@ import { Product, ProductVariant } from '../models';
 import { websiteProductMap } from '../utils/websiteProductMap';
 import { AppError } from '../utils/errors';
 
-/** Read-only projection for trusted website admins. Never returns stock, costs or secrets. */
+/** Read-only projection for trusted website admins. Returns inventory only, never costs or secrets. */
 export async function websiteCatalogue(req: Request, res: Response, next: NextFunction) {
   res.setHeader('Cache-Control', 'no-store');
   const expected = Buffer.from(process.env.LUNA_WEB_ORDER_TOKEN || '');
@@ -21,7 +21,7 @@ export async function websiteCatalogue(req: Request, res: Response, next: NextFu
     const products = await Product.findAll({
       attributes: ['id', 'sku', 'name', 'isActive', 'marketplaceLinks', 'stock'],
       ...(id ? { where: { id } } : {}),
-      include: [{ model: ProductVariant, as: 'variantItems', attributes: ['id', 'value'] }],
+      include: [{ model: ProductVariant, as: 'variantItems', attributes: ['id', 'value', 'stock'] }],
       order: [['id', 'ASC']], limit: id ? 1 : 2001,
     });
     if (products.length > 2000) throw new AppError('Katalog melebihi batas review. Hubungi pengelola sistem.', 422);
