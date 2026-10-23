@@ -210,23 +210,34 @@ async function notifyWebsiteReturnStatus(record: SaleReturn, note = '') {
     if (!linkedSale || String(linkedSale.platform) !== 'WEBSITE') return;
     const externalOrderId = websiteExternalOrderId(linkedSale);
 
-    await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Luna-Webhook-Token': token,
-      },
-      body: JSON.stringify({
-        order_id: externalOrderId,
-        return_number: payloadRecord?.returnNumber || record.returnNumber,
-        status: record.status,
-        status_label: returnStatusLabel(record.status),
-        note,
-        updated_at: new Date().toISOString(),
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Luna-Webhook-Token': token,
+        },
+        body: JSON.stringify({
+          order_id: externalOrderId,
+          return_number: payloadRecord?.returnNumber || record.returnNumber,
+          status: record.status,
+          status_label: returnStatusLabel(record.status),
+          note,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      const responseBody = await response.json().catch(() => null) as { success?: boolean; duplicate?: boolean } | null;
+      if (!response.ok || responseBody?.success !== true) {
+        throw new Error(`Website callback rejected (${response.status})`);
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
   } catch (error) {
-    console.error('Gagal mengirim status retur ke website Lunarea', error);
+    console.error('Gagal mengirim status retur ke website Lunarea', error instanceof Error ? error.message : 'unknown');
   }
 }
 
