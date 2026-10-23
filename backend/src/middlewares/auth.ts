@@ -14,7 +14,7 @@ export async function auth(req: Request, _res: Response, next: NextFunction) {
     }
 
     const token = authHeader.substring(7);
-    logger.info(`[AUTH] Incoming request for ${req.method} ${req.path}. Token: ${token.substring(0, 10)}... (length: ${token.length})`);
+    logger.info(`[AUTH] Incoming request for ${req.method} ${req.path}`);
 
     try {
       const decoded = jwt.verify(token, jwtConfig.access.secret) as {
@@ -57,7 +57,7 @@ export async function auth(req: Request, _res: Response, next: NextFunction) {
       return next();
     } catch (error) {
       if (error instanceof jwt.JsonWebTokenError) {
-        logger.warn(`[AUTH] Invalid token: ${error.message}. Token start: ${token.substring(0, 10)}...`);
+        logger.warn(`[AUTH] Invalid token: ${error.message}`);
         return next(new UnauthorizedError('Invalid token'));
       } else if (error instanceof jwt.TokenExpiredError) {
         logger.warn(`[AUTH] Token expired`);

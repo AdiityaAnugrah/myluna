@@ -13,7 +13,8 @@ app.set('trust proxy', 1);
 
 // Global Request Logger
 app.use((req, _res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  // Request query strings can contain OAuth codes, reset tokens, or identifiers.
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
 

@@ -11,8 +11,9 @@ export function rbac(allowedRoles: string[]) {
     const userRole = req.user.roleName.toUpperCase();
     const requiredRoles = rolesWithAdminOrder(allowedRoles).map(r => r.toUpperCase());
 
-    // DEV berada di atas semua role, TESTING tetap bisa akses untuk simulasi end-to-end.
-    if (userRole === 'DEV' || userRole === 'TESTING') {
+    // TESTING write requests are short-circuited by auth middleware; do not
+    // grant the test role access to production data on read routes.
+    if (userRole === 'DEV') {
       return next();
     }
 

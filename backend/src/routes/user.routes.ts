@@ -20,7 +20,7 @@ router.use(auth);
  *       200:
  *         description: Users retrieved successfully
  */
-router.get('/', userController.getAll);
+router.get('/', checkRole(['SUPER_ADMIN']), userController.getAll);
 
 /**
  * @swagger
@@ -32,7 +32,7 @@ router.get('/', userController.getAll);
  *       200:
  *         description: Roles retrieved successfully
  */
-router.get('/roles', userController.getRoles);
+router.get('/roles', checkRole(['SUPER_ADMIN']), userController.getRoles);
 
 /**
  * @swagger
@@ -44,7 +44,7 @@ router.get('/roles', userController.getRoles);
  *       200:
  *         description: User retrieved successfully
  */
-router.get('/:id', userController.getById);
+router.get('/:id', checkRole(['SUPER_ADMIN']), userController.getById);
 
 /**
  * @swagger

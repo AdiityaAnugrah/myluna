@@ -74,7 +74,16 @@ export const userController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
       const { page = 1, limit = 10, search, roleId } = req.query;
-      const offset = (Number(page) - 1) * Number(limit);
+      const pageNumber = Number(page);
+      const limitNumber = Number(limit);
+      if (!Number.isSafeInteger(pageNumber) || pageNumber < 1
+        || !Number.isSafeInteger(limitNumber) || limitNumber < 1 || limitNumber > 100) {
+        throw new AppError('Parameter halaman atau batas data tidak valid', 400);
+      }
+      if (search !== undefined && (typeof search !== 'string' || search.length > 100)) {
+        throw new AppError('Kata pencarian tidak valid', 400);
+      }
+      const offset = (pageNumber - 1) * limitNumber;
 
       const where: any = {};
       
@@ -94,7 +103,7 @@ export const userController = {
 
       const { count, rows } = await User.findAndCountAll({
         where,
-        limit: Number(limit),
+        limit: limitNumber,
         offset,
         include: [
           {
@@ -111,8 +120,8 @@ export const userController = {
         users: rows,
         pagination: {
           total: count,
-          page: Number(page),
-          totalPages: Math.ceil(count / Number(limit)),
+          page: pageNumber,
+          totalPages: Math.ceil(count / limitNumber),
         },
       }, 'Users retrieved successfully');
     } catch (error) {
